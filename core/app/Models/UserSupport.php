@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class UserSupport extends Model
 {
     use HasFactory;
+    protected $connection = 'main_db';
     protected $table = 'user_support';
 
     public function user(){

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class UserOpenaiChat extends Model
 {
     use HasFactory;
+    protected $connection = 'main_db';
     protected $table = 'user_openai_chat';
 
     public function messages(){

@@ -2368,19 +2368,20 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $user_id=$request->user_id;
         $usage=$request->usage;
         $data=$request->data;
+        $params=$request->params;
 
-        Log::debug('User ID log in smaisync_tokens API from Digital_Asset : '.$user_id);
+        Log::debug('User ID log in smaisync_tokens in Main APIsController from Digital_Asset : '.$user_id);
 
-        SMAIsyncController::SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$data);
+        SMAIsyncController::SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$data,$params);
 
         // if not called from SocialPost add extra update to MobileApp table
-        SMAIsyncController::SMAI_UpdateGPT_MobileApp($user_id,$usage,$data);
+        SMAIsyncController::SMAI_UpdateGPT_MobileApp($user_id,$usage,$data,$params);
 
         // if not called from SocialPost add extra update to SocialPost SP table
-        SMAIsyncController::SMAI_UpdateGPT_SocialPost($user_id,$usage,$data);
+        SMAIsyncController::SMAI_UpdateGPT_SocialPost($user_id,$usage,$data,$params);
 
         // if not called from SocialPost add extra update to MainCoIn table
-        SMAIsyncController::SMAI_UpdateGPT_MainCoIn($user_id,$usage,$data);
+        SMAIsyncController::SMAI_UpdateGPT_MainCoIn($user_id,$usage,$data,$params);
 
     }
     

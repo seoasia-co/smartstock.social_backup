@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class OpenaiGeneratorFilter extends Model
 {
     use HasFactory;
+    protected $connection = 'main_db';
     protected $table = 'openai_filters';
     public $timestamps = false;
 }

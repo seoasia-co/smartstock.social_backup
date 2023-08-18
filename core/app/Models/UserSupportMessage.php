@@ -8,4 +8,5 @@ use Illuminate\Database\Eloquent\Model;
 class UserSupportMessage extends Model
 {
     use HasFactory;
+    protected $connection = 'main_db';
 }

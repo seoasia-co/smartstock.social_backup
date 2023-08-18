@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class SP_UserOpenai extends Model
 {
+
     use HasFactory;
+    protected $connection = 'main_db';
     protected $table = 'sp_user_openai';
 
     public function generator(){

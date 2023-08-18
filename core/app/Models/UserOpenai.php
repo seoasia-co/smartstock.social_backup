@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class UserOpenai extends Model
 {
     use HasFactory;
+    protected $connection = 'main_db';
     protected $table = 'user_openai';
 
     public function generator(){
