@@ -40,13 +40,14 @@ use App\Models\Mobile_UserOpenai;
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\File;
-use Illuminate\Support\Facades\Log;
+//use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use OpenAI;
 use OpenAI\Laravel\Facades\OpenAI as FacadesOpenAI;
 
-
+use Log;
+use DB;
 
 
 class SMAIsyncController extends Controller
@@ -65,7 +66,7 @@ class SMAIsyncController extends Controller
     }
 
 
-    public static  function SMAI_UpdateGPT_MainCoIn($user_id,$usage,$response,$params)
+    public  function SMAI_UpdateGPT_MainCoIn($user_id,$usage,$response,$params)
 {
 
     $settings = $this->settings;
@@ -73,6 +74,9 @@ class SMAIsyncController extends Controller
 
     if(isset($user_id))
     {     
+        $responsedText="";
+        $output="";
+        $total_used_tokens=0;
  
         Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_MainCoIn from SMAIsyncController : '.$user_id);
          if ($settings->openai_default_model == 'gpt-3.5-turbo') {
@@ -81,7 +85,7 @@ class SMAIsyncController extends Controller
                  $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                  $output .= $messageFix;
                  $responsedText .= $message;
-                 $total_used_tokens += countWords($messageFix);
+                 $total_used_tokens += Helper::countWords($messageFix);
  
                  $string_length = Str::length($messageFix);
                  $needChars = 6000 - $string_length;
@@ -93,13 +97,38 @@ class SMAIsyncController extends Controller
                  flush();
                  usleep(500);
              }
+             else{
+                if(isset($response))
+                   {
+                            $json_array = json_decode($response, true);
+                         if(isset($json_array['choices']))  
+                         { 
+                            $choices = $json_array['choices'];
+                            $postContent = $choices[0]["text"];
+                            //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
+                            $postContent=$json_array['choices'][0]['text'];
+                            if( Str::length($postContent) > 0 )
+                            {
+                                $message=trim($postContent);
+                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
+                                $output .= $messageFix;
+                                $responsedText .= $message;
+                                $total_used_tokens += Helper::countWords($messageFix);
+                
+                                $string_length = Str::length($messageFix);
+                                $needChars = 6000 - $string_length;
+                                $random_text = Str::random($needChars);
+                            }
+                        }
+                  }
+             }
          } else {
              if (isset($response->choices[0]->text)) {
                  $message = $response->choices[0]->text;
                  $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                  $output .= $messageFix;
                  $responsedText .= $message;
-                 $total_used_tokens += countWords($messageFix);
+                 $total_used_tokens += Helper::countWords($messageFix);
  
                  $string_length = Str::length($messageFix);
                  $needChars = 6000 - $string_length;
@@ -111,25 +140,55 @@ class SMAIsyncController extends Controller
                  flush();
                  //usleep(500);
              }
+             else{
+                if(isset($response))
+                   {
+                            $json_array = json_decode($response, true);
+                         if(isset($json_array['choices']))  
+                         { 
+                            $choices = $json_array['choices'];
+                            $postContent = $choices[0]["text"];
+                            //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
+                            $postContent=$json_array['choices'][0]['text'];
+                            if( Str::length($postContent) > 0 )
+                            {
+                                $message=trim($postContent);
+                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
+                                $output .= $messageFix;
+                                $responsedText .= $message;
+                                $total_used_tokens += Helper::countWords($messageFix);
+                
+                                $string_length = Str::length($messageFix);
+                                $needChars = 6000 - $string_length;
+                                $random_text = Str::random($needChars);
+                            }
+                        }
+                  }
+             }
          }
  
-         $params_json = json_decode($params);
-         $keywords='';
-         $description=$params_json->prompt;
+         $params_json = json_decode($params,true);
+        $keywords='';
+        $description=$params_json["prompt"];
         $creativity=1;
         $number_of_results=1;
         $tone_of_voice=0;
         $maximum_length=2000;
+        $language="en";
         $post_type = 'paragraph_generator';
         $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
             Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
             ";
 
+       
+         // Save Users of Digital_Asset
+         $user = \DB::connection('main_db')->table('users')->where('id',$user_id)->get();
+         //$users = DB::connection('second_db')->table('users')->get();
          
          $post = OpenAIGenerator::where('slug', $post_type)->first();
          $entry = new UserOpenai();
          $entry->title = 'New Workbook';
-         $entry->slug = str()->random(7) . str($user->fullName())->slug() . '-workbook';
+         $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
          $entry->user_id = $user_id;
          $entry->openai_id = $post->id;
          $entry->input = $prompt;
@@ -153,24 +212,22 @@ class SMAIsyncController extends Controller
          $message->save();
 
 
-
-
-
- 
-         //$user = Auth::user();
-         // Save Users of Digital_Asset
-         $user = \DB::connection('digitalasset_db')->table('users')->select('id',$user_id)->get();
-         //$users = DB::connection('second_db')->table('users')->get();
          
-         if ($user->remaining_words != -1) {
-             $user->remaining_words -= $total_used_tokens;
-             $user->save();
-         }
- 
-         if ($user->remaining_words < -1) {
-             $user->remaining_words = 0;
-             $user->save();
-         }
+         //Update new remaining Tokens
+        $user = \DB::connection('main_db')->table('users')->where('id',$user_id)->get();
+        if ($user[0]->remaining_words != -1) {
+            $user[0]->remaining_words -= $total_used_tokens;
+            $new_remaining_words= $user[0]->remaining_words - $total_used_tokens;
+           // $user[0]->save();
+           $user_update= DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words,$user_id));
+        }
+
+        if ($user[0]->remaining_words < -1) {
+            $user[0]->remaining_words = 0;
+           // $user[0]->save();
+           $new_remaining_words=0;
+           $user_update=DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words,$user_id));
+        }
  
          echo 'data: [DONE]';
          echo "\n\n";
@@ -187,7 +244,7 @@ class SMAIsyncController extends Controller
  }
 
 
-    public static  function SMAI_UpdateGPT_SocialPost($user_id,$usage,$response,$params)
+    public  function SMAI_UpdateGPT_SocialPost($user_id,$usage,$response,$params)
 {
 
             /*  $suggestion = post("suggestion");
@@ -219,6 +276,9 @@ class SMAIsyncController extends Controller
 
         if(isset($user_id))
         {     
+            $responsedText="";
+            $output="";
+            $total_used_tokens=0;
      
             Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_SocialPost from SMAIsyncController : '.$user_id);
              if ($settings->openai_default_model == 'gpt-3.5-turbo') {
@@ -227,7 +287,7 @@ class SMAIsyncController extends Controller
                      $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                      $output .= $messageFix;
                      $responsedText .= $message;
-                     $total_used_tokens += countWords($messageFix);
+                     $total_used_tokens += Helper::countWords($messageFix);
      
                      $string_length = Str::length($messageFix);
                      $needChars = 6000 - $string_length;
@@ -239,13 +299,38 @@ class SMAIsyncController extends Controller
                      flush();
                      usleep(500);
                  }
+                 else{
+                    if(isset($response))
+                    {
+                             $json_array = json_decode($response, true);
+                          if(isset($json_array['choices']))  
+                          { 
+                             $choices = $json_array['choices'];
+                             $postContent = $choices[0]["text"];
+                             //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
+                             $postContent=$json_array['choices'][0]['text'];
+                             if( Str::length($postContent) > 0 )
+                             {
+                                 $message=trim($postContent);
+                                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
+                                 $output .= $messageFix;
+                                 $responsedText .= $message;
+                                 $total_used_tokens += Helper::countWords($messageFix);
+                 
+                                 $string_length = Str::length($messageFix);
+                                 $needChars = 6000 - $string_length;
+                                 $random_text = Str::random($needChars);
+                             }
+                         }
+                   }
+                 }
              } else {
                  if (isset($response->choices[0]->text)) {
                      $message = $response->choices[0]->text;
                      $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                      $output .= $messageFix;
                      $responsedText .= $message;
-                     $total_used_tokens += countWords($messageFix);
+                     $total_used_tokens += Helper::countWords($messageFix);
      
                      $string_length = Str::length($messageFix);
                      $needChars = 6000 - $string_length;
@@ -257,25 +342,56 @@ class SMAIsyncController extends Controller
                      flush();
                      //usleep(500);
                  }
+                 else{
+
+                   if(isset($response))
+                   {
+                            $json_array = json_decode($response, true);
+                         if(isset($json_array['choices']))  
+                         { 
+                            $choices = $json_array['choices'];
+                            $postContent = $choices[0]["text"];
+                            //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
+                            $postContent=$json_array['choices'][0]['text'];
+                            if( Str::length($postContent) > 0 )
+                            {
+                                $message=trim($postContent);
+                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
+                                $output .= $messageFix;
+                                $responsedText .= $message;
+                                $total_used_tokens += Helper::countWords($messageFix);
+                
+                                $string_length = Str::length($messageFix);
+                                $needChars = 6000 - $string_length;
+                                $random_text = Str::random($needChars);
+                            }
+                        }
+                  }
+
+
+                 }
              }
      
-             $params_json = json_decode($params);
-             $keywords='';
-             $description=$params_json->prompt;
+             $params_json = json_decode($params,true);
+        $keywords='';
+        $description=$params_json["prompt"];
         $creativity=1;
         $number_of_results=1;
         $tone_of_voice=0;
         $maximum_length=2000;
+        $language="en";
         $post_type = 'paragraph_generator';
         $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
             Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
             ";
-
+// Save Users of SocialPOst
+$user = \DB::connection('main_db')->table('users')->where('id',$user_id)->get();
+//$users = DB::connection('second_db')->table('users')->get();
          
              $post = OpenAIGenerator::where('slug', $post_type)->first();
-             $entry = new UserOpenai();
+             $entry = new SP_UserOpenai();
              $entry->title = 'New Workbook';
-             $entry->slug = str()->random(7) . str($user->fullName())->slug() . '-workbook';
+             $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
              $entry->user_id = $user_id;
              $entry->openai_id = $post->id;
              $entry->input = $prompt;
@@ -296,20 +412,23 @@ class SMAIsyncController extends Controller
              $message->words = 0;
              $message->save();
      
-             //$user = Auth::user();
+            
              // Save Users of Digital_Asset
-             $user = \DB::connection('digitalasset_db')->table('users')->select('id',$user_id)->get();
-             //$users = DB::connection('second_db')->table('users')->get();
-             
-             if ($user->remaining_words != -1) {
-                 $user->remaining_words -= $total_used_tokens;
-                 $user->save();
-             }
-     
-             if ($user->remaining_words < -1) {
-                 $user->remaining_words = 0;
-                 $user->save();
-             }
+             //Update new remaining Tokens
+        $user = \DB::connection('main_db')->table('users')->where('id',$user_id)->get();
+        if ($user[0]->remaining_words != -1) {
+            $user[0]->remaining_words -= $total_used_tokens;
+            $new_remaining_words= $user[0]->remaining_words - $total_used_tokens;
+           // $user[0]->save();
+           $user_update= DB::connection('main_db')->update('update sp_users set remaining_words = ? where id = ?', array($new_remaining_words,$user_id));
+        }
+
+        if ($user[0]->remaining_words < -1) {
+            $user[0]->remaining_words = 0;
+           // $user[0]->save();
+           $new_remaining_words=0;
+           $user_update=DB::connection('main_db')->update('update sp_users set remaining_words = ? where id = ?', array($new_remaining_words,$user_id));
+        }
      
              echo 'data: [DONE]';
              echo "\n\n";
@@ -325,7 +444,7 @@ class SMAIsyncController extends Controller
      
      }
 
-public static  function SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$response,$params)
+public  function SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$response,$params)
 {
    // Update Token and usage 
    $settings = $this->settings;
@@ -334,26 +453,66 @@ public static  function SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$response,$p
 
 
         if(isset($user_id))
-   {     
+   {    
+    
+    $responsedText="";
+    $output="";
+    $total_used_tokens=0;
+
     Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_DigitalAsset from SMAIsyncController : '.$user_id);
 
+    //$response=json_decode($response,true);
+
+    
+
+    Log::info(print_r($response, true));
+
         if ($settings->openai_default_model == 'gpt-3.5-turbo') {
+            Log::debug('Response in gpt-3.5-turbo SMAI_UpdateGPT_DigitalAsset from SMAIsyncController ');
             if (isset($response['choices'][0]['delta']['content'])) {
                 $message = $response['choices'][0]['delta']['content'];
                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                 $output .= $messageFix;
                 $responsedText .= $message;
-                $total_used_tokens += countWords($messageFix);
+                $total_used_tokens += Helper::countWords($messageFix);
 
                 $string_length = Str::length($messageFix);
                 $needChars = 6000 - $string_length;
                 $random_text = Str::random($needChars);
 
-
+                Log::debug(' response_choices SMAI_UpdateGPT_DigitalAsset from SMAIsyncController : '.info(print_r($response['choices'], true)));
                 echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
                 ob_flush();
                 flush();
                 usleep(500);
+            }
+            else{
+                if(isset($response))
+                {
+                         $json_array = json_decode($response, true);
+                      if(isset($json_array['choices']))  
+                      { 
+                         $choices = $json_array['choices'];
+                         $postContent = $choices[0]["text"];
+                         //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
+                         $postContent=$json_array['choices'][0]['text'];
+                         if( Str::length($postContent) > 0 )
+                         {
+                             $message=trim($postContent);
+                             $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
+                             $output .= $messageFix;
+                             $responsedText .= $message;
+                             $total_used_tokens += Helper::countWords($messageFix);
+             
+                             $string_length = Str::length($messageFix);
+                             $needChars = 6000 - $string_length;
+                             $random_text = Str::random($needChars);
+                         }
+                     }
+               }
+
+
+
             }
         } else {
             if (isset($response->choices[0]->text)) {
@@ -361,37 +520,76 @@ public static  function SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$response,$p
                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                 $output .= $messageFix;
                 $responsedText .= $message;
-                $total_used_tokens += countWords($messageFix);
+                $total_used_tokens += Helper::countWords($messageFix);
 
                 $string_length = Str::length($messageFix);
                 $needChars = 6000 - $string_length;
                 $random_text = Str::random($needChars);
 
+                Log::debug(' response_choices in else SMAI_UpdateGPT_DigitalAsset from SMAIsyncController : '.info(print_r($response['choices'], true)));
 
                 echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
                 ob_flush();
                 flush();
                 //usleep(500);
             }
+
+            else{
+
+                if(isset($response))
+                   {
+                            $json_array = json_decode($response, true);
+                         if(isset($json_array['choices']))  
+                         { 
+                            $choices = $json_array['choices'];
+                            $postContent = $choices[0]["text"];
+                            //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
+                            $postContent=$json_array['choices'][0]['text'];
+                            if( Str::length($postContent) > 0 )
+                            {
+                                $message=trim($postContent);
+                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
+                                $output .= $messageFix;
+                                $responsedText .= $message;
+                                $total_used_tokens += Helper::countWords($messageFix);
+                
+                                $string_length = Str::length($messageFix);
+                                $needChars = 6000 - $string_length;
+                                $random_text = Str::random($needChars);
+                            }
+                        }
+                  }
+            }
         }
 
-        $params_json = json_decode($params);
+        //Log::info(print_r($response, true));
+        
+        Log::debug('$params SMAI_UpdateGPT_DigitalAsset from SMAIsyncController : '.info(print_r($params, true)));
+        
+        //Log::debug('$params smaisync_tokens from APIsController : '.info(json_encode($params)));
+        Log::info(print_r($params, true));
+
+        $params_json = json_decode($params,true);
         $keywords='';
-        $description=$params_json->prompt;
+        $description=$params_json["prompt"];
         $creativity=1;
         $number_of_results=1;
         $tone_of_voice=0;
         $maximum_length=2000;
+        $language="en";
         $post_type = 'paragraph_generator';
         $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
             Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
             ";
 
-         
+          // Save Users of Digital_Asset
+        $user = \DB::connection('digitalasset_db')->table('users')->where('id',$user_id)->get();
+        //$users = DB::connection('second_db')->table('users')->get();
+
          $post = OpenAIGenerator::where('slug', $post_type)->first();
-         $entry = new UserOpenai();
+         $entry = new DigitalAsset_UserOpenai();
          $entry->title = 'New Workbook';
-         $entry->slug = str()->random(7) . str($user->fullName())->slug() . '-workbook';
+         $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
          $entry->user_id = $user_id;
          $entry->openai_id = $post->id;
          $entry->input = $prompt;
@@ -404,6 +602,8 @@ public static  function SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$response,$p
  
          $message_id = $entry->id;
 
+         Log::info(print_r("Inserted new openai to ID ".$message_id, true));
+
         // Create UserOpenai Models belong to OpenAIGenerator Models
         $message = DigitalAsset_UserOpenai::whereId($message_id)->first();
         $message->response = $responsedText;
@@ -413,19 +613,20 @@ public static  function SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$response,$p
         $message->words = 0;
         $message->save();
 
-        //$user = Auth::user();
-        // Save Users of Digital_Asset
-        $user = \DB::connection('digitalasset_db')->table('users')->select('id',$user_id)->get();
-        //$users = DB::connection('second_db')->table('users')->get();
-        
-        if ($user->remaining_words != -1) {
-            $user->remaining_words -= $total_used_tokens;
-            $user->save();
+      //Update new remaining Tokens
+        $user = \DB::connection('digitalasset_db')->table('users')->where('id',$user_id)->get();
+        if ($user[0]->remaining_words != -1) {
+            $user[0]->remaining_words -= $total_used_tokens;
+            $new_remaining_words= $user[0]->remaining_words - $total_used_tokens;
+           // $user[0]->save();
+           $user_update= DB::connection('digitalasset_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words,$user_id));
         }
 
-        if ($user->remaining_words < -1) {
-            $user->remaining_words = 0;
-            $user->save();
+        if ($user[0]->remaining_words < -1) {
+            $user[0]->remaining_words = 0;
+           // $user[0]->save();
+           $new_remaining_words=0;
+           $user_update=DB::connection('digitalasset_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words,$user_id));
         }
 
         echo 'data: [DONE]';
@@ -442,13 +643,17 @@ public static  function SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$response,$p
 
 }
 
-public static function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$params)
+public function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$params)
 {
     $settings = $this->settings;
     $settings_two = $this->settings_two;
 
       if(isset($user_id))
    {     
+
+    $responsedText="";
+    $output="";
+    $total_used_tokens=0;
 
     Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_MobileApp from SMAIsyncController : '.$user_id);
         if ($settings->openai_default_model == 'gpt-3.5-turbo') {
@@ -457,7 +662,7 @@ public static function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$param
                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                 $output .= $messageFix;
                 $responsedText .= $message;
-                $total_used_tokens += countWords($messageFix);
+                $total_used_tokens += Helper::countWords($messageFix);
 
                 $string_length = Str::length($messageFix);
                 $needChars = 6000 - $string_length;
@@ -469,13 +674,38 @@ public static function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$param
                 flush();
                 usleep(500);
             }
+            else{
+                if(isset($response))
+                   {
+                            $json_array = json_decode($response, true);
+                         if(isset($json_array['choices']))  
+                         { 
+                            $choices = $json_array['choices'];
+                            $postContent = $choices[0]["text"];
+                            //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
+                            $postContent=$json_array['choices'][0]['text'];
+                            if( Str::length($postContent) > 0 )
+                            {
+                                $message=trim($postContent);
+                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
+                                $output .= $messageFix;
+                                $responsedText .= $message;
+                                $total_used_tokens += Helper::countWords($messageFix);
+                
+                                $string_length = Str::length($messageFix);
+                                $needChars = 6000 - $string_length;
+                                $random_text = Str::random($needChars);
+                            }
+                        }
+                  }
+             }
         } else {
             if (isset($response->choices[0]->text)) {
                 $message = $response->choices[0]->text;
                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                 $output .= $messageFix;
                 $responsedText .= $message;
-                $total_used_tokens += countWords($messageFix);
+                $total_used_tokens += Helper::countWords($messageFix);
 
                 $string_length = Str::length($messageFix);
                 $needChars = 6000 - $string_length;
@@ -487,24 +717,56 @@ public static function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$param
                 flush();
                 //usleep(500);
             }
+            else{
+                if(isset($response))
+                   {
+                            $json_array = json_decode($response, true);
+                         if(isset($json_array['choices']))  
+                         { 
+                            $choices = $json_array['choices'];
+                            $postContent = $choices[0]["text"];
+                            //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
+                            $postContent=$json_array['choices'][0]['text'];
+                            if( Str::length($postContent) > 0 )
+                            {
+                                $message=trim($postContent);
+                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
+                                $output .= $messageFix;
+                                $responsedText .= $message;
+                                $total_used_tokens += Helper::countWords($messageFix);
+                
+                                $string_length = Str::length($messageFix);
+                                $needChars = 6000 - $string_length;
+                                $random_text = Str::random($needChars);
+                            }
+                        }
+                  }
+             }
         }
 
-        $params_json = json_decode($params);
+        $params_json = json_decode($params,true);
         $keywords='';
-        $description=$params_json->prompt;
+        $description=$params_json["prompt"];
         $creativity=1;
         $number_of_results=1;
         $tone_of_voice=0;
         $maximum_length=2000;
+        $language="en";
         $post_type = 'paragraph_generator';
         $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
             Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
             ";
 
+        
+        // Save Users of Mobile App
+        $user = \DB::connection('mobileapp_db')->table('users')->where('id',$user_id)->get();
+        //$users = DB::connection('second_db')->table('users')->get();
+        
+
          $post = OpenAIGenerator::where('slug', $post_type)->first();
-         $entry = new UserOpenai();
+         $entry = new Mobile_UserOpenai();
          $entry->title = 'New Workbook';
-         $entry->slug = str()->random(7) . str($user->fullName())->slug() . '-workbook';
+         $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
          $entry->user_id = $user_id;
          $entry->openai_id = $post->id;
          $entry->input = $prompt;
@@ -525,19 +787,21 @@ public static function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$param
         $message->words = 0;
         $message->save();
 
-        //$user = Auth::user();
-        // Save Users of Digital_Asset
-        $user = \DB::connection('digitalasset_db')->table('users')->select('id',$user_id)->get();
-        //$users = DB::connection('second_db')->table('users')->get();
-        
-        if ($user->remaining_words != -1) {
-            $user->remaining_words -= $total_used_tokens;
-            $user->save();
+
+        //Update new remaining Tokens
+        $user = \DB::connection('mobileapp_db')->table('users')->where('id',$user_id)->get();
+        if ($user[0]->remaining_words != -1) {
+            $user[0]->remaining_words -= $total_used_tokens;
+            $new_remaining_words= $user[0]->remaining_words - $total_used_tokens;
+           // $user[0]->save();
+           $user_update= DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words,$user_id));
         }
 
-        if ($user->remaining_words < -1) {
-            $user->remaining_words = 0;
-            $user->save();
+        if ($user[0]->remaining_words < -1) {
+            $user[0]->remaining_words = 0;
+           // $user[0]->save();
+           $new_remaining_words=0;
+           $user_update=DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words,$user_id));
         }
 
         echo 'data: [DONE]';
@@ -554,33 +818,72 @@ public static function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$param
 
 }
 
-public static  function SMAI_Update_Main_UserPlans()
+public  function SMAI_Update_Main_UserPlans()
 {
 
 
 
 }
 
-public static  function SMAI_Update_Mobile_UserPlans()
+public  function SMAI_Update_Mobile_UserPlans()
 {
 
 
 
 }
 
-public static  function SMAI_Update_DigitalAsset_UserPlans()
+public  function SMAI_Update_DigitalAsset_UserPlans()
 {
 
 
 
 }
 
-public static  function SMAI_Update_SocialPost_UserPlans()
+public  function SMAI_Update_SocialPost_UserPlans()
 {
 
 
 
 }
+
+public  function SMAI_Check_DigitalAsset_UserColumn($user_id,$key,$database)
+{
+
+    /*   Log::debug('User ID  SMAI_Check_DigitalAsset_UserPlans from SMAIsyncController : '.$user_id);
+        Log::debug('Key SMAI_Check_DigitalAsset_UserPlans from SMAIsyncController : '.$key);
+        Log::debug('Database SMAI_Check_DigitalAsset_UserPlans from SMAIsyncController : '.$database);
+
+    */
+
+    //$database=strval($database);
+    if($user_id>0)
+    {
+    $user = DB::connection($database)->table('users')->where('id', $user_id)->first();
+    
+    //$user = DB::connection('digitalasset_db')->table('users')->where('id', $user_id)->first();
+    
+    //$column=strval($key);
+
+    $token_total=$user->remaining_words;
+    Log::debug('Remaining Word from DB SMAI_Check_DigitalAsset_UserPlans from SMAIsyncController : '.$token_total);
+
+    echo $token_total;
+    return $token_total;
+
+    }
+    else{
+        return false;
+    }
+
+
+}
+
+    public  function SMAI_Check_SocialPost_UserPlans()
+    {
+
+
+
+    }
 
 
 }

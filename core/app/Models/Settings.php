@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Settings extends Model
 {
     use HasFactory;
-    protected $connection = 'main_db';
+    protected $connection = 'mysql_sync';
     protected $table = 'settings';
     protected  $guarded =  [];
 }

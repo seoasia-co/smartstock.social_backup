@@ -2368,20 +2368,43 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $user_id=$request->user_id;
         $usage=$request->usage;
         $data=$request->data;
-        $params=$request->params;
+        $params=$request->params_input;
 
+        Log::debug('$params smaisync_tokens from APIsController : '.info(print_r($params, true)));
+        Log::info(print_r($params, true));
         Log::debug('User ID log in smaisync_tokens in Main APIsController from Digital_Asset : '.$user_id);
 
-        SMAIsyncController::SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$data,$params);
+        $new_update_digitalasset=NEW SMAIsyncController();
+        $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$data,$params);
 
+
+        //$new_update_mobileapp=NEW SMAIsyncController();
         // if not called from SocialPost add extra update to MobileApp table
-        SMAIsyncController::SMAI_UpdateGPT_MobileApp($user_id,$usage,$data,$params);
+        $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id,$usage,$data,$params);
 
+
+        //$new_update_socialpost=NEW SMAIsyncController();
         // if not called from SocialPost add extra update to SocialPost SP table
-        SMAIsyncController::SMAI_UpdateGPT_SocialPost($user_id,$usage,$data,$params);
+        $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id,$usage,$data,$params);
 
+
+        //$new_update_main=NEW SMAIsyncController();
         // if not called from SocialPost add extra update to MainCoIn table
-        SMAIsyncController::SMAI_UpdateGPT_MainCoIn($user_id,$usage,$data,$params);
+        $new_update_digitalasset->SMAI_UpdateGPT_MainCoIn($user_id,$usage,$data,$params);
+
+    }
+
+    public function smaicheck_column(Request $request)
+    {
+
+        //read user_id , key (column name), databse
+        $user_id=$request->user_id;
+        $key=$request->key;
+        $database=$request->database;
+
+        $checktoken_digitalasset=NEW SMAIsyncController();
+        $checktoken_digitalasset->SMAI_Check_DigitalAsset_UserColumn($user_id,$key,$database);
+
 
     }
     

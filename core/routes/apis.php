@@ -38,4 +38,5 @@ Route::post('/contact', 'APIsController@ContactPageSubmit');
 
 // SMAI Sync data
 Route::post('/smaisync/tokens', 'APIsController@smaisync_tokens');
+Route::post('/smaicheck/column', 'APIsController@smaicheck_column');
 
