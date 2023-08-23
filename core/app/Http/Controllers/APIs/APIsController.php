@@ -27,6 +27,9 @@ use Mail;
 use App\Http\Controllers\APIs\SMAIsyncController;
 use Log;
 
+use App\Http\Controllers\Auth\SMAISessionAuthController;
+
+
 class APIsController extends Controller
 {
     public function __construct()
@@ -2397,7 +2400,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
     public function smaicheck_column(Request $request)
     {
 
-        //read user_id , key (column name), databse
+        //read user_id , key (column name), database
         $user_id=$request->user_id;
         $key=$request->key;
         $database=$request->database;
@@ -2405,6 +2408,75 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $checktoken_digitalasset=NEW SMAIsyncController();
         $checktoken_digitalasset->SMAI_Check_DigitalAsset_UserColumn($user_id,$key,$database);
 
+
+    }
+
+    public function smaiupdate_column(Request $request)
+    {
+
+        //read user_id , key (column name), database
+        $user_id=$request->user_id;
+        $key=$request->key;
+        $database=$request->database;
+
+        $update_column_digitalasset=NEW SMAIsyncController();
+        $update_column_digitalasset->SMAI_Update_UserColumn($user_id,$key,$database);
+
+
+    }
+
+    public function smainewuser_createallfreetrial(Request $request)
+    {
+
+        //read data, key (column name), database
+        
+        $uid=$request->userId;  
+
+        if(isset($request->email))
+        $user_email=$request->email;
+        
+        $new_signup=NEW SMAISessionAuthController($request);
+        
+        //TODO SocialPost Demo
+         //create session DB
+        
+         $user_id =  $new_signup->freetrial_socialpost($request,$uid);
+         //EOF TODO SocialPost Demo
+
+         echo $user_id;
+        
+        $user_id =$uid;
+
+        //TODO Main .co.in Demo
+        $new_signup->freetrial_main_co_in($request,$user_id);
+
+        //TODO Mobile app Demo
+        $new_signup->freetrial_mobileApp($request,$user_id);
+        //EOF TODO Mobile app Demo
+        
+
+        //TODO Design app Demo
+        //$id = auth()->user()->id;
+        //$user = User::where('id', $id )->first();
+        
+        $new_signup->freetrial_design($request,$user_id);
+
+        
+        
+        //TODO newMobileV2 app
+
+        if(isset($request->platform))
+        $from=$request->platform;
+        else
+        $from='';
+
+        if($from=="MobileAppV2")
+        $new_signup->freetrial_mobileAppV2_email($request,$user_id,$user_email);
+        else
+        $new_signup->freetrial_mobileAppV2($request,$user_id);
+
+
+       
 
     }
     

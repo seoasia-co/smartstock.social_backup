@@ -37,6 +37,8 @@ use App\Models\SP_UserOpenai;
 use App\Models\DigitalAsset_UserOpenai;
 use App\Models\Mobile_UserOpenai;
 
+use App\Models\SP_UserCaption;
+
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\File;
@@ -411,6 +413,12 @@ $user = \DB::connection('main_db')->table('users')->where('id',$user_id)->get();
              $message->credits = $total_used_tokens;
              $message->words = 0;
              $message->save();
+
+             //add to SP_Captions for show in socialpost caption list
+        $caption_table="sp_captions";
+        $caption_database="main_db";
+        $this->SMAI_Ins_Eloq_openAI_Caption_Socialpost($description,$responsedText,$user_id,$message_id,$caption_database,$caption_table);
+
      
             
              // Save Users of Digital_Asset
@@ -787,6 +795,7 @@ public function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$params)
         $message->words = 0;
         $message->save();
 
+        
 
         //Update new remaining Tokens
         $user = \DB::connection('mobileapp_db')->table('users')->where('id',$user_id)->get();
@@ -884,6 +893,145 @@ public  function SMAI_Check_DigitalAsset_UserColumn($user_id,$key,$database)
 
 
     }
+
+    public  function SMAI_Update_UserColumn()
+{
+
+
+
+
+}
+
+public  function SMAI_Update_TableColumn($arr_ids,$database,$table,$data)
+{
+
+
+    $array_of_ids=$arr_ids;
+    $table_update = DB::connection($database)->table($table)->whereIn('id', $array_of_ids)->update(array('votes' => 1));
+
+
+
+}
+
+public function SMAI_Ins_TableColumn($database,$table,$data_arr)
+{
+    $createMultipleUsers = [
+        [
+            'name'=>'Admin',
+            'email'=>'admin@techvblogs.com', 
+            'password' => bcrypt('TechvBlogs@123')],
+
+        [
+            'name'=>'Guest',
+            'email'=>'guest@techvblogs.com', 
+            'password' => bcrypt('Guest@456')],
+
+        [
+            'name'=>'Account',
+            'email'=>'account@techvblogs.com', 
+            'password' => bcrypt('Account@789')]
+        ];
+
+        $data_arr=[];
+        $data_arr=$createMultipleUsers;
+
+       // User::insert($createMultipleUsers); // Eloquent
+
+       $table_ins = DB::connection($database)->table($table)->insert($data_arr); 
+        // Query Builder
+
+   }
+
+   public function SMAI_Ins_Eloq_openAI_content_TB($user_id,$database,$table)
+   {
+
+     //define Users
+    $user = \DB::connection($database)->table('users')->where('id',$user_id)->get();
+    //$users = DB::connection('second_db')->table('users')->get();
+    
+    $post = OpenAIGenerator::where('slug', $post_type)->first();
+    $entry = new Mobile_UserOpenai();
+    $entry->title = 'New Workbook';
+    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+    $entry->user_id = $user_id;
+    $entry->openai_id = $post->id;
+    $entry->input = $prompt;
+    $entry->response = null;
+    $entry->output = null;
+    $entry->hash = str()->random(256);
+    $entry->credits = 0;
+    $entry->words = 0;
+    $entry->save();
+
+    $message_id = $entry->id;
+    // 
+
+
+
+   }
+
+   public function SMAI_QryAll_Eloq_openAI_content_TB($user_id,$database,$table)
+   {
+
+
+   }
+
+   public function SMAI_QryFilter_Eloq_openAI_content_TB($user_id,$database,$table)
+   {
+
+
+   }
+
+   public function SMAI_Ins_Eloq_openAI_Caption_Socialpost($title,$content,$user_id,$openai_id,$database,$table)
+   {
+
+    //switch on
+
+    //define Users
+    $user = \DB::connection($database)->table('sp_team')->where('owner',$user_id)->get();
+    //$users = DB::connection('second_db')->table('users')->get();
+    //$post = OpenAIGenerator::where('slug', $post_type)->first();
+
+    $team_id=$user[0]->id;
+    if(isset($openai_id) && $openai_id>0)
+    $parentid=$openai_id;
+    else
+    $parentid='';
+
+    $entry = new SP_UserCaption();
+
+    $entry->user_id = $user_id;
+    $entry->team_id = $team_id;
+    $entry->parent_id = $parentid;
+    $entry->title = $title;
+    $entry->content = $content;
+    $entry->ids = str()->random(13);
+    $entry->changed = time();
+    $entry->created = time();
+    $entry->save();
+
+
+   }
+
+   public  function SMAI_Check_Universal_UserPlans($database,$platform)
+    {
+
+        //1.where's the Plan of each $platform
+        //2.when the Plan was or will be changed
+
+
+    }
+
+    public  function SMAI_Update_Universal_UserPlans($database,$platform,$plan_id)
+    {
+
+        //1.where's the Plan of each $platform
+        //2.when the Plan was or will be changed
+
+
+
+    }
+
 
 
 }
