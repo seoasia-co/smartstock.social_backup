@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Auth;
+namespace App\Http\Controllers\APIs;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
@@ -39,35 +39,34 @@ use App\Models\DigitalAsset_UserOpenai;
 use App\Models\Mobile_UserOpenai;
 
 use App\Models\SP_UserCaption;
-use App\Models\PlanMobile;
-
-use App\Models\UserBioBlog;
-use App\Models\UserBio;
-use App\Models\UserSyncNodeJS;
-
-
-
 
 use App\Models\Settings;
 
-class SMAISessionAuthController extends Controller
+
+
+class SMAIUpdateProfileController extends Controller
 {
-    //
+  
 
     //protected $request; 
     protected $hash_password;
     // request as an attribute of the controllers
+
+
+    public function checkColumnExist($column,$table,$db){
+        try{
+            $has_table = Schema::connection($db)->hasColumn($table,$column);
+            return $has_table;
+        }
+        catch(\Exception $e){
+            return false;
+        }
+    }
+
+
     public function __construct($request_mobile)
     {
        
-        
-        /* if(isset($request->password))
-        {
-            $this->hash_password=Hash::make($request->password);
-        }
-        else{
-            $this->hash_password=Hash::make(Str::random(24));
-        }  */
 
          $data=$request_mobile->data;
         
@@ -154,7 +153,7 @@ class SMAISessionAuthController extends Controller
     } 
     
     
-    public function freetrial_socialpost($request,$main_id=null)
+    public function up_profile_socialpost($request,$main_id=null)
     {
        
 
@@ -264,8 +263,7 @@ class SMAISessionAuthController extends Controller
                      "status" => 2,
                      "changed" => time(),
                      "created" => time(),
-                     'remaining_words' => 6500,
-                     'remaining_images' => 150,
+                    
                  ];
             }
             else{
@@ -290,8 +288,7 @@ class SMAISessionAuthController extends Controller
                      "status" => 2,
                      "changed" => time(),
                      "created" => time(),
-                     'remaining_words' => 6500,
-                     'remaining_images' => 150,
+                    
                  ];
 
 
@@ -310,7 +307,7 @@ class SMAISessionAuthController extends Controller
        
       
         /*  db_insert(TB_TEAM, $save_team);  */
-        $team_id =  DB::connection('main_db')->table('sp_team')->insert( $save_team);
+        $team_id =  DB::connection('main_db')->table('sp_team')->update( $save_team);
  
         if(isset($main_id) && $main_id != NULL &&  $main_id != null )
          return -1;
@@ -324,7 +321,7 @@ class SMAISessionAuthController extends Controller
 
     }
 
-    public function freetrial_mobileApp($request,$user_id)
+    public function up_profile_mobileApp($request,$user_id)
     {
         if(isset($request->password))
         {
@@ -333,7 +330,7 @@ class SMAISessionAuthController extends Controller
         else{
              $privatehash_password=Hash::make(Str::random(24));
         }
-        //TODO Mobile app Demo
+        //TODO Mobile Old app Demo
         $MobileApp_connected=1;
         if($MobileApp_connected==1)
         {
@@ -362,11 +359,18 @@ class SMAISessionAuthController extends Controller
         }
     
     
-        //EOF TODO Mobile app Demo
+        //EOF TODO Mobile Old app Demo
     }
 
-    public function freetrial_main_co_in($request,$user_id)
+    public function up_profile_main_co_in($request,$user_id,$whatup,$db,$table)
     {
+
+        $userdata=[];
+
+        // for check if column existing
+        // $user_column_on= $this->checkColumnExist($column,$table,$db);
+
+
         if(isset($request->password))
         {
              $privatehash_password=Hash::make($request->password);
@@ -375,76 +379,220 @@ class SMAISessionAuthController extends Controller
              $privatehash_password=Hash::make(Str::random(24));
         }
 
-        if(isset($request->surname))
-        $surname_ins=$request->surname;
-        else
-        $surname_ins='';
-        
-         //TODO DEMO
 
-         $APP_Status="Demo";
-
-         $affCode = null;
-        if ($request->affiliate_code != null) {
-            $affUser = DB::connection('main_db')->table('users')->where('affiliate_code', $request->affiliate_code)->first();
-            if ($affUser != null) {
-                $affCode = $affUser->id;
-            }
-        } 
-
-         /* if (env('APP_STATUS') == 'Demo') { */
-
-        if($user_id>0)
+        if (in_array("profile", $whatup))
         {
-            $updated_user=0;
-            
-                $userdata = [
-                'id' => $user_id,
-                'name' => $request->name,
-                'surname' => $surname_ins,
-                'email' => $request->email,
-                'email_confirmation_code' => Str::random(67),
-                'remaining_words' => 6500,
-                'remaining_images' => 150,
-                'password' => $this->hash_password,
-                'email_verification_code' => Str::random(67),
-                'affiliate_id' => $affCode,
-                'affiliate_code' => Str::upper(Str::random(12)),
-            ];
 
-            //bug bug add check if user exist and use update
+        //basic_profile universal
+        if(isset($request->password))
+        $userdata['password']=$privatehash_password;
 
-            $user_old=UserMain::where('email', $request->email)->orderBy('id','asc')->first();   
 
-          if($user_old->id < 1 || $user_old->id == NULL)  
-          {
-            $user_id =  DB::connection('main_db')->table('users')->insertGetId($userdata);
+        //basic_profile main co in
+        if(isset($request->surname))
+        $userdata['surname']=$request->surname;
+        
+        //basic_profile universal
+        if(isset($request->name))
+        $userdata['name']=$request->name;
 
-          }
-        }
-       else{
+        //basic_profile universal
+        if(isset($request->email))
+        $userdata['email']=$request->email;
 
-        $userdata = [
-            
-            'name' => $request->name,
-            'surname' => $surname_ins,
-            'email' => $request->email,
-            'email_confirmation_code' => Str::random(67),
-            'remaining_words' => 6500,
-            'remaining_images' => 150,
-            'password' => $this->hash_password,
-            'email_verification_code' => Str::random(67),
-            'affiliate_id' => $affCode,
-            'affiliate_code' => Str::upper(Str::random(12)),
-        ];
 
-        $user =UserMain::where('id', '=', $user_id)->update($userdata);
-            
-        }
+         //basic_profile socialpost mobile bio
+        if(isset($request->username))
+        $userdata['username']=$request->username;    
 
     }
 
-    public function freetrial_main_marketing($request,$user_id)
+    if (in_array("plan", $whatup))
+    /* if($whatup=="plan") */
+    {
+
+        //plan universal
+        if(isset($request->plan))
+        $userdata['plan']=$request->plan;
+
+        //plan main_marketing=package_id  /  main_coin=plan
+        if(isset($request->package_id))
+        $userdata['package_id']=$request->package_id;
+
+          //extra_profile bio
+     if(isset($request->plan_id))
+     $userdata['plan_id']=$request->plan_id;
+
+
+     //extra_profile bio
+     if(isset($request->plan_settings))
+     $userdata['plan_settings']=$request->plan_settings;
+
+     
+
+        //plan universal
+        if(isset($request->remaining_words))
+        $userdata['remaining_words']=$request->remaining_words;
+
+         //plan universal
+        if(isset($request->remaining_words))
+        $userdata['remaining_images']=$request->remaining_images;
+
+        //plan mobile_new
+        if(isset($request->words_left))
+        $userdata['words_left']=$request->words_left;
+
+
+        //plan mobile_new
+        if(isset($request->image_left))
+        $userdata['image_left']=$request->image_left;
+        
+
+           //plan mobile_old
+        if(isset($request->available_words))
+        $userdata['available_words']=$request->available_words;
+
+        //plan mobile_old
+        if(isset($request->available_images))
+        $userdata['available_images']=$request->available_images;
+
+        //plan mobile_old
+        if(isset($request->total_words))
+        $userdata['total_words']=$request->total_words;
+        
+        //plan mobile_old
+        if(isset($request->total_images))
+        $userdata['total_images']=$request->total_images;
+
+
+        //plan universal
+        if(isset($request->expiration_date))
+        $userdata['expiration_date']=$request->expiration_date;
+
+        //plan mobile_old
+        if(isset($request->plan_expire_date))
+        $userdata['plan_expire_date']=$request->plan_expire_date;
+
+        //plan main
+        if(isset($request->expired_date))
+        $userdata['expired_date']=$request->expired_date;
+
+        //extra_profile bio
+     if(isset($request->plan_expiration_date))
+     $userdata['plan_expiration_date']=$request->plan_expiration_date;
+
+
+
+     //plan main
+     if(isset($request->last_login_at))
+     $userdata['last_login_at']=$request->last_login_at;
+
+
+     //plan main
+     if(isset($request->last_login_ip))
+     $userdata['last_login_ip']=$request->last_login_ip;
+
+
+      //plan main
+      if(isset($request->under_which_affiliate_user))
+      $userdata['under_which_affiliate_user']=$request->under_which_affiliate_user;
+        
+
+    }
+
+    if (in_array("extra_profile", $whatup))
+   /*  if($whatup=="extra_profile") */
+    {
+
+        //extra_profile socialpost
+        if(isset($request->ids))
+        $userdata['ids']=$request->remaining_images;
+
+        //extra_profile socialpost
+        if(isset($request->is_admin))
+        $userdata['is_admin']=$request->is_admin;
+
+        //extra_profile socialpost
+        if(isset($request->role))
+        $userdata['role']=$request->role;
+
+        //extra_profile socialpost
+        if(isset($request->fullname))
+        $userdata['fullname']=$request->fullname;
+
+        //extra_profile socialpost
+        if(isset($request->timezone))
+        $userdata['timezone']=$request->timezone;
+
+        //extra_profile socialpost
+        if(isset($request->language))
+        $userdata['language']=$request->language;
+
+        //extra_profile socialpost
+        if(isset($request->login_type))
+        $userdata['login_type']=$request->login_type;
+
+        //extra_profile socialpost
+        if(isset($request->avatar))
+        $userdata['avatar']=$request->avatar;
+
+
+       //extra_profile socialpost
+        if(isset($request->last_login))
+        $userdata['last_login']=$request->last_login;
+
+        //extra_profile main ,socialpost ,Design
+        if(isset($request->status))
+        $userdata['status']=$request->status;
+     
+ 
+        //extra_profile socialpost
+        if(isset($request->changed))
+        $userdata['changed']=$request->changed;
+
+
+        //extra_profile mobile_new=User,   mobile_old=user,super admin / main_marketing=Member,admin 
+        if(isset($request->user_type))
+        $userdata['user_type']=$request->user_type;
+
+        //extra_profile mobile_old
+        if(isset($request->created_by))
+        $userdata['created_by']=$request->created_by;
+
+        //extra_profile Design
+    if(isset($request->phone_no))
+    $userdata['phone_no']=$request->phone_no;
+
+
+     //extra_profile Design
+     if(isset($request->profile_pic))
+     $userdata['profile_pic']=$request->profile_pic;
+
+     //extra_profile mobile_new
+     if(isset($request->image))
+     $userdata['image']=$request->image;
+     
+     //extra_profile bio
+     if(isset($request->timezone))
+     $userdata['timezone']=$request->timezone;
+
+      //extra_profile bio
+      if(isset($request->is_newsletter_subscribed))
+      $userdata['is_newsletter_subscribed']=$request->is_newsletter_subscribed;
+
+
+    }
+
+
+
+            $user =UserMain::where('id', '=', $user_id)
+            ->update($userdata);
+
+        
+
+    }
+
+    public function up_profile_main_marketing($request,$user_id)
     {
         if(isset($request->password))
         {
@@ -486,7 +634,7 @@ class SMAISessionAuthController extends Controller
     }
 
 
-    public function freetrial_design($request,$main_id)
+    public function up_profile_design($request,$main_id)
     {
 
         Log::debug('before insert new Design Name :'.$request->name);
@@ -535,7 +683,7 @@ class SMAISessionAuthController extends Controller
 
                 // change to Laravel insert
 				//$insert_id = $this->Common_DML->put_data( 'users', $array );
-                $insert_id  = DB::connection('digitalasset_db')->table('users')->insert($array);
+                $update_id  = DB::connection('digitalasset_db')->table('users')->update($array);
 
 
 				$folder = 'user_'.$insert_id;
@@ -562,6 +710,7 @@ class SMAISessionAuthController extends Controller
 				//echo json_encode( array( 'status' => 1, 'msg' =>html_escape($this->lang->line('ltr_auth_reset_msg3')), 'url' => base_url() . 'dashboard' ) );	
                 //Log::debug('after insert new Design user Status1 : '.json_encode( array( 'status' => 1, 'msg' =>html_escape($this->lang->line('ltr_auth_reset_msg3')), 'url' => base_url() . 'dashboard' ) ));
             }else{
+                $update_id  = DB::connection('digitalasset_db')->table('users')->update($array);
 				//echo json_encode( array( 'status' => 0, 'msg' =>html_escape($this->lang->line('ltr_auth_reset_msg4'))) );
 			}
 			
@@ -574,16 +723,16 @@ class SMAISessionAuthController extends Controller
     }
 
 
-    public function freetrial_mobileAppV2($request,$user_id)
+    public function up_profile_mobileAppV2($request,$user_id)
     {
 
-        if(isset($request->image))
+        if(iseet($request->image))
         $user_avatar=$request->image;
         else
         $user_avatar='';
 
 
-        $assign_plan=PlanMobile::where('plan_price',0)->orderBy('id','asc')->first();
+        $assign_plan=PlanMobile::where('price',0)->orderBy('id','asc')->first();
             $userdata = [
                 'id' => $user_id,
                 'name' => $request->name,
@@ -599,22 +748,13 @@ class SMAISessionAuthController extends Controller
                 
             ];
 
-            $user_old=UserMobile::where('email', $request->email)->orderBy('id','asc')->first();   
-
-          if($user_old->id > 0)  
-          {
             $user =UserMobile::where('id', '=', $user_id)
-             ->update($userdata);
-          }
-          else{
-            $insert_id  = DB::connection('mobileapp_db')->table('users')->insert($userdata);
-
-          }
+        ->update($userdata);
 
     }
 
 
-    public function freetrial_mobileAppV2_email($request,$user_id,$user_email)
+    public function up_profile_mobileAppV2_email($request,$user_id,$user_email)
     {
 
         //$assign_plan=PlanMobile::where('price',0)->orderBy('id','asc')->first();
@@ -633,113 +773,33 @@ class SMAISessionAuthController extends Controller
                 
             ];
 
-            $user_old=UserMobile::where('email', $request->email)->orderBy('id','asc')->first();   
-
-          if($user_old->id > 0)  
-          {
             $user =UserMobile::where('email', '=', $user_email)
-             ->update($userdata);
-          }
-          else{
-            $insert_id  = DB::connection('mobileapp_db')->table('users')->insert($userdata);
-
-          }
-    }
-
-
-    function freetrial_bio_blog($request,$user_id)
-    {
-        if(isset($request->username))
-        $username_ins=$request->username;
-        else
-        $username_ins=$request->email;
-
-        $userdata = [
-            'id' => $user_id,
-            'name' => $request->name,
-            'email' => $request->email,
-            'username' => $username_ins,
-            'password' => $this->hash_password,
-        ];
-
-        $insert_id  = DB::connection('bio_blog_db')->table('users')->insert($userdata);
-    }
-
-    function freetrial_sync_node($request,$user_id)
-    {
-        $userdata = [
-            'id' => $user_id,
-            'uid' =>  Str::random(32),
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => $this->hash_password,
-        ];
-        $insert_id  = DB::connection('sync_db')->table('user')->insert($userdata);
-
-    }
-
-    function freetrial_crm($request,$user_id)
-    {
-       
-        $userdata = [
-            'id' => $user_id,
-            'name' => $request->name,
-            'email' => $request->email,
-            
-        ];
-/* 
-     $user =LeadsCRM::where('tblleads', '=', $user_email)
-    ->update($userdata); */
-
-    $insert_id  = DB::connection('crm_db')->table('tblleads')->insert($userdata);
+        ->update($userdata);
 
     }
 
 
-    function freetrial_bio()
+    public function up_profile_bio($request,$user_id,$user_email)
     {
 
 
-        $registered_user = (new User())->create(
-            $_POST['email'],
-            $_POST['password'],
-            $_POST['name'],
-            (int) !settings()->users->email_confirmation,
-            'direct',
-            $email_code,
-            null,
-            $_POST['is_newsletter_subscribed'],
-            $plan_id,
-            $plan_settings,
-            $plan_expiration_date,
-            settings()->main->default_timezone
-        );
+    }
 
-
-
-        /* Determine what plan is set by default */
-        $plan_id                    = 'free';
-        $plan_settings              = json_encode(settings()->plan_free->settings);
-        $plan_expiration_date       = \Altum\Date::$date;
-        $lost_password_code         = md5($email . microtime());
-
-        $registered_user = (new User())->create(
-            $email,
-            null,
-            $name,
-            1,
-            $method,
-            null,
-            $lost_password_code,
-            false,
-            $plan_id,
-            $plan_settings,
-            $plan_expiration_date,
-            settings()->main->default_timezone
-        );
+    public function up_profile_bio_blog($request,$user_id,$user_email)
+    {
 
 
     }
+
+
+    public function up_profile_crm($request,$user_id,$user_email)
+    {
+
+
+    }
+
+
+ 
 
 
 

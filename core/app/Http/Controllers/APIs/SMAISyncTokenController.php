@@ -39,6 +39,8 @@ use App\Models\Mobile_UserOpenai;
 
 use App\Models\SP_UserCaption;
 
+use App\Models\UserMain;
+
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\File;
@@ -52,7 +54,7 @@ use Log;
 use DB;
 
 
-class SMAIsyncController extends Controller
+class SMAISyncTokenController extends Controller
 {
     protected $client;
     protected $settings;
@@ -1013,11 +1015,53 @@ public function SMAI_Ins_TableColumn($database,$table,$data_arr)
 
    }
 
-   public  function SMAI_Check_Universal_UserPlans($database,$platform)
+   public  function SMAI_Check_Universal_UserPlans($user_id,$database,$platform)
     {
 
         //1.where's the Plan of each $platform
         //2.when the Plan was or will be changed
+
+        if($database=='main_db' && $platform=='MainCoIn')
+        $user =UserMain::where('id', '=', $user_id)->orderBy('id','asc')->first();
+        else if($database=='main_db' && $platform=='SocialPost')
+        $user =UserSP::where('id', '=', $user_id)->orderBy('id','asc')->first();
+        else if($database=='digitalasset_db' && $platform=='Design')
+        $user =UserDesign::where('id', '=', $user_id)->orderBy('id','asc')->first();
+        else if($database=='digitalasset_db' && $platform=='MobileAppV2')
+        $user =UserMobile::where('id', '=', $user_id)->orderBy('id','asc')->first();
+        else
+        $user=NULL;
+
+       
+        if($user!= NULL)
+        {
+        $user_plan=$user->plan;
+        $user_plan_expire=$user->plan_expire_date;
+        $user_sp_plan=$user->sp_plan;
+        $user_mobile_plan=$user->mobile_plan;
+        $user_design_plan=$user->design_plan;
+        $user_sync_plan=$user->sync_plan;
+
+
+
+        $return_plan= array(
+
+            "plan_id" => $user_plan,
+            "expire" => $user_plan_expire,
+            "mobile_plan_id" => $user_mobile_plan,
+            "sp_plan_id" => $user_sp_plan,
+
+
+        );
+
+
+            return $return_plan;
+       }
+        else{
+
+            return 0;
+
+        }
 
 
     }
@@ -1027,6 +1071,9 @@ public function SMAI_Ins_TableColumn($database,$table,$data_arr)
 
         //1.where's the Plan of each $platform
         //2.when the Plan was or will be changed
+
+
+
 
 
 

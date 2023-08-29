@@ -24,7 +24,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Mail;
 
-use App\Http\Controllers\APIs\SMAIsyncController;
+use App\Http\Controllers\APIs\SMAISyncTokenController;
 use Log;
 
 use App\Http\Controllers\Auth\SMAISessionAuthController;
@@ -2377,21 +2377,21 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         Log::info(print_r($params, true));
         Log::debug('User ID log in smaisync_tokens in Main APIsController from Digital_Asset : '.$user_id);
 
-        $new_update_digitalasset=NEW SMAIsyncController();
+        $new_update_digitalasset=NEW SMAISyncTokenController();
         $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$data,$params);
 
 
-        //$new_update_mobileapp=NEW SMAIsyncController();
+        //$new_update_mobileapp=NEW SMAISyncTokenController();
         // if not called from SocialPost add extra update to MobileApp table
         $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id,$usage,$data,$params);
 
 
-        //$new_update_socialpost=NEW SMAIsyncController();
+        //$new_update_socialpost=NEW SMAISyncTokenController();
         // if not called from SocialPost add extra update to SocialPost SP table
         $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id,$usage,$data,$params);
 
 
-        //$new_update_main=NEW SMAIsyncController();
+        //$new_update_main=NEW SMAISyncTokenController();
         // if not called from SocialPost add extra update to MainCoIn table
         $new_update_digitalasset->SMAI_UpdateGPT_MainCoIn($user_id,$usage,$data,$params);
 
@@ -2405,7 +2405,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $key=$request->key;
         $database=$request->database;
 
-        $checktoken_digitalasset=NEW SMAIsyncController();
+        $checktoken_digitalasset=NEW SMAISyncTokenController();
         $checktoken_digitalasset->SMAI_Check_DigitalAsset_UserColumn($user_id,$key,$database);
 
 
@@ -2419,43 +2419,50 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $key=$request->key;
         $database=$request->database;
 
-        $update_column_digitalasset=NEW SMAIsyncController();
+        $update_column_digitalasset=NEW SMAISyncTokenController();
         $update_column_digitalasset->SMAI_Update_UserColumn($user_id,$key,$database);
 
 
     }
 
+    //SMAI for add new user from all Platforms
     public function smainewuser_createallfreetrial(Request $request)
     {
 
         //read data, key (column name), database
         
-        $uid=$request->userId;  
+        if(isset($request->userId))
+        $uid=$request->userId;
+        else
+        $uid=$request->id;
 
         if(isset($request->email))
         $user_email=$request->email;
         
         $new_signup=NEW SMAISessionAuthController($request);
         
-        //TODO SocialPost Demo
+         //1.TODO add new user SocialPost Demo
          //create session DB
         
          $user_id =  $new_signup->freetrial_socialpost($request,$uid);
          //EOF TODO SocialPost Demo
 
-         echo $user_id;
+        echo $user_id;
         
-        $user_id =$uid;
+        //
+        
+        if($user_id==-1)
+         $user_id =$uid;
 
-        //TODO Main .co.in Demo
+        //2.TODO add new user Main .co.in Demo
         $new_signup->freetrial_main_co_in($request,$user_id);
 
-        //TODO Mobile app Demo
+        //TODO add new user old Mobile app Demo
         $new_signup->freetrial_mobileApp($request,$user_id);
         //EOF TODO Mobile app Demo
         
 
-        //TODO Design app Demo
+        //3.TODO add new user  Design app Demo
         //$id = auth()->user()->id;
         //$user = User::where('id', $id )->first();
         
@@ -2463,8 +2470,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
         
         
-        //TODO newMobileV2 app
-
+        //4.TODO add new user newMobileV2 app
         if(isset($request->platform))
         $from=$request->platform;
         else
@@ -2475,8 +2481,61 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         else
         $new_signup->freetrial_mobileAppV2($request,$user_id);
 
+        
+        //5.TODO add new user Smart BIO app
+       // $new_signup->freetrial_bio($request,$user_id);
+
+
+
+        //6.TODO add new user Smart Bio Blog app
+        $new_signup->freetrial_bio_blog($request,$user_id);
+
+
+        //7.TODO add new user CRM app
+        $new_signup->freetrial_crm($request,$user_id);
+
+        //8.TODO add new user Sync app
+        $new_signup->freetrial_sync_node($request,$user_id);
 
        
+
+    }
+
+
+     //SMAI check user plan from all Platforms
+    public function smaicheck_plans(Request $request)
+    {
+        $platform=$request->platform;
+        $database=$request->database;
+        $user_id=$request->user_id;
+
+        $check_plans_user=NEW SMAISyncTokenController();
+
+        $return_plan=array();
+        $return_plan=$check_plans_user->SMAI_Check_Universal_UserPlans($user_id,$database,$platform);
+        
+        if($return_plan!=0)
+        return json_encode($return_plan);
+        else
+        return 0;
+
+    }
+
+    //SMAI for update plan user from all Platforms
+    public function smaiuser_update_plan(Request $request)
+    {
+
+    }
+
+    //SMAI for update any column of user from all Platforms
+    public function smaiuser_update_column(Request $request)
+    {
+
+    }
+
+    //SMAI for update profile_column_group of user from all Platforms
+    public function smaiuser_update_profile(Request $request)
+    {
 
     }
     

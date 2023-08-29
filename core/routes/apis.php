@@ -40,6 +40,12 @@ Route::post('/contact', 'APIsController@ContactPageSubmit');
 Route::post('/smaisync/tokens', 'APIsController@smaisync_tokens');
 Route::post('/smaicheck/column', 'APIsController@smaicheck_column');
 Route::post('/smaiupdate/column', 'APIsController@smaiupdate_column');
+
+      // Sign Up & Auth
 Route::post('/smainewuser/createallfreetrial', 'APIsController@smainewuser_createallfreetrial');
 
+      // Plans
+Route::post('/smaicheck/plans', 'APIsController@smaicheck_plans');
+
+// EOF SMAI Sync data
 
