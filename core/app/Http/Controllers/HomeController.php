@@ -24,6 +24,7 @@ use Mail;
 use Redirect;
 use Helper;
 use Auth;
+use Log;
 
 class HomeController extends Controller
 {
@@ -37,6 +38,10 @@ class HomeController extends Controller
 
         // check if website is closed
         $this->close_check();
+
+        Log::debug('test root doc stepback'.$_SERVER["DOCUMENT_ROOT"]);
+
+
     }
 
     public function SEO($seo_url_slug = 0)

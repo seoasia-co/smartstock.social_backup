@@ -2470,7 +2470,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
         
         
-        //4.TODO add new user newMobileV2 app
+        //4.TODO add new user newMobileV2 app platform
         if(isset($request->platform))
         $from=$request->platform;
         else
@@ -2484,7 +2484,10 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         
         //5.TODO add new user Smart BIO app
        // $new_signup->freetrial_bio($request,$user_id);
-
+       if($from!="SmartBio")
+       {
+        $new_signup->freetrial_bio($request,$user_id);
+       }
 
 
         //6.TODO add new user Smart Bio Blog app
@@ -2496,6 +2499,12 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
         //8.TODO add new user Sync app
         $new_signup->freetrial_sync_node($request,$user_id);
+
+        //9. TODO add new user Course Laravel app
+        $new_signup->freetrial_course($request,$user_id);
+
+        //10. TODO add new user Live Shopping app
+        $new_signup->freetrial_liveshop($request,$user_id);
 
        
 

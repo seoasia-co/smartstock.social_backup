@@ -45,6 +45,8 @@ use App\Models\UserBioBlog;
 use App\Models\UserBio;
 use App\Models\UserSyncNodeJS;
 
+use App\Models\SettingBio;
+
 
 
 
@@ -69,6 +71,7 @@ class SMAISessionAuthController extends Controller
             $this->hash_password=Hash::make(Str::random(24));
         }  */
 
+        if(isset($request_mobile->data))
          $data=$request_mobile->data;
         
         if(isset($request_mobile->data['password']))
@@ -82,11 +85,20 @@ class SMAISessionAuthController extends Controller
                 $this->hash_password=Hash::make(Str::random(24));
             }
         }
+        else  if(isset($request_mobile['password']))
+       
+        {
+
+            $this->hash_password=Hash::make($request_mobile['password']);
+            Log::debug("Found Password form Sign Up: hash ". $this->hash_password);
+
+
+        }
         else{
             $this->hash_password=Hash::make(Str::random(24));
         } 
 
-        $this->hash_password=Hash::make(Str::random(24));
+        
 
 
     }
@@ -414,9 +426,11 @@ class SMAISessionAuthController extends Controller
 
             //bug bug add check if user exist and use update
 
-            $user_old=UserMain::where('email', $request->email)->orderBy('id','asc')->first();   
+            $user_old=UserMain::where('email', $request->email)->orderBy('id','asc')->get();   
 
-          if($user_old->id < 1 || $user_old->id == NULL)  
+            $found_user= $user_old->count();
+
+          if( $found_user < 1)  
           {
             $user_id =  DB::connection('main_db')->table('users')->insertGetId($userdata);
 
@@ -539,11 +553,18 @@ class SMAISessionAuthController extends Controller
 
 
 				$folder = 'user_'.$insert_id;
-				if (!is_dir('digital_asset/uploads/'.$folder)) {
-					mkdir('./digital_asset/uploads/' . $folder, 0777, TRUE);
-					mkdir('./digital_asset/uploads/' . $folder . '/campaigns', 0777, TRUE);
-					mkdir('./digital_asset/uploads/' . $folder . '/images', 0777, TRUE);
-					mkdir('./digital_asset/uploads/' . $folder . '/templates', 0777, TRUE);
+                $design_folder = str_replace("smartstock.social","smartcontent.co.in",$_SERVER["DOCUMENT_ROOT"]);
+
+                $design_folder .="/digital_asset/uploads/";
+
+                Log::debug("Design folder from gobal : ");
+                Log::info( $design_folder );
+
+				if (!is_dir($design_folder.$folder)) {
+					mkdir($design_folder. $folder, 0777, TRUE);
+					mkdir($design_folder. $folder . '/campaigns', 0777, TRUE);
+					mkdir($design_folder . $folder . '/images', 0777, TRUE);
+					mkdir($design_folder. $folder . '/templates', 0777, TRUE);
 				}
 
 				$data = array(
@@ -696,51 +717,142 @@ class SMAISessionAuthController extends Controller
     }
 
 
-    function freetrial_bio()
+    function freetrial_bio($request,$user_id)
     {
 
 
-        $registered_user = (new User())->create(
-            $_POST['email'],
-            $_POST['password'],
-            $_POST['name'],
-            (int) !settings()->users->email_confirmation,
-            'direct',
-            $email_code,
-            null,
-            $_POST['is_newsletter_subscribed'],
-            $plan_id,
-            $plan_settings,
-            $plan_expiration_date,
-            settings()->main->default_timezone
+        $free_plan_arr=SettingBio::where('key','plan_free')->orderBy('id','asc')->first();
+        
+        $free_plan_arr = json_decode($free_plan_arr, true);
+        //$free_plan_arr=json_encode($free_plan_arr);
+        Log::debug('this is Setting Bio info from DB : ');
+        Log::info($free_plan_arr);
+
+        $free_plan=$free_plan_arr['value'];
+
+
+      /*   foreach ($free_plan_arr['value'] as $key => $value) {
+            echo $value["settings"] . "\n";
+            $free_plan_setting=json_encode($value["settings"]);
+        } */
+
+ 
+
+
+        Log::debug('this is Value Setting Bio info from DB : ');
+        Log::info($free_plan);
+
+               
+        //$free_plan_array_con = unserialize($free_plan);
+        $free_plan_array_con = json_decode($free_plan,true);
+
+        Log::debug('this is Setting dECODE  FROM Main  array : ');
+        Log::info($free_plan_array_con);
+
+        //$free_plan_decode=json_encode($free_plan);
+        $free_plan_setting=$free_plan_array_con['settings'];
+
+        //$free_plan_setting
+
+       
+
+        Log::debug('this is Setting Bio encode array : ');
+        Log::info($free_plan_setting);
+
+        $billing_arr= array(
+            "type" => "personal",
+            "name" => "",
+            "address" => "",
+            "city" => "",
+            "county" => "",
+            "zip" => "",
+            "country" => "",
+            "phone" => "",
+            "tax_id" => "",
         );
 
+        $billing = json_encode(['type' => 'personal', 'name' => '', 'address' => '', 'city' => '', 'county' => '', 'zip' => '', 'country' => '', 'phone' => '', 'tax_id' => '',]);
+        $api_key = md5($request->email . microtime() . microtime());
+        $referral_key = md5(rand() . $request->email . microtime() . $request->email. microtime());
 
 
-        /* Determine what plan is set by default */
-        $plan_id                    = 'free';
-        $plan_settings              = json_encode(settings()->plan_free->settings);
-        $plan_expiration_date       = \Altum\Date::$date;
-        $lost_password_code         = md5($email . microtime());
+        $status = 0;
+        $source = null;
+        $email_activation_code = null;
+        $lost_password_code = null;
+        $is_newsletter_subscribed = 0;
+        $plan_id = 'free';
+        $plan_expiration_date = null;
+        $timezone = 'UTC';
+        $is_admin_created = false;
+        $plan_trial_done=0;
+        $referred_by=null;
+        $language='english';
+        $continent_code='AS';
+        $country_code=null;
+        $city_name=null;
 
-        $registered_user = (new User())->create(
-            $email,
-            null,
-            $name,
-            1,
-            $method,
-            null,
-            $lost_password_code,
-            false,
-            $plan_id,
-            $plan_settings,
-            $plan_expiration_date,
-            settings()->main->default_timezone
-        );
+        $userdata = [
+
+            'user_id' => $user_id,
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => $this->hash_password,
+            'is_newsletter_subscribed' => 0,
+            'plan_id'  => 'free',
+            'plan_settings' => json_encode($free_plan_setting),
+            'plan_expiration_date' => date('Y-m-d H:i:s', \Carbon\Carbon::now()->timestamp),
+            'lost_password_code' => md5($request->email . microtime()),
+            'billing' => $billing ,
+            'referral_key' => $referral_key ,
+            'api_key' =>  $api_key,
+            'datetime' => date('Y-m-d H:i:s', \Carbon\Carbon::now()->timestamp),
+            'email_activation_code' => $email_activation_code,
+            'lost_password_code' => $lost_password_code,
+            'plan_trial_done' => $plan_trial_done,
+            'referred_by' => $referred_by,
+            'language' => $language,
+            'timezone' => $timezone,
+            'status' => $status,
+            'source' => $source,
+            'continent_code' => $continent_code,
+            'country' => $country_code,
+            'city_name' => $city_name,
+            'total_logins' => 0,
+
+            
+        ];
+
+        $insert_id  = DB::connection('bio_db')->table('users')->insert($userdata);
 
 
     }
 
+    function freetrial_course($request,$user_id)
+    {
+        $userdata = [
+            'id' => $user_id,
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => $this->hash_password,
+        ];
+        $insert_id  = DB::connection('course_db')->table('users')->insert($userdata);
+
+    }
+
+    function freetrial_liveshop($request,$user_id)
+    {
+        $userdata = [
+            'id' => $user_id,
+            'firstname' => $request->name,
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => $this->hash_password,
+            'role_id' => 2,
+        ];
+        $insert_id  = DB::connection('liveshop_db')->table('users')->insert($userdata);
+
+    }
 
 
 }
