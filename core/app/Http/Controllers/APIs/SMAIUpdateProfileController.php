@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Jobs\SendConfirmationEmail;
 
-use App\Models\UserMain;
+
 use App\Providers\RouteServiceProvider;
 use Dflydev\DotAccessData\Data;
 use Illuminate\Http\Request;
@@ -26,7 +26,7 @@ use Session;
 use Cookie;
 use Carbon\Carbon;
 
-use App\Models\UserMobile;
+
 use App\Models\SubscriptionMobile;
 use App\Models\OpenAIGenerator;
 use GuzzleHttp\Client;
@@ -42,6 +42,24 @@ use App\Models\SP_UserCaption;
 
 use App\Models\Settings;
 
+use App\Models\PlanMobile;
+
+use App\Models\SettingBio;
+
+use App\Models\UserSP;
+use App\Models\UserSEO;
+use App\Models\UserCourse;
+use App\Models\UserDesign;
+use App\Models\UserLiveShop;
+use App\Models\UserMain;
+use App\Models\UserBioBlog;
+use App\Models\UserBio;
+use App\Models\UserSyncNodeJS;
+use App\Models\UserMobile;
+
+
+
+
 
 class SMAIUpdateProfileController extends Controller
 {
@@ -50,26 +68,21 @@ class SMAIUpdateProfileController extends Controller
     //protected $request; 
     protected $hash_password;
     protected $skip_update_pss=0;
+    protected $upFromWhere=NULL;
 
     // request as an attribute of the controllers
 
 
-    public function checkColumnExist($column, $table, $db)
-    {
-        try {
-            $has_table = Schema::connection($db)->hasColumn($table, $column);
-            return $has_table;
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
 
-
-    public function __construct($request_update,$user_id,$user_email)
+    public function __construct($request_update,$user_id,$user_email,$whatup)
     {
+        $this->upFromWhere=NULL;
+
+        Log::debug(" Start constructor of Class update Profile ");
 
 
         $data = $request_update->data;
+        $password = $request_update->data['password'];
 
         if (isset($request_update->data['password'])) {
             if ($password != null && $password != NULL) {
@@ -288,29 +301,32 @@ class SMAIUpdateProfileController extends Controller
 
         }
 
-        if ($whatup == 'password' && $this->skip_update_pss != 1 )
+        if (in_array("password", $whatup) && $this->skip_update_pss != 1 )
         {
             $userdata['password'] = $this->hash_password;
             //send to medthod update password to all platforms
-            $this->update_password_all($userdata);
+            $this->update_password_all($userdata,$user_id,$user_email);
+     
 
         }
-        else if ($whatup == 'profile' && $upFromWhere == 'main_coin')
+        else if ($whatup == 'profile' && $this->upFromWhere  == 'main_coin')
         {
 
 
         }
-        else if ($whatup == 'profile' && $upFromWhere == 'socialpost')
+        else if ($whatup == 'profile' && $this->upFromWhere  == 'socialpost')
+        {
+
+            // #ep1
+
+
+        }
+        else if ($whatup == 'profile' && $this->upFromWhere  == 'bio')
         {
 
 
         }
-        else if ($whatup == 'profile' && $upFromWhere == 'bio')
-        {
-
-
-        }
-        else if($whatup == 'plan' && $upFromWhere == 'socialpost')
+        else if($whatup == 'plan' && $this->upFromWhere  == 'socialpost')
         {
 
         }
@@ -320,8 +336,8 @@ class SMAIUpdateProfileController extends Controller
         }
 
 
-        // $upFromWhere == 'socialpost_profile  ||  $upFromWhere == 'socialpost_plan
-        if ($upFromWhere == 'socialpost_profile')
+        // $this->upFromWhere  == 'socialpost_profile  ||  $this->upFromWhere  == 'socialpost_plan
+        if ($this->upFromWhere  == 'socialpost_profile')
         {
 
        
@@ -333,6 +349,17 @@ class SMAIUpdateProfileController extends Controller
           }
 
 
+    }
+
+    
+    public function checkColumnExist($column, $table, $db)
+    {
+        try {
+            $has_table = Schema::connection($db)->hasColumn($table, $column);
+            return $has_table;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
 
@@ -547,7 +574,7 @@ class SMAIUpdateProfileController extends Controller
         }
 
 
-        if ($upFromWhere == 'socialpost')
+        if ($this->upFromWhere  == 'socialpost')
         //1. update to profile of SocialPost
         //2. update basic profile to all Platforms
         //3. update extra profile to some Platforms
@@ -1008,6 +1035,7 @@ class SMAIUpdateProfileController extends Controller
 
     public function update_password_all($userdata,$user_id,$user_email)
     {
+        Log::debug(" Start update password to all Platforms in update all Fnc ");
 
         //Mobile
         $usermoible = UserMobile::where('email', '=', $user_email)->where('id', '=', $user_id)
@@ -1060,5 +1088,14 @@ class SMAIUpdateProfileController extends Controller
 
     }
 
+    public function check_old_user($db,$table,$email)
+    {
+
+        $user_old=DB::connection($db)->table($table)->where('email', $email)->orderBy('id','asc')->get();   
+
+        $found_user= $user_old->count();
+        return $found_user;
+
+    }
 
 }

@@ -25,9 +25,11 @@ use Illuminate\Pagination\Paginator;
 use Mail;
 
 use App\Http\Controllers\APIs\SMAISyncTokenController;
+use App\Http\Controllers\APIs\SMAIUpdateProfileController;
 use Log;
 
 use App\Http\Controllers\Auth\SMAISessionAuthController;
+
 
 
 class APIsController extends Controller
@@ -2506,6 +2508,9 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         //10. TODO add new user Live Shopping app
         $new_signup->freetrial_liveshop($request,$user_id);
 
+        //11. TODO add new user SEO app
+        $new_signup->freetrial_liveshop($request,$user_id);
+
        
 
     }
@@ -2545,6 +2550,19 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
     //SMAI for update profile_column_group of user from all Platforms
     public function smaiuser_update_profile(Request $request)
     {
+
+        Log::debug("API reach APIs Controller of smaiuser_update_profile of User Email : ");
+        $request_update=$request->data;
+        $user_id=$request->user_id;
+        $user_email=$request->email;
+        $whatup=$request->whatup;
+
+        Log::info($user_email);
+
+        $update_profile_user=NEW SMAIUpdateProfileController($request,$user_id,$user_email,$whatup);
+
+
+        
 
     }
     

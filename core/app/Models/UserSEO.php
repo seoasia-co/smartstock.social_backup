@@ -6,15 +6,15 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
-use Laravel\Fortify\TwoFactorAuthenticatable;
-use Spatie\Permission\Traits\HasRoles;
+ use Laravel\Sanctum\HasApiTokens; 
+
+
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class UserSEO extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, TwoFactorAuthenticatable, HasRoles;
+    use  HasFactory, Notifiable;
 
     protected $connection = 'seo_db';
     protected $table='users';
@@ -84,13 +84,13 @@ class UserSEO extends Authenticatable
     ########### Model RelationShip Functions End ###########
     
 
-    public function getCreatedAtAttribute( $value ) {
+/*     public function getCreatedAtAttribute( $value ) {
         $dateFormat = config('Site.custom_date_format').' '.config('Site.custom_time_format');
         return (new Carbon($value))->format($dateFormat);
     }
 
     public function setCreatedAtAttribute( $value ) {
         $this->attributes['created_at'] = (new Carbon($value))->format('Y-m-d H:i:s');
-    }
+    } */
     
 }

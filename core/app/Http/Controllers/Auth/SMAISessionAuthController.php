@@ -452,7 +452,10 @@ class SMAISessionAuthController extends Controller
             'affiliate_code' => Str::upper(Str::random(12)),
         ];
 
-        $user =UserMain::where('id', '=', $user_id)->update($userdata);
+            if($this->check_old_user('main_db','users',$request->email) > 0)
+            {
+              $user =UserMain::where('id', '=', $user_id)->update($userdata);
+            }
             
         }
 
@@ -494,8 +497,12 @@ class SMAISessionAuthController extends Controller
             'under_which_affiliate_user'=>$affiliate_user_id
 
         ];
-        $user =UserMain::where('id', '=', $user_id)
-        ->update($userdata);
+
+        if($this->check_old_user('main_db','users',$request->email) > 0)
+        {
+            $user =UserMain::where('id', '=', $user_id)
+            ->update($userdata);
+        }
         
     }
 
@@ -549,9 +556,16 @@ class SMAISessionAuthController extends Controller
 
                 // change to Laravel insert
 				//$insert_id = $this->Common_DML->put_data( 'users', $array );
+
+
+
+                if($this->check_old_user('digitalasset_db','users',$request->email) < 1)
+                 {
                 $insert_id  = DB::connection('digitalasset_db')->table('users')->insert($array);
+                 }
 
-
+            if(isset($insert_id))
+            {
 				$folder = 'user_'.$insert_id;
                 $design_folder = str_replace("smartstock.social","smartcontent.co.in",$_SERVER["DOCUMENT_ROOT"]);
 
@@ -575,6 +589,8 @@ class SMAISessionAuthController extends Controller
 					'profile_pic' => '',
 					'name' => ($request->name)
 				);
+
+            }
 
 
 				//$this->session->set_userdata( $data );
@@ -622,7 +638,7 @@ class SMAISessionAuthController extends Controller
 
             $user_old=UserMobile::where('email', $request->email)->orderBy('id','asc')->first();   
 
-          if($user_old->id > 0)  
+        if($this->check_old_user('mobileapp_db','users',$request->email) > 0)  
           {
             $user =UserMobile::where('id', '=', $user_id)
              ->update($userdata);
@@ -668,7 +684,7 @@ class SMAISessionAuthController extends Controller
     }
 
 
-    function freetrial_bio_blog($request,$user_id)
+   public function freetrial_bio_blog($request,$user_id)
     {
         if(isset($request->username))
         $username_ins=$request->username;
@@ -683,10 +699,13 @@ class SMAISessionAuthController extends Controller
             'password' => $this->hash_password,
         ];
 
+        if($this->check_old_user('bio_blog_db','users',$request->email) < 1)  
+          {
         $insert_id  = DB::connection('bio_blog_db')->table('users')->insert($userdata);
+          }
     }
 
-    function freetrial_sync_node($request,$user_id)
+   public function freetrial_sync_node($request,$user_id)
     {
         $userdata = [
             'id' => $user_id,
@@ -695,11 +714,15 @@ class SMAISessionAuthController extends Controller
             'email' => $request->email,
             'password' => $this->hash_password,
         ];
+
+        if($this->check_old_user('sync_db','user',$request->email) < 1)  
+          {
         $insert_id  = DB::connection('sync_db')->table('user')->insert($userdata);
+          }
 
     }
 
-    function freetrial_crm($request,$user_id)
+   public function freetrial_crm($request,$user_id)
     {
        
         $userdata = [
@@ -712,12 +735,15 @@ class SMAISessionAuthController extends Controller
      $user =LeadsCRM::where('tblleads', '=', $user_email)
     ->update($userdata); */
 
-    $insert_id  = DB::connection('crm_db')->table('tblleads')->insert($userdata);
+    if($this->check_old_user('crm_db','tblleads',$request->email) < 1)  
+    {
+       $insert_id  = DB::connection('crm_db')->table('tblleads')->insert($userdata);
+    }
 
     }
 
 
-    function freetrial_bio($request,$user_id)
+    public function freetrial_bio($request,$user_id)
     {
 
 
@@ -823,12 +849,16 @@ class SMAISessionAuthController extends Controller
             
         ];
 
+        if($this->check_old_user('bio_db','users',$request->email) < 1)  
+    {
+
         $insert_id  = DB::connection('bio_db')->table('users')->insert($userdata);
+    }
 
 
     }
 
-    function freetrial_course($request,$user_id)
+    public function freetrial_course($request,$user_id)
     {
         $userdata = [
             'id' => $user_id,
@@ -836,11 +866,15 @@ class SMAISessionAuthController extends Controller
             'email' => $request->email,
             'password' => $this->hash_password,
         ];
+
+        if($this->check_old_user('course_db','users',$request->email) < 1)  
+        {
         $insert_id  = DB::connection('course_db')->table('users')->insert($userdata);
+        }
 
     }
 
-    function freetrial_liveshop($request,$user_id)
+    public function freetrial_liveshop($request,$user_id)
     {
         $userdata = [
             'id' => $user_id,
@@ -850,8 +884,73 @@ class SMAISessionAuthController extends Controller
             'password' => $this->hash_password,
             'role_id' => 2,
         ];
-        $insert_id  = DB::connection('liveshop_db')->table('users')->insert($userdata);
 
+        if($this->check_old_user('liveshop_db','users',$request->email) < 1)  
+        {
+        $insert_id  = DB::connection('liveshop_db')->table('users')->insert($userdata);
+        }
+
+    }
+
+
+    public function freetrial_seo($request,$user_id)
+    {
+
+        if(strpos($request->name, " ") !== false)
+        {
+            $firstname=$this->get_first_last_name($request->name,'firstname');
+            $lastname=$this->get_first_last_name($request->name,'lastname');
+
+        }
+        else{
+            $firstname=$request->name;
+            $lastname='';
+        }
+
+
+        $userdata = [
+            'id' => $user_id,
+            'name' => $request->name,
+            'first_name' => $firstname,
+            'last_name' => $lastname,
+            'email' => $request->email,
+            'password' => $this->hash_password,
+
+        ];
+
+        if($this->check_old_user('seo_db','users',$request->email) < 1)  
+        {
+        $insert_id  = DB::connection('seo_db')->table('users')->insert($userdata);
+        }
+
+    }
+
+    public function check_old_user($db,$table,$email)
+    {
+
+        $user_old=DB::connection($db)->table($table)->where('email', $email)->orderBy('id','asc')->get();   
+
+        $found_user= $user_old->count();
+        return $found_user;
+
+    }
+
+
+   public function get_first_last_name($name,$firstOrlast)
+    {
+       // Split the full name into first and last name parts
+        $name_parts = explode(" ", $name);
+
+        // Assign the first name
+        $first_name = $name_parts[0];
+
+        // Assign the last name
+        $last_name = $name_parts[1];
+
+        if($firstOrlast=='firstname')
+        return $first_name;
+        else
+        return $last_name;
     }
 
 

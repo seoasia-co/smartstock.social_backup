@@ -2,45 +2,17 @@
 
 namespace App\Models;
 
-use App\Country;
+
 use Carbon\Carbon;
-use App\Traits\Tenantable;
-use App\Models\LmsInstitute;
-use App\Traits\UserChatMethods;
-use Modules\Forum\Entities\Forum;
-use App\Notifications\VerifyEmail;
-use Illuminate\Support\Facades\DB;
-use Laravel\Passport\HasApiTokens;
-use Illuminate\Support\Facades\Log;
-use Modules\Org\Entities\OrgBranch;
-use Modules\Org\Entities\OrgPosition;
-use Modules\Forum\Entities\ForumReply;
-use Modules\Payment\Entities\Withdraw;
-use Illuminate\Support\Facades\Session;
-use Modules\Chat\Entities\Notification;
-use Modules\CPD\Entities\AssignStudent;
-use Illuminate\Notifications\Notifiable;
-use Modules\Payment\Entities\Subscriber;
-use Modules\RolePermission\Entities\Role;
-use Modules\CourseSetting\Entities\Course;
-use Modules\Localization\Entities\Language;
-use Modules\SystemSetting\Entities\Message;
-use Modules\SystemSetting\Entities\Currency;
+
 use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Modules\Payment\Entities\InstructorPayout;
-
-use App\Notifications\PasswordResetNotification;
-use Modules\CourseSetting\Entities\CourseReveiw;
-use Modules\Quiz\Entities\StudentTakeOnlineQuiz;
-use Modules\CourseSetting\Entities\CourseEnrolled;
-use Modules\Certificate\Entities\CertificateRecord;
-use Modules\OfflinePayment\Entities\OfflinePayment;
-use Modules\OrgInstructorPolicy\Entities\OrgPolicy;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 
-class UserCourse extends Authenticatable implements MustVerifyEmail
+class UserCourse extends Authenticatable 
 {
-    use HasApiTokens, Notifiable, UserChatMethods, Tenantable;
+    use  Notifiable;
 
     /**
      * The attributes that are mass assignable.
