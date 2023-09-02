@@ -2509,7 +2509,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $new_signup->freetrial_liveshop($request,$user_id);
 
         //11. TODO add new user SEO app
-        $new_signup->freetrial_liveshop($request,$user_id);
+        $new_signup->freetrial_seo($request,$user_id);
 
        
 
@@ -2556,10 +2556,15 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $user_id=$request->user_id;
         $user_email=$request->email;
         $whatup=$request->whatup;
+        
+        if(isset($request->upFromWhere))
+        $upFromWhere=$request->upFromWhere;
+        else
+        $upFromWhere=NULL;
 
         Log::info($user_email);
 
-        $update_profile_user=NEW SMAIUpdateProfileController($request,$user_id,$user_email,$whatup);
+        $update_profile_user=NEW SMAIUpdateProfileController($request,$user_id,$user_email,$whatup,$upFromWhere);
 
 
         

@@ -876,9 +876,20 @@ class SMAISessionAuthController extends Controller
 
     public function freetrial_liveshop($request,$user_id)
     {
+        if(strpos($request->name, " ") !== false)
+        {
+            $firstname=$this->get_first_last_name($request->name,'firstname');
+            $lastname=$this->get_first_last_name($request->name,'lastname');
+
+        }
+        else{
+            $firstname=$request->name;
+            $lastname='';
+        }
         $userdata = [
             'id' => $user_id,
-            'firstname' => $request->name,
+            'firstname' => $firstname,
+            'lastname' => $lastname,
             'name' => $request->name,
             'email' => $request->email,
             'password' => $this->hash_password,

@@ -74,17 +74,29 @@ class SMAIUpdateProfileController extends Controller
 
 
 
-    public function __construct($request_update,$user_id,$user_email,$whatup)
+    public function __construct($request_update,$user_id,$user_email,$whatup,$upFromWhere=NULL)
     {
-        $this->upFromWhere=NULL;
+        $this->upFromWhere=$upFromWhere;
 
-        Log::debug(" Start constructor of Class update Profile ");
+        Log::debug(" Start constructor of Class update Profile with these Params : ");
 
+        Log::info($request_update);
+        Log::info($user_id);
+        Log::info($whatup);
+        Log::info($upFromWhere);
 
-        $data = $request_update->data;
-        $password = $request_update->data['password'];
+        Log::info($request_update->data);
 
-        if (isset($request_update->data['password'])) {
+        Log::debug(' Name for data : ');
+        Log::info($request_update->data['name']);
+       // $data = $request_update->data[0];
+
+        if(isset($request_update->data['password']))
+        {
+          $password = $request_update->data['password'];
+        }
+
+        if (isset($request_update->data[0]['password'])) {
             if ($password != null && $password != NULL) {
                 $password = $request_update->data['password'];
                 $this->hash_password = Hash::make($request_update->data['password']);
@@ -101,121 +113,132 @@ class SMAIUpdateProfileController extends Controller
         // for check if column existing
         // $user_column_on= $this->checkColumnExist($column,$table,$db);
 
-        $request = $request_update->data;
+        /* $request_update = json_decode($request_update,true);
+        Log::info($request_update);
+        $request = json_decode($request_update['data'],true ); */
 
-
-
+        /* $request = json_encode($request_update->data);
+        $request = json_decode($request,true); */
+        
+        $request=$request_update->data;
+        Log::debug('Debug request Decode Json');
+        Log::info($request);
+      
         if (in_array("profile", $whatup)) {
 
             //basic_profile universal
-            if (isset($request->password) && $this->skip_update_pss != 1)
+            if (isset($request['password']) && $this->skip_update_pss != 1)
                 $userdata['password'] = $this->hash_password;
 
 
             //basic_profile main co in
-            if (isset($request->surname))
-                $userdata['surname'] = $request->surname;
+            if (isset($request['surname']))
+                $userdata['surname'] = $request['surname'];
 
             //basic_profile universal
-            if (isset($request->name))
-                $userdata['name'] = $request->name;
+            if (isset($request['name']))
+            {
+                Log::debug('FOund name : '.$request['name']);
+                Log::info($request['name']);
+                $userdata['name'] = $request['name'];
+            }
 
             //basic_profile universal
-            if (isset($request->email))
-                $userdata['email'] = $request->email;
+            if (isset($request['email']))
+                $userdata['email'] = $request['email'];
 
 
             //basic_profile socialpost mobile bio
-            if (isset($request->username))
-                $userdata['username'] = $request->username;
+            if (isset($request['username']))
+                $userdata['username'] = $request['username'];
 
         }
 
         if (in_array("plan", $whatup)) /* if($whatup=="plan") */ {
 
             //plan universal
-            if (isset($request->plan))
-                $userdata['plan'] = $request->plan;
+            if (isset($request['plan']))
+                $userdata['plan'] = $request['plan'];
 
             //plan main_marketing=package_id  /  main_coin=plan
-            if (isset($request->package_id))
-                $userdata['package_id'] = $request->package_id;
+            if (isset($request['package_id']))
+                $userdata['package_id'] = $request['package_id'];
 
             //extra_profile bio
-            if (isset($request->plan_id))
-                $userdata['plan_id'] = $request->plan_id;
+            if (isset($request['plan_id']))
+                $userdata['plan_id'] = $request['plan_id'];
 
 
             //extra_profile bio
-            if (isset($request->plan_settings))
-                $userdata['plan_settings'] = $request->plan_settings;
+            if (isset($request['plan_settings']))
+                $userdata['plan_settings'] = $request['plan_settings'];
 
 
             //plan universal
-            if (isset($request->remaining_words))
-                $userdata['remaining_words'] = $request->remaining_words;
+            if (isset($request['remaining_words']))
+                $userdata['remaining_words'] = $request['remaining_words'];
 
             //plan universal
-            if (isset($request->remaining_words))
-                $userdata['remaining_images'] = $request->remaining_images;
+            if (isset($request['remaining_words']))
+                $userdata['remaining_images'] = $request['remaining_images'];
 
             //plan mobile_new
-            if (isset($request->words_left))
-                $userdata['words_left'] = $request->words_left;
+            if (isset($request['words_left']))
+                $userdata['words_left'] = $request['words_left'];
 
 
             //plan mobile_new
-            if (isset($request->image_left))
-                $userdata['image_left'] = $request->image_left;
+            if (isset($request['image_left']))
+                $userdata['image_left'] = $request['image_left'];
 
 
             //plan mobile_old
-            if (isset($request->available_words))
-                $userdata['available_words'] = $request->available_words;
+            if (isset($request['available_words']))
+                $userdata['available_words'] = $request['available_words'];
 
             //plan mobile_old
-            if (isset($request->available_images))
-                $userdata['available_images'] = $request->available_images;
+            if (isset($request['available_images']))
+                $userdata['available_images'] = $request['available_images'];
 
             //plan mobile_old
-            if (isset($request->total_words))
-                $userdata['total_words'] = $request->total_words;
+            if (isset($request['total_words']))
+                $userdata['total_words'] = $request['total_words'];
 
             //plan mobile_old
-            if (isset($request->total_images))
-                $userdata['total_images'] = $request->total_images;
+            if (isset($request['total_images']))
+                $userdata['total_images'] = $request['total_images'];
 
 
             //plan universal
-            if (isset($request->expiration_date))
-                $userdata['expiration_date'] = $request->expiration_date;
+            if (isset($request['expiration_date']))
+                $userdata['expiration_date'] = $request['expiration_date'];
 
             //plan mobile_old
-            if (isset($request->plan_expire_date))
-                $userdata['plan_expire_date'] = $request->plan_expire_date;
+            if (isset($request['plan_expire_date']))
+                $userdata['plan_expire_date'] = $request['plan_expire_date'];
 
             //plan main
-            if (isset($request->expired_date))
-                $userdata['expired_date'] = $request->expired_date;
+            if (isset($request['expired_date']))
+                $userdata['expired_date'] = $request['expired_date'];
 
             //extra_profile bio
-            if (isset($request->plan_expiration_date))
-                $userdata['plan_expiration_date'] = $request->plan_expiration_date;
+            if (isset($request['plan_expiration_date']))
+                $userdata['plan_expiration_date'] = $request['plan_expiration_date'];
 
 
             //plan main
-            if (isset($request->last_login_at))
-                $userdata['last_login_at'] = $request->last_login_at;
+            if (isset($request['last_login_at']))
+                $userdata['last_login_at'] = $request['last_login_at'];
 
 
             //plan main
-            if (isset($request->last_login_ip))
-                $userdata['last_login_ip'] = $request->last_login_ip;
+            if (isset($request['last_login_ip']))
+                $userdata['last_login_ip'] = $request['last_login_ip'];
 
 
             //plan main
-            if (isset($request->under_which_affiliate_user))
-                $userdata['under_which_affiliate_user'] = $request->under_which_affiliate_user;
+            if (isset($request['under_which_affiliate_user']))
+                $userdata['under_which_affiliate_user'] = $request['under_which_affiliate_user'];
 
 
         }
@@ -223,80 +246,80 @@ class SMAIUpdateProfileController extends Controller
         if (in_array("extra_profile", $whatup)) /*  if($whatup=="extra_profile") */ {
 
             //extra_profile socialpost
-            if (isset($request->ids))
-                $userdata['ids'] = $request->remaining_images;
+            if (isset($request['ids']))
+                $userdata['ids'] = $request['remaining_images'];
 
             //extra_profile socialpost
-            if (isset($request->is_admin))
-                $userdata['is_admin'] = $request->is_admin;
+            if (isset($request['is_admin']))
+                $userdata['is_admin'] = $request['is_admin'];
 
             //extra_profile socialpost
-            if (isset($request->role))
-                $userdata['role'] = $request->role;
+            if (isset($request['role']))
+                $userdata['role'] = $request['role'];
 
             //extra_profile socialpost
-            if (isset($request->fullname))
-                $userdata['fullname'] = $request->fullname;
+            if (isset($request['fullname']))
+                $userdata['fullname'] = $request['fullname'];
 
             //extra_profile socialpost
-            if (isset($request->timezone))
-                $userdata['timezone'] = $request->timezone;
+            if (isset($request['timezone']))
+                $userdata['timezone'] = $request['timezone'];
 
             //extra_profile socialpost
-            if (isset($request->language))
-                $userdata['language'] = $request->language;
+            if (isset($request['language']))
+                $userdata['language'] = $request['language'];
 
             //extra_profile socialpost
-            if (isset($request->login_type))
-                $userdata['login_type'] = $request->login_type;
+            if (isset($request['login_type']))
+                $userdata['login_type'] = $request['login_type'];
 
             //extra_profile socialpost
-            if (isset($request->avatar))
-                $userdata['avatar'] = $request->avatar;
+            if (isset($request['avatar']))
+                $userdata['avatar'] = $request['avatar'];
 
 
             //extra_profile socialpost
-            if (isset($request->last_login))
-                $userdata['last_login'] = $request->last_login;
+            if (isset($request['last_login']))
+                $userdata['last_login'] = $request['last_login'];
 
             //extra_profile main ,socialpost ,Design
-            if (isset($request->status))
-                $userdata['status'] = $request->status;
+            if (isset($request['status']))
+                $userdata['status'] = $request['status'];
 
 
             //extra_profile socialpost
-            if (isset($request->changed))
-                $userdata['changed'] = $request->changed;
+            if (isset($request['changed']))
+                $userdata['changed'] = $request['changed'];
 
 
             //extra_profile mobile_new=User,   mobile_old=user,super admin / main_marketing=Member,admin
-            if (isset($request->user_type))
-                $userdata['user_type'] = $request->user_type;
+            if (isset($request['user_type']))
+                $userdata['user_type'] = $request['user_type'];
 
             //extra_profile mobile_old
-            if (isset($request->created_by))
-                $userdata['created_by'] = $request->created_by;
+            if (isset($request['created_by']))
+                $userdata['created_by'] = $request['created_by'];
 
             //extra_profile Design
-            if (isset($request->phone_no))
-                $userdata['phone_no'] = $request->phone_no;
+            if (isset($request['phone_no']))
+                $userdata['phone_no'] = $request['phone_no'];
 
 
             //extra_profile Design
-            if (isset($request->profile_pic))
-                $userdata['profile_pic'] = $request->profile_pic;
+            if (isset($request['profile_pic']))
+                $userdata['profile_pic'] = $request['profile_pic'];
 
             //extra_profile mobile_new
-            if (isset($request->image))
-                $userdata['image'] = $request->image;
+            if (isset($request['image']))
+                $userdata['image'] = $request['image'];
 
             //extra_profile bio
-            if (isset($request->timezone))
-                $userdata['timezone'] = $request->timezone;
+            if (isset($request['timezone']))
+                $userdata['timezone'] = $request['timezone'];
 
             //extra_profile bio
-            if (isset($request->is_newsletter_subscribed))
-                $userdata['is_newsletter_subscribed'] = $request->is_newsletter_subscribed;
+            if (isset($request['is_newsletter_subscribed']))
+                $userdata['is_newsletter_subscribed'] = $request['is_newsletter_subscribed'];
 
 
         }
@@ -317,17 +340,43 @@ class SMAIUpdateProfileController extends Controller
         else if ($whatup == 'profile' && $this->upFromWhere  == 'socialpost')
         {
 
-            // #ep1
+            
 
 
         }
-        else if ($whatup == 'profile' && $this->upFromWhere  == 'bio')
+        else if (in_array("profile", $whatup) && $this->upFromWhere  == 'bio')
         {
+            // #ep1
+
+            Log::debug('dEbug User data : ');
+            Log::info($userdata);
+            Log::info($user_id);
+            Log::info($user_email);
+
+
+            //1. separate  basic profile to update all platforms
+            // update all platforms $userdata->name
+            //2. specific some extra profile for some platforms
+            // update some platforms $userdata->timezone
+            // update some platforms $userdata->is_newsletter_subscribed
+
+           /*  $userdata_example= array(
+            'name' => $userdata['name'],
+            'billing' => $_POST['billing'],
+            'timezone' => $userdata['timezone'],
+            'is_newsletter_subscribed' => $userdata['is_newsletter_subscribed'],
+
+            ); */
+
+            //send to medthod update bio profile to all platforms
+            $this->up_profile_bio($userdata,$user_id,$user_email);   
 
 
         }
         else if($whatup == 'plan' && $this->upFromWhere  == 'socialpost')
         {
+
+
 
         }
         else{
@@ -371,208 +420,7 @@ class SMAIUpdateProfileController extends Controller
     public function up_profile_main_co_in($request, $user_id, $whatup, $db, $table)
     {
 
-        $userdata = [];
-
-        // for check if column existing
-        // $user_column_on= $this->checkColumnExist($column,$table,$db);
-
-
-        if (in_array("profile", $whatup)) {
-
-            //basic_profile universal
-            if (isset($request->password) && $this->skip_update_pss != 1)
-                $userdata['password'] = $this->hash_password;
-
-
-            //basic_profile main co in
-            if (isset($request->surname))
-                $userdata['surname'] = $request->surname;
-
-            //basic_profile universal
-            if (isset($request->name))
-                $userdata['name'] = $request->name;
-
-            //basic_profile universal
-            if (isset($request->email))
-                $userdata['email'] = $request->email;
-
-
-            //basic_profile socialpost mobile bio
-            if (isset($request->username))
-                $userdata['username'] = $request->username;
-
-        }
-
-        if (in_array("plan", $whatup)) /* if($whatup=="plan") */ {
-
-            //plan universal
-            if (isset($request->plan))
-                $userdata['plan'] = $request->plan;
-
-            //plan main_marketing=package_id  /  main_coin=plan
-            if (isset($request->package_id))
-                $userdata['package_id'] = $request->package_id;
-
-            //extra_profile bio
-            if (isset($request->plan_id))
-                $userdata['plan_id'] = $request->plan_id;
-
-
-            //extra_profile bio
-            if (isset($request->plan_settings))
-                $userdata['plan_settings'] = $request->plan_settings;
-
-
-            //plan universal
-            if (isset($request->remaining_words))
-                $userdata['remaining_words'] = $request->remaining_words;
-
-            //plan universal
-            if (isset($request->remaining_words))
-                $userdata['remaining_images'] = $request->remaining_images;
-
-            //plan mobile_new
-            if (isset($request->words_left))
-                $userdata['words_left'] = $request->words_left;
-
-
-            //plan mobile_new
-            if (isset($request->image_left))
-                $userdata['image_left'] = $request->image_left;
-
-
-            //plan mobile_old
-            if (isset($request->available_words))
-                $userdata['available_words'] = $request->available_words;
-
-            //plan mobile_old
-            if (isset($request->available_images))
-                $userdata['available_images'] = $request->available_images;
-
-            //plan mobile_old
-            if (isset($request->total_words))
-                $userdata['total_words'] = $request->total_words;
-
-            //plan mobile_old
-            if (isset($request->total_images))
-                $userdata['total_images'] = $request->total_images;
-
-
-            //plan universal
-            if (isset($request->expiration_date))
-                $userdata['expiration_date'] = $request->expiration_date;
-
-            //plan mobile_old
-            if (isset($request->plan_expire_date))
-                $userdata['plan_expire_date'] = $request->plan_expire_date;
-
-            //plan main
-            if (isset($request->expired_date))
-                $userdata['expired_date'] = $request->expired_date;
-
-            //extra_profile bio
-            if (isset($request->plan_expiration_date))
-                $userdata['plan_expiration_date'] = $request->plan_expiration_date;
-
-
-            //plan main
-            if (isset($request->last_login_at))
-                $userdata['last_login_at'] = $request->last_login_at;
-
-
-            //plan main
-            if (isset($request->last_login_ip))
-                $userdata['last_login_ip'] = $request->last_login_ip;
-
-
-            //plan main
-            if (isset($request->under_which_affiliate_user))
-                $userdata['under_which_affiliate_user'] = $request->under_which_affiliate_user;
-
-
-        }
-
-        if (in_array("extra_profile", $whatup)) /*  if($whatup=="extra_profile") */ {
-
-            //extra_profile socialpost
-            if (isset($request->ids))
-                $userdata['ids'] = $request->remaining_images;
-
-            //extra_profile socialpost
-            if (isset($request->is_admin))
-                $userdata['is_admin'] = $request->is_admin;
-
-            //extra_profile socialpost
-            if (isset($request->role))
-                $userdata['role'] = $request->role;
-
-            //extra_profile socialpost
-            if (isset($request->fullname))
-                $userdata['fullname'] = $request->fullname;
-
-            //extra_profile socialpost
-            if (isset($request->timezone))
-                $userdata['timezone'] = $request->timezone;
-
-            //extra_profile socialpost
-            if (isset($request->language))
-                $userdata['language'] = $request->language;
-
-            //extra_profile socialpost
-            if (isset($request->login_type))
-                $userdata['login_type'] = $request->login_type;
-
-            //extra_profile socialpost
-            if (isset($request->avatar))
-                $userdata['avatar'] = $request->avatar;
-
-
-            //extra_profile socialpost
-            if (isset($request->last_login))
-                $userdata['last_login'] = $request->last_login;
-
-            //extra_profile main ,socialpost ,Design
-            if (isset($request->status))
-                $userdata['status'] = $request->status;
-
-
-            //extra_profile socialpost
-            if (isset($request->changed))
-                $userdata['changed'] = $request->changed;
-
-
-            //extra_profile mobile_new=User,   mobile_old=user,super admin / main_marketing=Member,admin
-            if (isset($request->user_type))
-                $userdata['user_type'] = $request->user_type;
-
-            //extra_profile mobile_old
-            if (isset($request->created_by))
-                $userdata['created_by'] = $request->created_by;
-
-            //extra_profile Design
-            if (isset($request->phone_no))
-                $userdata['phone_no'] = $request->phone_no;
-
-
-            //extra_profile Design
-            if (isset($request->profile_pic))
-                $userdata['profile_pic'] = $request->profile_pic;
-
-            //extra_profile mobile_new
-            if (isset($request->image))
-                $userdata['image'] = $request->image;
-
-            //extra_profile bio
-            if (isset($request->timezone))
-                $userdata['timezone'] = $request->timezone;
-
-            //extra_profile bio
-            if (isset($request->is_newsletter_subscribed))
-                $userdata['is_newsletter_subscribed'] = $request->is_newsletter_subscribed;
-
-
-        }
-
+        
 
         if ($this->upFromWhere  == 'socialpost')
         //1. update to profile of SocialPost
@@ -878,7 +726,7 @@ class SMAIUpdateProfileController extends Controller
     public function up_profile_design($request, $main_id)
     {
 
-        Log::debug('before insert new Design Name :' . $request->name);
+        Log::debug('before update new Design Name :' . $request->name);
         Log::debug('before insert new Design Name :' . $request->email);
         if (!empty($request->name) && !empty($request->email)) {
             $where = array('email' => ($request->email));
@@ -900,60 +748,12 @@ class SMAIUpdateProfileController extends Controller
                 $profile_pic = '';
 
             Log::debug('while Insert new Design Name found user :' . $total);
-            if (!empty($result) && $total == 0) {
-                $array = array(
-                    'id' => $main_id,
-                    'name' => trim(($request->name)),
-                    'email' => trim(($request->email)),
-                    'phone_no' => '+xxxxxxxxx',
-                    'profile_pic' => $profile_pic,
-                    'password' => $this->hash_password,
-                    'code' => '',
-                    'source' => '',
-                    'status' => 1,
-                    'datetime' => date('Y-m-d H:i:s', \Carbon\Carbon::now()->timestamp),
-                    'remaining_words' => 6500,
-                    'remaining_images' => 150
-                );
-
-                // change to Laravel insert
-                //$insert_id = $this->Common_DML->put_data( 'users', $array );
+           
                 $update_id = DB::connection('digitalasset_db')->table('users')->update($array);
-
-                 // this create Folder is working
-                $folder = 'user_' . $update_id;
-                if (!is_dir('digital_asset/uploads/' . $folder)) {
-                    mkdir('./digital_asset/uploads/' . $folder, 0777, TRUE);
-                    mkdir('./digital_asset/uploads/' . $folder . '/campaigns', 0777, TRUE);
-                    mkdir('./digital_asset/uploads/' . $folder . '/images', 0777, TRUE);
-                    mkdir('./digital_asset/uploads/' . $folder . '/templates', 0777, TRUE);
-                }
-
-                $data = array(
-                    'user_id' => $insert_id,
-                    'email' => ($request->email),
-                    'member_login' => true,
-                    'access_level' => 1,
-                    'profile_pic' => '',
-                    'name' => ($request->name)
-                );
-
-
-                //$this->session->set_userdata( $data );
-
-
-                //echo json_encode( array( 'status' => 1, 'msg' =>html_escape($this->lang->line('ltr_auth_reset_msg3')), 'url' => base_url() . 'dashboard' ) );
-                //Log::debug('after insert new Design user Status1 : '.json_encode( array( 'status' => 1, 'msg' =>html_escape($this->lang->line('ltr_auth_reset_msg3')), 'url' => base_url() . 'dashboard' ) ));
-            } else {
-                $update_id = DB::connection('digitalasset_db')->table('users')->update($array);
-                //echo json_encode( array( 'status' => 0, 'msg' =>html_escape($this->lang->line('ltr_auth_reset_msg4'))) );
-            }
-
-            //die();	
+          
+	
         }
-        //echo json_encode( array( 'status' => 0, 'msg' =>html_escape($this->lang->line('ltr_auth_reset_msg5'))) );
-
-        //die();
+        
 
     }
 
@@ -1014,9 +814,46 @@ class SMAIUpdateProfileController extends Controller
     }
 
 
-    public function up_profile_bio($request, $user_id, $user_email)
+    public function up_profile_bio($userdata,$user_id,$user_email)
     {
+        Log::debug("Start update Bio Profile to all Platforms in up_profile_bio ");
 
+
+        //1.update name to all platforms
+        if(isset($userdata['name']))
+        {
+            $userdata_name=array(
+                'name' => $userdata['name'],
+            );
+        $this->update_column_all($userdata_name,$user_id,$user_email);
+
+        }
+
+
+
+        //Bio , Socialpost, Main
+        if(isset($userdata['timezone']))
+        {
+        
+        // to Main , Socialpost
+        $userdata_timezone=array(
+            'timezone' => $userdata['timezone'],
+        );
+        $this->update_column_all( $userdata_timezone,$user_id,$user_email,'main_db','users');
+
+        $this->update_column_all( $userdata_timezone,$user_id,$user_email,'main_db','sp_users');
+
+        }
+
+
+        if(isset($userdata['is_newsletter_subscribed']))
+        {
+          //Only Smart Bio have newsletter subscribe
+            
+        }
+
+
+       
 
     }
 
@@ -1088,6 +925,208 @@ class SMAIUpdateProfileController extends Controller
 
     }
 
+
+    public function update_email_all($userdata,$user_id,$user_email)
+    {
+        Log::debug(" Start update Email to all Platforms in update all Fnc ");
+
+        //Mobile
+        $usermoible = UserMobile::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+            //Main CoIn  Main.marketing  Mobile old
+            $usermaincoin = UserMain::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+            //SocialPost
+            $usersocial = UserSP::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+            //Design
+            $userdesign = UserDesign::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+            //Bio
+            $userbio = UserBio::where('email', '=', $user_email)->where('user_id', '=', $user_id)
+            ->update($userdata);
+
+            //BioBlog
+            $userbioblog = UserBioBlog::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+            //Sync
+            $usersync = UserSyncNodeJS::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+            //CRM  Lead need not to be updated
+
+           /*  $usercrm = UserCRM::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata); */
+
+            //SEO
+            $userseo = UserSEO::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+
+             //Course Laravel
+             $usercourse = UserCourse::where('email', '=', $user_email)->where('id', '=', $user_id)
+             ->update($userdata);
+
+             //Live Shopping that upgrade from Old PunBot
+
+             $userliveshop = UserLiveShop::where('email', '=', $user_email)->where('id', '=', $user_id)
+             ->update($userdata);
+            
+
+
+    }
+
+    public function update_column_all($userdata,$user_id,$user_email,$db=NULL,$table=NULL)
+    {
+
+        if($db!=NULL && $table != NULL )
+        {
+            //Database &&  Table
+            /* $usermoible = UserMobile::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);  */
+            Log::debug(" Start update Universal Column case Not Null db table that exist to all Platforms in update_column_all ");
+            $user_data_update=DB::connection($db)->table($table)->where('email', $user_email)->orderBy('id','asc')->update($userdata);   
+
+        }
+    else
+    {
+
+   
+        Log::debug(" Start update Universal Column case NULL db table that exist to all Platforms in update_column_all ");
+
+        Log::debug(' With these info Data : ');
+        Log::info($userdata);
+           //Mobile
+           $usermoible = UserMobile::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+            //Main CoIn  Main.marketing  Mobile old
+            $usermaincoin = UserMain::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+            
+
+            //Design
+            $userdesign = UserDesign::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+            //Bio
+            $userbio = UserBio::where('email', '=', $user_email)->where('user_id', '=', $user_id)
+            ->update($userdata);
+
+            //BioBlog
+            $userbioblog = UserBioBlog::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+            //Sync
+            $usersync = UserSyncNodeJS::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+            //CRM  Lead need not to be updated
+
+            $usercrm = UserCRM::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata); 
+
+            //SEO (first_name,last_name)
+
+            if(isset($userdata['name']))
+            {
+
+                if(strpos($userdata['name'], " ") !== false)
+                {
+                    $firstname=$this->get_first_last_name($userdata['name'],'firstname');
+                    $lastname=$this->get_first_last_name($userdata['name'],'lastname');
+
+                }
+                else{
+                    $firstname=$userdata['name'];
+                    $lastname='';
+                }
+
+                $userdata['first_name']=$firstname;
+                $userdata['last_name']=$lastname;
+
+
+            }
+
+            $userseo = UserSEO::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+            //Unset first_name,last_name  after update
+          
+             if(isset($userdata['first_name']))
+            {
+                unset($userdata['first_name']);
+                unset($userdata['last_name']);
+            }
+
+
+             //Course Laravel
+             $usercourse = UserCourse::where('email', '=', $user_email)->where('id', '=', $user_id)
+             ->update($userdata);
+
+             
+             
+             //Live Shopping that upgrade from Old PunBot (firstname,lastname)
+             if(isset($userdata['name']))
+             {
+ 
+                 if(strpos($userdata['name'], " ") !== false)
+                 {
+                     $firstname=$this->get_first_last_name($userdata['name'],'firstname');
+                     $lastname=$this->get_first_last_name($userdata['name'],'lastname');
+ 
+                 }
+                 else{
+                     $firstname=$userdata['name'];
+                     $lastname='';
+                 }
+ 
+                 $userdata['firstname']=$firstname;
+                 $userdata['lastname']=$lastname;
+ 
+ 
+             }
+
+
+             $userliveshop = UserLiveShop::where('email', '=', $user_email)->where('id', '=', $user_id)
+             ->update($userdata);
+            
+              //Unset firstname,lastname after update
+             if(isset($userdata['firstname']))
+            {
+                unset($userdata['firstname']);
+                unset($userdata['lastname']);
+            }
+
+            //SocialPost
+
+            if(isset($userdata['name']))
+            {
+                $userdata['fullname']=$userdata['name'];
+                unset($userdata['name']);
+            }
+
+            $usersocial = UserSP::where('email', '=', $user_email)->where('id', '=', $user_id)
+            ->update($userdata);
+
+            if(isset($userdata['fullname']))
+            {
+                $userdata['name']=$userdata['fullname'];
+                unset($userdata['fullname']);
+            }
+
+            
+        }
+
+
+    }
+
     public function check_old_user($db,$table,$email)
     {
 
@@ -1096,6 +1135,24 @@ class SMAIUpdateProfileController extends Controller
         $found_user= $user_old->count();
         return $found_user;
 
+    }
+
+
+    public function get_first_last_name($name,$firstOrlast)
+    {
+       // Split the full name into first and last name parts
+        $name_parts = explode(" ", $name);
+
+        // Assign the first name
+        $first_name = $name_parts[0];
+
+        // Assign the last name
+        $last_name = $name_parts[1];
+
+        if($firstOrlast=='firstname')
+        return $first_name;
+        else
+        return $last_name;
     }
 
 }
