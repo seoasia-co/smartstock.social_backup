@@ -26,9 +26,13 @@ use Mail;
 
 use App\Http\Controllers\APIs\SMAISyncTokenController;
 use App\Http\Controllers\APIs\SMAIUpdateProfileController;
+use App\Http\Controllers\APIs\SMAISyncPlanController;
+
 use Log;
 
 use App\Http\Controllers\Auth\SMAISessionAuthController;
+
+
 
 
 
@@ -2366,7 +2370,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
     }
 
-
+    //Done
     //SMAI Sync
     public function smaisync_tokens(Request $request)
     {
@@ -2379,16 +2383,16 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         Log::info(print_r($params, true));
         Log::debug('User ID log in smaisync_tokens in Main APIsController from Digital_Asset : '.$user_id);
 
-        $new_update_digitalasset=NEW SMAISyncTokenController();
+        $new_update_digitalasset=NEW SMAISyncTokenController($data);
         $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$data,$params);
 
 
-        //$new_update_mobileapp=NEW SMAISyncTokenController();
+        //$new_update_mobileapp=NEW SMAISyncTokenController($data);
         // if not called from SocialPost add extra update to MobileApp table
         $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id,$usage,$data,$params);
 
 
-        //$new_update_socialpost=NEW SMAISyncTokenController();
+        //$new_update_socialpost=NEW SMAISyncTokenController($data);
         // if not called from SocialPost add extra update to SocialPost SP table
         $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id,$usage,$data,$params);
 
@@ -2399,6 +2403,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
     }
 
+    //Done
     public function smaicheck_column(Request $request)
     {
 
@@ -2427,6 +2432,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
     }
 
+    //Done
     //SMAI for add new user from all Platforms
     public function smainewuser_createallfreetrial(Request $request)
     {
@@ -2516,6 +2522,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
     }
 
 
+    //Working
      //SMAI check user plan from all Platforms
     public function smaicheck_plans(Request $request)
     {
@@ -2523,7 +2530,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $database=$request->database;
         $user_id=$request->user_id;
 
-        $check_plans_user=NEW SMAISyncTokenController();
+        $check_plans_user=NEW SMAISyncPlanController();
 
         $return_plan=array();
         $return_plan=$check_plans_user->SMAI_Check_Universal_UserPlans($user_id,$database,$platform);
@@ -2538,6 +2545,25 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
     //SMAI for update plan user from all Platforms
     public function smaiuser_update_plan(Request $request)
     {
+
+        Log::debug("API reach APIs Controller of smaiuser_update_plan of User Email : ");
+        $request_update=$request->data;
+        $user_id=$request->user_id;
+        $user_email=$request->email;
+        $whatup=$request->whatup;
+        
+        if(isset($request->upFromWhere))
+        $upFromWhere=$request->upFromWhere;
+        else
+        $upFromWhere=NULL;
+
+        Log::info($user_email);
+
+        $update_plan_user=NEW SMAISyncPlanController($request,$user_id,$user_email,$whatup,$upFromWhere);
+        $update_plan_user->SMAI_Update_Universal_UserPlans($request,$user_id,$user_email,$whatup,$upFromWhere);
+
+
+        
 
     }
 

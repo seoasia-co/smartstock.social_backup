@@ -54,22 +54,68 @@ use Log;
 use DB;
 
 
+ /* for update Token and chatGTP usage including Log history of chat GPT data */
 class SMAISyncTokenController extends Controller
 {
     protected $client;
     protected $settings;
+    protected $postContent;
+    protected $total_used_tokens;
+    protected $GPTModel;
     const STABLEDIFFUSION = 'stablediffusion';
     const STORAGE_S3 = 's3';
     const STORAGE_LOCAL = 'public';
 
-    public function __construct()
+    public function __construct($response=NULL)
     {
         //Settings
         $this->settings = Settings::first();
         $this->settings_two = SettingTwo::first();
+
+
+        if(isset($response))
+        {
+                $json_array = json_decode($response, true);
+                Log::info($json_array);
+
+                if(isset($json_array['model']))
+                $this->GPTModel=$json_array['model'];
+                /* 'model' => 'gpt-4-0613' */
+            
+                if(isset($json_array['choices']))  
+                $choices = $json_array['choices'];
+
+                if(isset($choices[0]["text"]))
+                $this->postContent = $choices[0]["text"];
+            
+                if(isset($choices["text"]))
+                $this->postContent = $choices["text"];
+
+            
+
+                    //case send from Smart Bio ||   model = gpt-4-0613   
+                    if(!isset($this->postContent))
+                    {
+                           if(isset($choices[0]["message"]["content"]))
+                            $this->postContent = $choices[0]["message"]["content"];
+                        
+                            if(isset($choices["message"]["content"]))
+                            $this->postContent = $choices["message"]["content"];
+
+
+                    }
+
+
+                    if(isset($json_array['usage'])) 
+                    $this->total_used_tokens=$json_array['usage']['total_tokens'];
+  
+
+        }
+
+
     }
 
-
+    //Done
     public  function SMAI_UpdateGPT_MainCoIn($user_id,$usage,$response,$params)
 {
 
@@ -97,23 +143,15 @@ class SMAISyncTokenController extends Controller
  
  
                  echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-                 ob_flush();
-                 flush();
-                 usleep(500);
+                
              }
              else{
                 if(isset($response))
                    {
-                            $json_array = json_decode($response, true);
-                         if(isset($json_array['choices']))  
-                         { 
-                            $choices = $json_array['choices'];
-                            $postContent = $choices[0]["text"];
-                            //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
-                            $postContent=$json_array['choices'][0]['text'];
-                            if( Str::length($postContent) > 0 )
+                          
+                            if( Str::length($this->postContent) > 0 )
                             {
-                                $message=trim($postContent);
+                                $message=trim($this->postContent);
                                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                                 $output .= $messageFix;
                                 $responsedText .= $message;
@@ -124,9 +162,12 @@ class SMAISyncTokenController extends Controller
                                 $random_text = Str::random($needChars);
                             }
                         }
-                  }
+                  
              }
-         } else {
+
+         }  
+         else 
+         {
              if (isset($response->choices[0]->text)) {
                  $message = $response->choices[0]->text;
                  $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
@@ -140,23 +181,17 @@ class SMAISyncTokenController extends Controller
  
  
                  echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-                 ob_flush();
-                 flush();
-                 //usleep(500);
+                
+                
              }
              else{
+
                 if(isset($response))
                    {
-                            $json_array = json_decode($response, true);
-                         if(isset($json_array['choices']))  
-                         { 
-                            $choices = $json_array['choices'];
-                            $postContent = $choices[0]["text"];
-                            //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
-                            $postContent=$json_array['choices'][0]['text'];
-                            if( Str::length($postContent) > 0 )
+                            
+                            if( Str::length($this->postContent) > 0 )
                             {
-                                $message=trim($postContent);
+                                $message=trim($this->postContent);
                                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                                 $output .= $messageFix;
                                 $responsedText .= $message;
@@ -166,10 +201,19 @@ class SMAISyncTokenController extends Controller
                                 $needChars = 6000 - $string_length;
                                 $random_text = Str::random($needChars);
                             }
-                        }
-                  }
-             }
+                        
+                   }
+
+                }
+
          }
+         
+         
+
+
+
+             
+         
  
          $params_json = json_decode($params,true);
         $keywords='';
@@ -248,6 +292,7 @@ class SMAISyncTokenController extends Controller
  }
 
 
+ //Done
     public  function SMAI_UpdateGPT_SocialPost($user_id,$usage,$response,$params)
 {
 
@@ -299,23 +344,15 @@ class SMAISyncTokenController extends Controller
      
      
                      echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-                     ob_flush();
-                     flush();
-                     usleep(500);
+                     
                  }
                  else{
                     if(isset($response))
                     {
-                             $json_array = json_decode($response, true);
-                          if(isset($json_array['choices']))  
-                          { 
-                             $choices = $json_array['choices'];
-                             $postContent = $choices[0]["text"];
-                             //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
-                             $postContent=$json_array['choices'][0]['text'];
-                             if( Str::length($postContent) > 0 )
+                             
+                             if( Str::length($this->postContent) > 0 )
                              {
-                                 $message=trim($postContent);
+                                 $message=trim($this->postContent);
                                  $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                                  $output .= $messageFix;
                                  $responsedText .= $message;
@@ -325,7 +362,7 @@ class SMAISyncTokenController extends Controller
                                  $needChars = 6000 - $string_length;
                                  $random_text = Str::random($needChars);
                              }
-                         }
+                         
                    }
                  }
              } else {
@@ -342,24 +379,16 @@ class SMAISyncTokenController extends Controller
      
      
                      echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-                     ob_flush();
-                     flush();
-                     //usleep(500);
+                     
                  }
                  else{
 
                    if(isset($response))
                    {
-                            $json_array = json_decode($response, true);
-                         if(isset($json_array['choices']))  
-                         { 
-                            $choices = $json_array['choices'];
-                            $postContent = $choices[0]["text"];
-                            //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
-                            $postContent=$json_array['choices'][0]['text'];
-                            if( Str::length($postContent) > 0 )
+                            
+                            if( Str::length($this->postContent) > 0 )
                             {
-                                $message=trim($postContent);
+                                $message=trim($this->postContent);
                                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                                 $output .= $messageFix;
                                 $responsedText .= $message;
@@ -369,7 +398,7 @@ class SMAISyncTokenController extends Controller
                                 $needChars = 6000 - $string_length;
                                 $random_text = Str::random($needChars);
                             }
-                        }
+                        
                   }
 
 
@@ -454,6 +483,8 @@ $user = \DB::connection('main_db')->table('users')->where('id',$user_id)->get();
      
      }
 
+
+ //Done
 public  function SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$response,$params)
 {
    // Update Token and usage 
@@ -492,23 +523,17 @@ public  function SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$response,$params)
 
                 Log::debug(' response_choices SMAI_UpdateGPT_DigitalAsset from SMAIsyncController : '.info(print_r($response['choices'], true)));
                 echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-                ob_flush();
-                flush();
-                usleep(500);
+               
             }
             else{
+
                 if(isset($response))
                 {
-                         $json_array = json_decode($response, true);
-                      if(isset($json_array['choices']))  
-                      { 
-                         $choices = $json_array['choices'];
-                         $postContent = $choices[0]["text"];
-                         //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
-                         $postContent=$json_array['choices'][0]['text'];
-                         if( Str::length($postContent) > 0 )
+                       
+
+                         if( Str::length($this->postContent) > 0 )
                          {
-                             $message=trim($postContent);
+                             $message=trim($this->postContent);
                              $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                              $output .= $messageFix;
                              $responsedText .= $message;
@@ -523,7 +548,7 @@ public  function SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$response,$params)
 
 
 
-            }
+            
         } else {
             if (isset($response->choices[0]->text)) {
                 $message = $response->choices[0]->text;
@@ -539,25 +564,17 @@ public  function SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$response,$params)
                 Log::debug(' response_choices in else SMAI_UpdateGPT_DigitalAsset from SMAIsyncController : '.info(print_r($response['choices'], true)));
 
                 echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-                ob_flush();
-                flush();
-                //usleep(500);
+                
             }
 
             else{
 
                 if(isset($response))
                    {
-                            $json_array = json_decode($response, true);
-                         if(isset($json_array['choices']))  
-                         { 
-                            $choices = $json_array['choices'];
-                            $postContent = $choices[0]["text"];
-                            //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
-                            $postContent=$json_array['choices'][0]['text'];
-                            if( Str::length($postContent) > 0 )
+                           
+                            if( Str::length($this->postContent) > 0 )
                             {
-                                $message=trim($postContent);
+                                $message=trim($this->postContent);
                                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                                 $output .= $messageFix;
                                 $responsedText .= $message;
@@ -567,7 +584,7 @@ public  function SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$response,$params)
                                 $needChars = 6000 - $string_length;
                                 $random_text = Str::random($needChars);
                             }
-                        }
+                        
                   }
             }
         }
@@ -653,6 +670,7 @@ public  function SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$response,$params)
 
 }
 
+//Done
 public function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$params)
 {
     $settings = $this->settings;
@@ -680,23 +698,15 @@ public function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$params)
 
 
                 echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-                ob_flush();
-                flush();
-                usleep(500);
+                
             }
             else{
                 if(isset($response))
                    {
-                            $json_array = json_decode($response, true);
-                         if(isset($json_array['choices']))  
-                         { 
-                            $choices = $json_array['choices'];
-                            $postContent = $choices[0]["text"];
-                            //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
-                            $postContent=$json_array['choices'][0]['text'];
-                            if( Str::length($postContent) > 0 )
+                            
+                            if( Str::length($this->postContent) > 0 )
                             {
-                                $message=trim($postContent);
+                                $message=trim($this->postContent);
                                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                                 $output .= $messageFix;
                                 $responsedText .= $message;
@@ -706,7 +716,7 @@ public function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$params)
                                 $needChars = 6000 - $string_length;
                                 $random_text = Str::random($needChars);
                             }
-                        }
+                        
                   }
              }
         } else {
@@ -723,23 +733,14 @@ public function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$params)
 
 
                 echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-                ob_flush();
-                flush();
-                //usleep(500);
+                
             }
             else{
                 if(isset($response))
                    {
-                            $json_array = json_decode($response, true);
-                         if(isset($json_array['choices']))  
-                         { 
-                            $choices = $json_array['choices'];
-                            $postContent = $choices[0]["text"];
-                            //Log::debug('Response in else 1st case $postContent2 : '.$json_array['choices'][0]['text']);
-                            $postContent=$json_array['choices'][0]['text'];
-                            if( Str::length($postContent) > 0 )
+                            if( Str::length($this->postContent) > 0 )
                             {
-                                $message=trim($postContent);
+                                $message=trim($this->postContent);
                                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                                 $output .= $messageFix;
                                 $responsedText .= $message;
@@ -749,7 +750,7 @@ public function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$params)
                                 $needChars = 6000 - $string_length;
                                 $random_text = Str::random($needChars);
                             }
-                        }
+                        
                   }
              }
         }
@@ -829,34 +830,8 @@ public function SMAI_UpdateGPT_MobileApp($user_id,$usage,$response,$params)
 
 }
 
-public  function SMAI_Update_Main_UserPlans()
-{
 
-
-
-}
-
-public  function SMAI_Update_Mobile_UserPlans()
-{
-
-
-
-}
-
-public  function SMAI_Update_DigitalAsset_UserPlans()
-{
-
-
-
-}
-
-public  function SMAI_Update_SocialPost_UserPlans()
-{
-
-
-
-}
-
+//Done
 public  function SMAI_Check_DigitalAsset_UserColumn($user_id,$key,$database)
 {
 
@@ -889,21 +864,11 @@ public  function SMAI_Check_DigitalAsset_UserColumn($user_id,$key,$database)
 
 }
 
-    public  function SMAI_Check_SocialPost_UserPlans()
-    {
+    
 
 
-
-    }
-
-    public  function SMAI_Update_UserColumn()
-{
-
-
-
-
-}
-
+//Woring
+//Universal SMAI fnc
 public  function SMAI_Update_TableColumn($arr_ids,$database,$table,$data)
 {
 
@@ -915,6 +880,9 @@ public  function SMAI_Update_TableColumn($arr_ids,$database,$table,$data)
 
 }
 
+
+//Woring
+//Universal SMAI fnc
 public function SMAI_Ins_TableColumn($database,$table,$data_arr)
 {
     $createMultipleUsers = [
@@ -1015,69 +983,9 @@ public function SMAI_Ins_TableColumn($database,$table,$data_arr)
 
    }
 
-   public  function SMAI_Check_Universal_UserPlans($user_id,$database,$platform)
-    {
+  
 
-        //1.where's the Plan of each $platform
-        //2.when the Plan was or will be changed
-
-        if($database=='main_db' && $platform=='MainCoIn')
-        $user =UserMain::where('id', '=', $user_id)->orderBy('id','asc')->first();
-        else if($database=='main_db' && $platform=='SocialPost')
-        $user =UserSP::where('id', '=', $user_id)->orderBy('id','asc')->first();
-        else if($database=='digitalasset_db' && $platform=='Design')
-        $user =UserDesign::where('id', '=', $user_id)->orderBy('id','asc')->first();
-        else if($database=='digitalasset_db' && $platform=='MobileAppV2')
-        $user =UserMobile::where('id', '=', $user_id)->orderBy('id','asc')->first();
-        else
-        $user=NULL;
-
-       
-        if($user!= NULL)
-        {
-        $user_plan=$user->plan;
-        $user_plan_expire=$user->plan_expire_date;
-        $user_sp_plan=$user->sp_plan;
-        $user_mobile_plan=$user->mobile_plan;
-        $user_design_plan=$user->design_plan;
-        $user_sync_plan=$user->sync_plan;
-
-
-
-        $return_plan= array(
-
-            "plan_id" => $user_plan,
-            "expire" => $user_plan_expire,
-            "mobile_plan_id" => $user_mobile_plan,
-            "sp_plan_id" => $user_sp_plan,
-
-
-        );
-
-
-            return $return_plan;
-       }
-        else{
-
-            return 0;
-
-        }
-
-
-    }
-
-    public  function SMAI_Update_Universal_UserPlans($database,$platform,$plan_id)
-    {
-
-        //1.where's the Plan of each $platform
-        //2.when the Plan was or will be changed
-
-
-
-
-
-
-    }
+    
 
 
 

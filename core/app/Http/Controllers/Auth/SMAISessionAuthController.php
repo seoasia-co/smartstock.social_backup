@@ -939,6 +939,9 @@ class SMAISessionAuthController extends Controller
     public function check_old_user($db,$table,$email)
     {
 
+        if($db=='bio_db')
+        $user_old=DB::connection($db)->table($table)->where('email', $email)->orderBy('user_id','asc')->get();   
+        else
         $user_old=DB::connection($db)->table($table)->where('email', $email)->orderBy('id','asc')->get();   
 
         $found_user= $user_old->count();

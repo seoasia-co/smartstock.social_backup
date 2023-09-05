@@ -19,7 +19,7 @@ use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use App\Models\SettingTwo;
-use App\Models\Plan;
+
 
 use Log;
 use Session;
@@ -43,6 +43,7 @@ use App\Models\SP_UserCaption;
 use App\Models\Settings;
 
 use App\Models\PlanMobile;
+use App\Models\Plan;
 
 use App\Models\SettingBio;
 
@@ -56,6 +57,8 @@ use App\Models\UserBioBlog;
 use App\Models\UserBio;
 use App\Models\UserSyncNodeJS;
 use App\Models\UserMobile;
+use App\Models\PlanBio;
+
 
 
 
@@ -69,6 +72,8 @@ class SMAIUpdateProfileController extends Controller
     protected $hash_password;
     protected $skip_update_pss=0;
     protected $upFromWhere=NULL;
+    protected $plus_new_images_token;
+    protected $plus_new_words_token;
 
     // request as an attribute of the controllers
 
@@ -76,6 +81,8 @@ class SMAIUpdateProfileController extends Controller
 
     public function __construct($request_update,$user_id,$user_email,$whatup,$upFromWhere=NULL)
     {
+        $this->plus_new_images_token=0;
+        $this->plus_new_words_token=0;
         $this->upFromWhere=$upFromWhere;
 
         Log::debug(" Start constructor of Class update Profile with these Params : ");
@@ -87,16 +94,19 @@ class SMAIUpdateProfileController extends Controller
 
         Log::info($request_update->data);
 
+        if(isset($request_update->data['name']))
+        {
         Log::debug(' Name for data : ');
         Log::info($request_update->data['name']);
-       // $data = $request_update->data[0];
+        }
+       
 
         if(isset($request_update->data['password']))
         {
           $password = $request_update->data['password'];
         }
 
-        if (isset($request_update->data[0]['password'])) {
+        if (isset($request_update->data['password'])) {
             if ($password != null && $password != NULL) {
                 $password = $request_update->data['password'];
                 $this->hash_password = Hash::make($request_update->data['password']);
@@ -112,7 +122,6 @@ class SMAIUpdateProfileController extends Controller
 
         // for check if column existing
         // $user_column_on= $this->checkColumnExist($column,$table,$db);
-
         /* $request_update = json_decode($request_update,true);
         Log::info($request_update);
         $request = json_decode($request_update['data'],true ); */
@@ -154,7 +163,7 @@ class SMAIUpdateProfileController extends Controller
 
         }
 
-        if (in_array("plan", $whatup)) /* if($whatup=="plan") */ {
+        if (in_array("plan", $whatup))  {
 
             //plan universal
             if (isset($request['plan']))
@@ -179,7 +188,7 @@ class SMAIUpdateProfileController extends Controller
                 $userdata['remaining_words'] = $request['remaining_words'];
 
             //plan universal
-            if (isset($request['remaining_words']))
+            if (isset($request['remaining_images']))
                 $userdata['remaining_images'] = $request['remaining_images'];
 
             //plan mobile_new
@@ -226,24 +235,22 @@ class SMAIUpdateProfileController extends Controller
                 $userdata['plan_expiration_date'] = $request['plan_expiration_date'];
 
 
-            //plan main
-            if (isset($request['last_login_at']))
-                $userdata['last_login_at'] = $request['last_login_at'];
-
-
-            //plan main
-            if (isset($request['last_login_ip']))
-                $userdata['last_login_ip'] = $request['last_login_ip'];
-
-
-            //plan main
-            if (isset($request['under_which_affiliate_user']))
-                $userdata['under_which_affiliate_user'] = $request['under_which_affiliate_user'];
-
-
         }
 
         if (in_array("extra_profile", $whatup)) /*  if($whatup=="extra_profile") */ {
+
+             //extra profile main
+             if (isset($request['under_which_affiliate_user']))
+             $userdata['under_which_affiliate_user'] = $request['under_which_affiliate_user'];
+
+            //extra profile main
+            if (isset($request['last_login_at']))
+            $userdata['last_login_at'] = $request['last_login_at'];
+        
+        
+            //extra profile main
+            if (isset($request['last_login_ip']))
+                        $userdata['last_login_ip'] = $request['last_login_ip'];
 
             //extra_profile socialpost
             if (isset($request['ids']))
@@ -326,10 +333,20 @@ class SMAIUpdateProfileController extends Controller
 
         if (in_array("password", $whatup) && $this->skip_update_pss != 1 )
         {
+            Log::debug('Update Profile case Password ');
+
+            if($this->upFromWhere  == 'bio')
+            {
+                $userdata['password'] =  $request_update->data['password'];
+            }
+
+            else
+            {
             $userdata['password'] = $this->hash_password;
+            }
             //send to medthod update password to all platforms
             $this->update_password_all($userdata,$user_id,$user_email);
-     
+
 
         }
         else if ($whatup == 'profile' && $this->upFromWhere  == 'main_coin')
@@ -370,6 +387,15 @@ class SMAIUpdateProfileController extends Controller
 
             //send to medthod update bio profile to all platforms
             $this->up_profile_bio($userdata,$user_id,$user_email);   
+
+
+        }
+        else if( in_array("plan", $whatup) && $this->upFromWhere  == 'bio')
+        {  
+            // #ep2
+
+            //send to medthod update bio profile to all platforms
+            $this->up_plan_bio($userdata,$user_id,$user_email);  
 
 
         }
@@ -857,9 +883,284 @@ class SMAIUpdateProfileController extends Controller
 
     }
 
-    public function up_profile_bio_blog($request, $user_id, $user_email)
+    public function up_freeplan_bio($userdata,$user_id,$user_email)
     {
+        //update every Platforms to free plan id
+        // Main.co.in to plan id  8
+        //Main.marketing to package_id 1
 
+    }
+
+
+    public function up_plan_bio($userdata,$user_id,$user_email)
+    {
+        Log::debug("Start update Bio Profile to all Platforms in up_plan_bio ");
+
+
+        //1.update plan to all platforms
+        if(isset($userdata['plan']))
+        {
+            $userdata_plan=array(
+                'plan' => $userdata['plan'],
+            );
+        
+         
+            
+
+        // not working because each plan value not the same  
+        //$this->update_column_all($userdata_name,$user_id,$user_email);
+
+       
+    
+        $each_plan=PlanBio::where('plan_id',$userdata['plan'])->orderBy('plan_id', 'asc')->first();
+        
+        $socialpost_plan=$each_plan->socialpost_id;
+        $userdata_plan['plan']=$socialpost_plan;
+
+        $this->update_column_all( $userdata_plan,$user_id,$user_email,'main_db','sp_users');
+
+        $main_coin_plan=$each_plan->main_plan_id;
+        if($main_coin_plan==8)
+        {
+            $main_marketing_id=1;
+        }
+        else
+        {
+            $main_marketing_id=$main_coin_plan;
+        }
+
+        $userdata_plan['plan']=$main_coin_plan;
+        
+
+        $this->update_column_all( $userdata_plan,$user_id,$user_email,'main_db','users');
+
+
+        $design_plan=$each_plan->design_id;
+        $userdata_plan['plan']=$design_plan;
+        $this->update_column_all( $userdata_plan,$user_id,$user_email,'digitalasset_db','users');
+
+
+        $mobile_plan=$each_plan->mobile_id;
+        $userdata_plan['plan']=$mobile_plan;
+        $this->update_column_all( $userdata_plan,$user_id,$user_email,'mobileapp_db','users');
+
+        $sync_plan=$each_plan->sync_id;
+        $userdata_plan['plan']=$sync_plan;
+        $this->update_column_all( $userdata_plan,$user_id,$user_email,'sync_db','user');
+
+
+
+
+        // prepare for next update
+        $userdata['package_id']= $main_marketing_id;
+    
+        }
+
+
+        //Bio ,Main, Socialpost, Design,Mobile2 Sync
+        $user_old_data=UserMain::where('id',$user_id)->orderBy('id', 'asc')->first();
+        $user_bio_old_data=UserBio::where('id',$user_id)->orderBy('id', 'asc')->first();
+        
+        //defind remaining_words
+        $userdata['remaining_words']=$user_old_data->remaining_words;
+        $userdata['remaining_images']=$user_old_data->remaining_images;
+
+      //defind others old mobile old Main
+      $userdata['total_words']=$user_old_data->total_words;
+      $userdata['total_images']=$user_old_data->total_images;
+
+      $userdata['expiration_date']=$user_bio_old_data->plan_expire_date;
+      $userdata['plan_expire_date']=$user_bio_old_data->plan_expire_date;
+      $userdata['expired_date']=$user_bio_old_data->plan_expire_date;
+
+      $userdata['available_words']=$user_old_data->available_words;
+      $userdata['available_images']=$user_old_data->available_images;
+
+        if(isset($userdata['remaining_words']))
+        {
+
+        $check_plus_remaining=Plan::where('id',$userdata['plan'])->orderBy('id', 'asc')->first();
+
+        $plus_remaining_images=$check_plus_remaining->total_images;
+        $plus_remaining_words=$check_plus_remaining->total_words;
+
+        $this->plus_new_images_token=$plus_remaining_images;
+        $this->plus_new_words_token=$plus_remaining_words;
+
+        //update new data after plus new Plan
+        $userdata['remaining_words']+=$plus_remaining_words;
+        $userdata['remaining_images']+=$plus_remaining_images;
+        $userdata['available_words']+=$plus_remaining_words;
+        $userdata['available_images']+=$plus_remaining_images;
+        $userdata['total_words']+=$plus_remaining_words;
+        $userdata['total_images']+=$plus_remaining_images;
+
+
+
+      
+        
+        //To Bio ,Main, Socialpost, Design,Mobile2 Sync
+        $userdata_remaining_words=array(
+            'remaining_words' => $userdata['remaining_words'],
+            'remaining_images' => $userdata['remaining_images'],
+        );
+
+        $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'main_db','users');
+
+        $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'main_db','sp_users');
+
+        //$this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'bio_db','users');
+
+        $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'digitalasset_db','users');
+
+        $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'mobileapp_db','users');
+
+
+        $userdata_remaining_words['gpt_words_limit'] = $userdata['remaining_words'];
+        $userdata_remaining_words['dalle_limit'] = $userdata['remaining_images'];
+                
+        $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'sync_db','user');
+
+        unset($userdata_remaining_words['gpt_words_limit']);
+        unset($userdata_remaining_words['dalle_limit']);
+
+
+        }
+
+        //Separate all of these for each platform 
+            
+        //plan main marketing && mobile old
+            if (isset( $userdata['package_id']))
+            {
+
+
+              
+                //To Main marketing co.in, Mobile old,
+                $userdata_main_plan_array=array(
+                    'package_id' => $userdata['package_id'],
+                    
+                    'total_words' => $userdata['total_words'],
+                    'total_images' => $userdata['total_images'], 
+
+                    'expiration_date' => $userdata['expiration_date'],
+                    'plan_expire_date' => $userdata['plan_expire_date'],
+                    'expired_date' => $userdata['expired_date'],
+
+                    'available_words' => $userdata['available_words'],
+                    'available_images' => $userdata['available_images'],
+                       
+                );
+
+                $this->update_column_all( $userdata_main_plan_array,$user_id,$user_email,'main_db','users');    
+
+
+                
+            }
+
+               //plan mobile_old
+               //Done
+               if (isset($userdata['available_images']))
+               {
+                   
+               }
+   
+               //plan mobile_old
+               //Done
+               if (isset($userdata['total_words']))
+               {
+                   
+               }
+   
+               //plan mobile_old
+               //Done
+               if (isset($userdata['total_images'] ))
+               {
+                   
+               }
+   
+               //plan universal
+               //Done
+               if (isset($userdata['expiration_date']))
+               {
+                   
+               }
+   
+               //plan mobile_old
+               //Done
+               if (isset($userdata['plan_expire_date']))
+               {
+                   
+               }
+   
+               //plan main
+               //Done
+               if (isset($userdata['expired_date']))
+               {
+                   
+               }
+
+               
+                //plan mobile_old
+                //Done
+                if (isset($userdata['available_words']))
+                {
+                    
+                }
+
+            //plan mobile_new
+            $usersync_old_data=UserMobile::where('id',$user_id)->orderBy('id', 'asc')->first();
+            $userdata['words_left']=$usersync_old_data->words_left;
+            $userdata['image_left']=$usersync_old_data->image_left;
+
+            $userdata['words_left']+= $this->plus_new_words_token ;
+            $userdata['image_left']+= $this->plus_new_images_token ;
+
+            if (isset($userdata['words_left']))
+            {
+                //To Bio ,Main, Socialpost, Design,Mobile2 Sync
+                $userdata_mobile_plan_array=array(
+                    'words_left' => $userdata['words_left'],
+                    'image_left' => $userdata['image_left'],
+                 
+                );
+            $this->update_column_all( $userdata_mobile_plan_array,$user_id,$user_email,'mobileapp_db','users');
+                
+            }
+
+
+            //plan mobile_new
+            if (isset($userdata['image_left']))
+            {
+                
+            }
+
+            //plan bio 
+            //because call from bio Do nothing
+            if (isset($userdata['plan_id']))
+            {
+                
+            }
+
+
+            //plan bio
+            //because call from bio Do nothing
+            if (isset($userdata['plan_settings']))
+            {
+                
+            }
+         
+
+            //plan bio
+            //because call from bio Do nothing
+            if (isset($userdata['plan_expiration_date']))
+            {
+
+            }
+
+            
+            
+
+       
 
     }
 
@@ -872,7 +1173,8 @@ class SMAIUpdateProfileController extends Controller
 
     public function update_password_all($userdata,$user_id,$user_email)
     {
-        Log::debug(" Start update password to all Platforms in update all Fnc ");
+        Log::debug(" Start update password to all Platforms in update all Fnc with this User data ");
+        Log::info($userdata);
 
         //Mobile
         $usermoible = UserMobile::where('email', '=', $user_email)->where('id', '=', $user_id)
@@ -990,7 +1292,12 @@ class SMAIUpdateProfileController extends Controller
             /* $usermoible = UserMobile::where('email', '=', $user_email)->where('id', '=', $user_id)
             ->update($userdata);  */
             Log::debug(" Start update Universal Column case Not Null db table that exist to all Platforms in update_column_all ");
-            $user_data_update=DB::connection($db)->table($table)->where('email', $user_email)->orderBy('id','asc')->update($userdata);   
+
+            if($user_email!=NULL && Str::length($user_email) > 2)
+            $user_data_update=DB::connection($db)->table($table)->where('email', $user_email)->where('id', $user_id)->orderBy('id','asc')->update($userdata);  
+            else
+            $user_data_update=DB::connection($db)->table($table)->where('id', $user_id)->orderBy('id','asc')->update($userdata);  
+
 
         }
     else
@@ -1029,8 +1336,7 @@ class SMAIUpdateProfileController extends Controller
 
             //CRM  Lead need not to be updated
 
-            $usercrm = UserCRM::where('email', '=', $user_email)->where('id', '=', $user_id)
-            ->update($userdata); 
+            $usercrm =DB::connection('crm_db')->table('tblleads')->where('email', '=', $user_email)->where('id', '=', $user_id)->update($userdata);
 
             //SEO (first_name,last_name)
 
