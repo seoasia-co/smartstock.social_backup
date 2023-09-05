@@ -106,7 +106,12 @@ class SMAISyncTokenController extends Controller
 
 
             if (isset($json_array['usage']))
+            {
                 $this->total_used_tokens = $json_array['usage']['total_tokens'];
+                Log::debug('Found Total_token : '.$this->total_used_tokens);
+            }
+
+
 
 
         }
@@ -241,8 +246,17 @@ class SMAISyncTokenController extends Controller
             $message->hash = Str::random(256);
             $message->credits = $total_used_tokens;
             $message->words = 0;
-            $message->save();
+            $UserOpenai_saved = $message->save();
 
+            if(!$UserOpenai_saved){
+                Log::debug('Save OpenAI Log Error ');
+            }
+            else{
+                Log::debug('Save UserOpenai Log Success ');
+            }
+
+        if(isset($this->total_used_tokens) && $this->total_used_tokens > 0 )
+        $total_used_tokens=$this->total_used_tokens;
 
             //Update new remaining Tokens
             $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
@@ -259,6 +273,9 @@ class SMAISyncTokenController extends Controller
                 $new_remaining_words = 0;
                 $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
             }
+
+            if($user_update > 0)
+            Log::debug('Update remaining at Main1 success');
 
             echo 'data: [DONE]';
             echo "\n\n";
@@ -416,13 +433,24 @@ class SMAISyncTokenController extends Controller
             $message->hash = Str::random(256);
             $message->credits = $total_used_tokens;
             $message->words = 0;
-            $message->save();
+            
+
+            $UserOpenai_saved = $message->save();
+
+            if(!$UserOpenai_saved){
+                Log::debug('Save OpenAI Socialpost Log Error ');
+            }
+            else{
+                Log::debug('Save SP_UserOpenai Log Success ');
+            }
 
             //add to SP_Captions for show in socialpost caption list
             $caption_table = "sp_captions";
             $caption_database = "main_db";
             $this->SMAI_Ins_Eloq_openAI_Caption_Socialpost($description, $responsedText, $user_id, $message_id, $caption_database, $caption_table);
 
+            if(isset($this->total_used_tokens) && $this->total_used_tokens > 0 )
+            $total_used_tokens=$this->total_used_tokens;
 
             // Save Users of Digital_Asset
             //Update new remaining Tokens
@@ -440,6 +468,8 @@ class SMAISyncTokenController extends Controller
                 $new_remaining_words = 0;
                 $user_update = DB::connection('main_db')->update('update sp_users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
             }
+            if($user_update > 0)
+            Log::debug('Update remaining at Main Socialpost success');
 
             echo 'data: [DONE]';
             echo "\n\n";
@@ -595,7 +625,17 @@ class SMAISyncTokenController extends Controller
             $message->hash = Str::random(256);
             $message->credits = $total_used_tokens;
             $message->words = 0;
-            $message->save();
+            $UserOpenai_saved = $message->save();
+
+            if(!$UserOpenai_saved){
+                Log::debug('Save OpenAI Design Log Error ');
+            }
+            else{
+                Log::debug('Save DigitalAsset Log Success ');
+            }
+
+            if(isset($this->total_used_tokens) && $this->total_used_tokens > 0 )
+            $total_used_tokens=$this->total_used_tokens;
 
             //Update new remaining Tokens
             $user = \DB::connection('digitalasset_db')->table('users')->where('id', $user_id)->get();
@@ -612,6 +652,9 @@ class SMAISyncTokenController extends Controller
                 $new_remaining_words = 0;
                 $user_update = DB::connection('digitalasset_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
             }
+
+            if($user_update > 0)
+            Log::debug('Update remaining at Design success');
 
             echo 'data: [DONE]';
             echo "\n\n";
@@ -743,8 +786,17 @@ class SMAISyncTokenController extends Controller
             $message->hash = Str::random(256);
             $message->credits = $total_used_tokens;
             $message->words = 0;
-            $message->save();
+            $UserOpenai_saved = $message->save();
 
+            if(!$UserOpenai_saved){
+                Log::debug('Save OpenAI Mobile Log Error ');
+            }
+            else{
+                Log::debug('Save Mobile Log Success ');
+            }
+
+            if(isset($this->total_used_tokens) && $this->total_used_tokens > 0 )
+            $total_used_tokens=$this->total_used_tokens;
 
             //Update new remaining Tokens
             $user = \DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->get();
@@ -753,6 +805,7 @@ class SMAISyncTokenController extends Controller
                 $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
                 // $user[0]->save();
                 $user_update = DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+
             }
 
             if ($user[0]->remaining_words < -1) {
@@ -760,7 +813,11 @@ class SMAISyncTokenController extends Controller
                 // $user[0]->save();
                 $new_remaining_words = 0;
                 $user_update = DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+
+
             }
+            if($user_update > 0)
+            Log::debug('Update remaining at MobileApp success');
 
             echo 'data: [DONE]';
             echo "\n\n";
