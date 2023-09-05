@@ -839,7 +839,7 @@ class SMAISessionAuthController extends Controller
             'referred_by' => $referred_by,
             'language' => $language,
             'timezone' => $timezone,
-            'status' => $status,
+            'status' => 1,
             'source' => $source,
             'continent_code' => $continent_code,
             'country' => $country_code,
