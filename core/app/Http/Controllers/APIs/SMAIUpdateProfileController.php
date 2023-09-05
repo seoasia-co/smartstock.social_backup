@@ -959,11 +959,12 @@ class SMAIUpdateProfileController extends Controller
 
         //Bio ,Main, Socialpost, Design,Mobile2 Sync
         $user_old_data=UserMain::where('id',$user_id)->orderBy('id', 'asc')->first();
-        $user_bio_old_data=UserBio::where('id',$user_id)->orderBy('id', 'asc')->first();
+        
         
         //defind remaining_words
         $userdata['remaining_words']=$user_old_data->remaining_words;
         $userdata['remaining_images']=$user_old_data->remaining_images;
+        $user_bio_old_data=UserBio::where('user_id',$user_id)->orderBy('user_id', 'asc')->first();
 
       //defind others old mobile old Main
       $userdata['total_words']=$user_old_data->total_words;
@@ -979,7 +980,9 @@ class SMAIUpdateProfileController extends Controller
         if(isset($userdata['remaining_words']))
         {
 
-        $check_plus_remaining=Plan::where('id',$userdata['plan'])->orderBy('id', 'asc')->first();
+        $check_main_plan=PlanBio::where('plan_id',$userdata['plan'])->orderBy('plan_id', 'asc')->first();
+        $main_plan_id=$check_main_plan->main_plan_id;
+        $check_plus_remaining=Plan::where('id',$main_plan_id)->orderBy('id', 'asc')->first();
 
         $plus_remaining_images=$check_plus_remaining->total_images;
         $plus_remaining_words=$check_plus_remaining->total_words;
@@ -1036,14 +1039,16 @@ class SMAIUpdateProfileController extends Controller
 
               
                 //To Main marketing co.in, Mobile old,
+                //Main expired_date => $userdata['expiration_date'],
+
                 $userdata_main_plan_array=array(
                     'package_id' => $userdata['package_id'],
                     
                     'total_words' => $userdata['total_words'],
                     'total_images' => $userdata['total_images'], 
 
-                    'expiration_date' => $userdata['expiration_date'],
-                    'plan_expire_date' => $userdata['plan_expire_date'],
+                    
+                   
                     'expired_date' => $userdata['expired_date'],
 
                     'available_words' => $userdata['available_words'],
@@ -1053,6 +1058,21 @@ class SMAIUpdateProfileController extends Controller
 
                 $this->update_column_all( $userdata_main_plan_array,$user_id,$user_email,'main_db','users');    
 
+
+                //Socialpost Expired date
+                $expire_date_arr=array(
+                    'expiration_date' => $userdata['expiration_date'],
+
+                );
+                $this->update_column_all( $expire_date_arr,$user_id,$user_email,'main_db','sp_users');  
+
+
+                //MobileApp Expired date
+                $expire_dateMobile_arr=array(
+                    'plan_expire_date' => $userdata['plan_expire_date'],
+
+                );
+                $this->update_column_all( $expire_dateMobile_arr,$user_id,$user_email,'mobileapp_db','users');  
 
                 
             }
@@ -1291,7 +1311,7 @@ class SMAIUpdateProfileController extends Controller
             //Database &&  Table
             /* $usermoible = UserMobile::where('email', '=', $user_email)->where('id', '=', $user_id)
             ->update($userdata);  */
-            Log::debug(" Start update Universal Column case Not Null db table that exist to all Platforms in update_column_all ");
+            Log::debug(" Start update Universal Column case Not Null db table that exist to all Platforms in update_column_all ".$db." in Table ".$table);
 
             if($user_email!=NULL && Str::length($user_email) > 2)
             $user_data_update=DB::connection($db)->table($table)->where('email', $user_email)->where('id', $user_id)->orderBy('id','asc')->update($userdata);  
