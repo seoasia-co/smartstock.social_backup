@@ -987,6 +987,15 @@ class SMAIUpdateProfileController extends Controller
         $plus_remaining_images=$check_plus_remaining->total_images;
         $plus_remaining_words=$check_plus_remaining->total_words;
 
+
+        //case reset to freetrial no need to add token
+        if($userdata['plan']==0)
+        {
+            $plus_remaining_images=0;
+            $plus_remaining_words=0;
+
+        }
+
         $this->plus_new_images_token=$plus_remaining_images;
         $this->plus_new_words_token=$plus_remaining_words;
 
@@ -1047,7 +1056,7 @@ class SMAIUpdateProfileController extends Controller
                     'total_words' => $userdata['total_words'],
                     'total_images' => $userdata['total_images'], 
 
-                    
+                    'expiration_date' => $userdata['expiration_date'],
                    
                     'expired_date' => $userdata['expired_date'],
 
@@ -1068,11 +1077,19 @@ class SMAIUpdateProfileController extends Controller
 
 
                 //MobileApp Expired date
-                $expire_dateMobile_arr=array(
-                    'plan_expire_date' => $userdata['plan_expire_date'],
+                 $expire_dateMobile_arr=array(
+                    'subscription_end_date' =>$userdata['expired_date'],
 
                 );
-                $this->update_column_all( $expire_dateMobile_arr,$user_id,$user_email,'mobileapp_db','users');  
+                $this->update_column_all( $expire_dateMobile_arr,$user_id,$user_email,'mobileapp_db','users');   
+
+                //Sync Expired date planexpire
+
+                $expire_dateSync_arr=array(
+                    'planexpire' => $userdata['expired_date'],
+
+                );
+                $this->update_column_all( $expire_dateSync_arr,$user_id,$user_email,'sync_db','user');   
 
                 
             }
