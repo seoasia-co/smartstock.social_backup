@@ -5,18 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class UserOpenaiChatMessage extends Model
+class UserOpenaiChatMessageMobile extends Model
 {
     use HasFactory;
-    protected $connection = 'main_db';
+    protected $connection = 'mobileapp_db';
     protected $table = 'user_openai_chat_messages';
 
-    protected $fillable = [
-        'user_id',
-           
-    ];
-
     public function chat(){
-        return $this->belongsTo(UserOpenaiChat::class, 'user_openai_chat_id', 'id');
+        return $this->belongsTo(UserOpenaiChatMobile::class, 'user_openai_chat_id', 'id');
     }
 }

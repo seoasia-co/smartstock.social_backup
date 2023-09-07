@@ -2377,18 +2377,29 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $user_id=$request->user_id;
         $usage=$request->usage;
         $data=$request->data;
-        $params=$request->params_input;
 
+        $params=json_decode($request->params_input,true);
+
+        $chatGPT_catgory=$params['gpt_category'];
+
+        if(isset($params['platform']))
+        $from=$params['platform'];
+        else
+        $from='';
+
+        Log::debug('$data that from response smaisync_tokens from APIsController : '.info(print_r($data, true)));
         Log::debug('$params smaisync_tokens from APIsController : '.info(print_r($params, true)));
         Log::info(print_r($params, true));
         Log::debug('User ID log in smaisync_tokens in Main APIsController from Digital_Asset : '.$user_id);
 
-        $new_update_digitalasset=NEW SMAISyncTokenController($data);
+        $new_update_digitalasset=NEW SMAISyncTokenController($data,$usage,$chatGPT_catgory);
         $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$data,$params);
 
 
         //$new_update_mobileapp=NEW SMAISyncTokenController($data);
         // if not called from SocialPost add extra update to MobileApp table
+        
+        if( $from != 'MobileAppV2')
         $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id,$usage,$data,$params);
 
 
@@ -2399,7 +2410,19 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
         //$new_update_main=NEW SMAISyncTokenController();
         // if not called from SocialPost add extra update to MainCoIn table
+        
+        if( $from != 'main_coin')
         $new_update_digitalasset->SMAI_UpdateGPT_MainCoIn($user_id,$usage,$data,$params);
+
+        if( $from != 'main_marketing')
+        $new_update_digitalasset->SMAI_UpdateGPT_MainMarketing($user_id,$usage,$data,$params);
+
+        /* $response = [
+            'code' => '1',
+            'msg' => 'success'
+        ];
+        return response()->json($response, 201); */
+        
 
     }
 

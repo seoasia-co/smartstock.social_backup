@@ -5,12 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class UserOpenaiChat extends Model
+class UserOpenaiChatMainMarketing extends Model
 {
     use HasFactory;
     protected $connection = 'main_db';
-    protected $table = 'user_openai_chat';
-
+    protected $table = 'conversation_list';
     protected $fillable = [
         
         'user_id',
@@ -19,11 +18,17 @@ class UserOpenaiChat extends Model
     ];
 
     public function messages(){
-        return $this->hasMany(UserOpenaiChatMessage::class);
+        return $this->hasMany(UserOpenaiChatMessageMainMarketing::class);
     }
 
     public function category(){
-        // โดยเชื่อมตารางตัวเองคือ user_openai_chat  คอลัม openai_chat_category_id กับ id ของ OpenaiGeneratorChatCategory
         return $this->belongsTo(OpenaiGeneratorChatCategory::class, 'openai_chat_category_id', 'id' );
     }
+
+    public function user()
+    {
+        // โดยเอา คอลัม id ของ UserMoible มาบันทึกในตารางตัวเองชื่อ user_id เพื่อเชื่อมโยงกัน
+        return $this->hasOne(UserMain::class, 'user_id', 'id');
+    }
+    
 }

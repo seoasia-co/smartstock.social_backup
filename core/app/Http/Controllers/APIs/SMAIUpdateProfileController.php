@@ -165,6 +165,14 @@ class SMAIUpdateProfileController extends Controller
 
         if (in_array("plan", $whatup))  {
 
+            
+            //plan main_coin
+            if (isset($request['remaining_words_plus']))
+            $userdata['remaining_words_plus'] = $request['remaining_words_plus'];
+
+            if (isset($request['remaining_images_plus']))
+                $userdata['remaining_images_plus'] = $request['remaining_images_plus'];
+
             //plan universal
             if (isset($request['plan']))
                 $userdata['plan'] = $request['plan'];
@@ -399,7 +407,16 @@ class SMAIUpdateProfileController extends Controller
 
 
         }
-        else if($whatup == 'plan' && $this->upFromWhere  == 'socialpost')
+        else if(in_array("plan", $whatup) &&  Str::contains($this->upFromWhere, 'MainCoIn'))
+        {
+            // #ep3
+
+            //send to medthod update bio profile to all platforms
+            $this->up_plan_main_coin($userdata,$user_id,$user_email); 
+
+
+        }
+        else if(in_array("plan", $whatup) && $this->upFromWhere  == 'socialpost')
         {
 
 
@@ -970,9 +987,9 @@ class SMAIUpdateProfileController extends Controller
       $userdata['total_words']=$user_old_data->total_words;
       $userdata['total_images']=$user_old_data->total_images;
 
-      $userdata['expiration_date']=$user_bio_old_data->plan_expire_date;
-      $userdata['plan_expire_date']=$user_bio_old_data->plan_expire_date;
-      $userdata['expired_date']=$user_bio_old_data->plan_expire_date;
+      $userdata['expiration_date']=$user_bio_old_data->expired_date;
+      $userdata['plan_expire_date']=$user_bio_old_data->expired_date;
+      $userdata['expired_date']=$user_bio_old_data->expired_date;
 
       $userdata['available_words']=$user_old_data->available_words;
       $userdata['available_images']=$user_old_data->available_images;
@@ -996,8 +1013,16 @@ class SMAIUpdateProfileController extends Controller
 
         }
 
+        if(isset($userdata['remaining_words_plus']))
+        {
+            $this->plus_new_images_token=$userdata['remaining_images_plus'];
+            $this->plus_new_words_token=$userdata['remaining_words_plus'];
+
+        }
+        else{
         $this->plus_new_images_token=$plus_remaining_images;
         $this->plus_new_words_token=$plus_remaining_words;
+        }
 
         //update new data after plus new Plan
         $userdata['remaining_words']+=$plus_remaining_words;
@@ -1056,8 +1081,8 @@ class SMAIUpdateProfileController extends Controller
                     'total_words' => $userdata['total_words'],
                     'total_images' => $userdata['total_images'], 
 
-                    'expiration_date' => $userdata['expiration_date'],
                    
+                    'plan_expire_date' => $userdata['plan_expire_date'],
                     'expired_date' => $userdata['expired_date'],
 
                     'available_words' => $userdata['available_words'],
@@ -1070,7 +1095,7 @@ class SMAIUpdateProfileController extends Controller
 
                 //Socialpost Expired date
                 $expire_date_arr=array(
-                    'expiration_date' => $userdata['expiration_date'],
+                    'expiration_date' => strtotime($userdata['expiration_date']),
 
                 );
                 $this->update_column_all( $expire_date_arr,$user_id,$user_email,'main_db','sp_users');  
@@ -1083,8 +1108,329 @@ class SMAIUpdateProfileController extends Controller
                 );
                 $this->update_column_all( $expire_dateMobile_arr,$user_id,$user_email,'mobileapp_db','users');   
 
-                //Sync Expired date planexpire
 
+                //Sync Expired date planexpire
+                $expire_dateSync_arr=array(
+                    'planexpire' => $userdata['expired_date'],
+
+                );
+                $this->update_column_all( $expire_dateSync_arr,$user_id,$user_email,'sync_db','user');   
+
+                
+            }
+
+               //plan mobile_old
+               //Done
+               if (isset($userdata['available_images']))
+               {
+                   
+               }
+   
+               //plan mobile_old
+               //Done
+               if (isset($userdata['total_words']))
+               {
+                   
+               }
+   
+               //plan mobile_old
+               //Done
+               if (isset($userdata['total_images'] ))
+               {
+                   
+               }
+   
+               //plan universal
+               //Done
+               if (isset($userdata['expiration_date']))
+               {
+                   
+               }
+   
+               //plan mobile_old
+               //Done
+               if (isset($userdata['plan_expire_date']))
+               {
+                   
+               }
+   
+               //plan main
+               //Done
+               if (isset($userdata['expired_date']))
+               {
+                   
+               }
+
+               
+                //plan mobile_old
+                //Done
+                if (isset($userdata['available_words']))
+                {
+                    
+                }
+
+            //plan mobile_new
+            $usersync_old_data=UserMobile::where('id',$user_id)->orderBy('id', 'asc')->first();
+            $userdata['words_left']=$usersync_old_data->words_left;
+            $userdata['image_left']=$usersync_old_data->image_left;
+
+            $userdata['words_left']+= $this->plus_new_words_token ;
+            $userdata['image_left']+= $this->plus_new_images_token ;
+
+            if (isset($userdata['words_left']))
+            {
+                //To Bio ,Main, Socialpost, Design,Mobile2 Sync
+                $userdata_mobile_plan_array=array(
+                    'words_left' => $userdata['words_left'],
+                    'image_left' => $userdata['image_left'],
+                 
+                );
+            $this->update_column_all( $userdata_mobile_plan_array,$user_id,$user_email,'mobileapp_db','users');
+                
+            }
+
+
+            //plan mobile_new
+            if (isset($userdata['image_left']))
+            {
+                
+            }
+
+            //plan bio 
+            //because call from bio Do nothing
+            if (isset($userdata['plan_id']))
+            {
+                
+            }
+
+
+            //plan bio
+            //because call from bio Do nothing
+            if (isset($userdata['plan_settings']))
+            {
+                
+            }
+         
+
+            //plan bio
+            //because call from bio Do nothing
+            if (isset($userdata['plan_expiration_date']))
+            {
+
+            }
+
+            
+            
+
+       
+
+    }
+
+    public function up_plan_main_coin($userdata,$user_id,$user_email)
+    {
+        Log::debug("Start update Bio Profile to all Platforms in up_plan_bio ");
+
+
+        //1.update plan to all platforms
+        if(isset($userdata['plan']))
+        {
+            $userdata_plan=array(
+                'plan' => $userdata['plan'],
+            );
+        
+         
+            
+
+        // not working because each plan value not the same  
+        //$this->update_column_all($userdata_name,$user_id,$user_email);
+
+       
+    
+        $each_plan=Plan::where('id',$userdata['plan'])->orderBy('id', 'asc')->first();
+        
+        $socialpost_plan=$each_plan->socialpost_id;
+        $userdata_plan['plan']=$socialpost_plan;
+
+        $this->update_column_all( $userdata_plan,$user_id,$user_email,'main_db','sp_users');
+
+        $main_coin_plan=$each_plan->main_plan_id;
+        if($main_coin_plan==8)
+        {
+            $main_marketing_id=1;
+        }
+        else
+        {
+            $main_marketing_id=$main_coin_plan;
+        }
+
+        //call from main_coin need not to update itself
+        /* $userdata_plan['plan']=$main_coin_plan;
+        $this->update_column_all( $userdata_plan,$user_id,$user_email,'main_db','users');
+ */
+
+        $bio_plan=$each_plan->bio_id;
+        $userdata_plan['plan']=$bio_plan;
+        $this->update_column_all( $userdata_plan,$user_id,$user_email,'bio_db','users');
+
+
+        $design_plan=$each_plan->design_id;
+        $userdata_plan['plan']=$design_plan;
+        $this->update_column_all( $userdata_plan,$user_id,$user_email,'digitalasset_db','users');
+
+
+        $mobile_plan=$each_plan->mobile_id;
+        $userdata_plan['plan']=$mobile_plan;
+        $this->update_column_all( $userdata_plan,$user_id,$user_email,'mobileapp_db','users');
+
+        $sync_plan=$each_plan->sync_id;
+        $userdata_plan['plan']=$sync_plan;
+        $this->update_column_all( $userdata_plan,$user_id,$user_email,'sync_db','user');
+
+
+
+
+        // prepare for next update
+        $userdata['package_id']= $main_marketing_id;
+    
+        }
+
+
+        //Bio ,Main, Socialpost, Design,Mobile2 Sync
+        $user_old_data=UserMain::where('id',$user_id)->orderBy('id', 'asc')->first();
+        
+        
+        //defind remaining_words
+        $userdata['remaining_words']=$user_old_data->remaining_words;
+        $userdata['remaining_images']=$user_old_data->remaining_images;
+        //$user_bio_old_data=UserBio::where('user_id',$user_id)->orderBy('user_id', 'asc')->first();
+
+      //defind others old mobile old Main
+      $userdata['total_words']=$user_old_data->total_words;
+      $userdata['total_images']=$user_old_data->total_images;
+
+      $userdata['expiration_date']=$user_old_data->plan_expiration_date;
+      $userdata['plan_expire_date']=$user_old_data->plan_expiration_date;
+      $userdata['expired_date']=$user_old_data->plan_expiration_date;
+
+      $userdata['available_words']=$user_old_data->available_words;
+      $userdata['available_images']=$user_old_data->available_images;
+
+        if(isset($userdata['remaining_words']))
+        {
+
+        $check_main_plan=PlanBio::where('plan_id',$userdata['plan'])->orderBy('plan_id', 'asc')->first();
+        $main_plan_id=$check_main_plan->main_plan_id;
+        $check_plus_remaining=Plan::where('id',$main_plan_id)->orderBy('id', 'asc')->first();
+
+        $plus_remaining_images=$check_plus_remaining->total_images;
+        $plus_remaining_words=$check_plus_remaining->total_words;
+
+
+        //case reset to freetrial no need to add token
+        if($userdata['plan']==0)
+        {
+            $plus_remaining_images=0;
+            $plus_remaining_words=0;
+
+        }
+
+        if(isset($userdata['remaining_words_plus']))
+        {
+            $this->plus_new_images_token=$userdata['remaining_images_plus'];
+            $this->plus_new_words_token=$userdata['remaining_words_plus'];
+
+        }
+        else{
+        $this->plus_new_images_token=$plus_remaining_images;
+        $this->plus_new_words_token=$plus_remaining_words;
+        }
+
+        //update new data after plus new Plan
+        $userdata['remaining_words']+=$plus_remaining_words;
+        $userdata['remaining_images']+=$plus_remaining_images;
+        $userdata['available_words']+=$plus_remaining_words;
+        $userdata['available_images']+=$plus_remaining_images;
+        $userdata['total_words']+=$plus_remaining_words;
+        $userdata['total_images']+=$plus_remaining_images;
+
+
+
+      
+        
+        //To Bio ,Main, Socialpost, Design,Mobile2 Sync
+        $userdata_remaining_words=array(
+            'remaining_words' => $userdata['remaining_words'],
+            'remaining_images' => $userdata['remaining_images'],
+        );
+
+        $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'main_db','users');
+
+        $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'main_db','sp_users');
+
+        //$this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'bio_db','users');
+
+        $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'digitalasset_db','users');
+
+        $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'mobileapp_db','users');
+
+
+        $userdata_remaining_words['gpt_words_limit'] = $userdata['remaining_words'];
+        $userdata_remaining_words['dalle_limit'] = $userdata['remaining_images'];
+                
+        $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'sync_db','user');
+
+        unset($userdata_remaining_words['gpt_words_limit']);
+        unset($userdata_remaining_words['dalle_limit']);
+
+
+        }
+
+        //Separate all of these for each platform 
+            
+        //plan main marketing && mobile old
+            if (isset( $userdata['package_id']))
+            {
+
+
+              
+                //To Main marketing co.in, Mobile old,
+                //Main expired_date => $userdata['expiration_date'],
+
+                $userdata_main_plan_array=array(
+                    'package_id' => $userdata['package_id'],
+                    
+                    'total_words' => $userdata['total_words'],
+                    'total_images' => $userdata['total_images'], 
+
+                   
+                    'plan_expire_date' => $userdata['plan_expire_date'],
+                    'expired_date' => $userdata['expired_date'],
+
+                    'available_words' => $userdata['available_words'],
+                    'available_images' => $userdata['available_images'],
+                       
+                );
+
+                $this->update_column_all( $userdata_main_plan_array,$user_id,$user_email,'main_db','users');    
+
+
+                //Socialpost Expired date
+                $expire_date_arr=array(
+                    'expiration_date' => strtotime($userdata['expiration_date']),
+
+                );
+                $this->update_column_all( $expire_date_arr,$user_id,$user_email,'main_db','sp_users');  
+
+
+                //MobileApp Expired date
+                 $expire_dateMobile_arr=array(
+                    'subscription_end_date' =>$userdata['expired_date'],
+
+                );
+                $this->update_column_all( $expire_dateMobile_arr,$user_id,$user_email,'mobileapp_db','users');   
+
+
+                //Sync Expired date planexpire
                 $expire_dateSync_arr=array(
                     'planexpire' => $userdata['expired_date'],
 

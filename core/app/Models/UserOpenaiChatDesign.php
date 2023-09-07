@@ -5,10 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class UserOpenaiChat extends Model
+class UserOpenaiChatDesign extends Model
 {
     use HasFactory;
-    protected $connection = 'main_db';
+    protected $connection = 'digitalasset_db';
     protected $table = 'user_openai_chat';
 
     protected $fillable = [
@@ -17,9 +17,10 @@ class UserOpenaiChat extends Model
 	    'openai_chat_category_id', 
         'chat_id',
     ];
+    
 
     public function messages(){
-        return $this->hasMany(UserOpenaiChatMessage::class);
+        return $this->hasMany(UserOpenaiChatMessageDesign::class);
     }
 
     public function category(){

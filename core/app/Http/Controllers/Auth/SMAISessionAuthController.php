@@ -422,6 +422,7 @@ class SMAISessionAuthController extends Controller
                 'email_verification_code' => Str::random(67),
                 'affiliate_id' => $affCode,
                 'affiliate_code' => Str::upper(Str::random(12)),
+                'created_at'=>date('Y-m-d H:i:s'),
             ];
 
             //bug bug add check if user exist and use update
