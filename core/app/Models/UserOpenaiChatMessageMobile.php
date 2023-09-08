@@ -9,7 +9,7 @@ class UserOpenaiChatMessageMobile extends Model
 {
     use HasFactory;
     protected $connection = 'mobileapp_db';
-    protected $table = 'user_openai_chat_messages';
+    protected $table = 'willdev_user_chat';
 
     public function chat(){
         return $this->belongsTo(UserOpenaiChatMobile::class, 'user_openai_chat_id', 'id');

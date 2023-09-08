@@ -33,9 +33,6 @@ use Log;
 use App\Http\Controllers\Auth\SMAISessionAuthController;
 
 
-
-
-
 class APIsController extends Controller
 {
     public function __construct()
@@ -46,7 +43,7 @@ class APIsController extends Controller
             exit();
         }
 
-        //test close Helper 
+        //test close Helper
         //Helper::SaveVisitorInfo(url()->current());
 
 
@@ -2374,55 +2371,65 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
     //SMAI Sync
     public function smaisync_tokens(Request $request)
     {
-        $user_id=$request->user_id;
-        $usage=$request->usage;
-        $data=$request->data;
+        $user_id = $request->user_id;
+        $usage = $request->usage;
+        $data = $request->data;
 
-        $params=json_decode($request->params_input,true);
+        $params = json_decode($request->params_input, true);
 
-        $chatGPT_catgory=$params['gpt_category'];
-
-        if(isset($params['platform']))
-        $from=$params['platform'];
+        if (isset($params['gpt_category']))
+            $chatGPT_catgory = $params['gpt_category'];
         else
-        $from='';
+            $chatGPT_catgory = NULL;
 
-        Log::debug('$data that from response smaisync_tokens from APIsController : '.info(print_r($data, true)));
-        Log::debug('$params smaisync_tokens from APIsController : '.info(print_r($params, true)));
+
+        if (isset($params['platform']))
+            $from = $params['platform'];
+        else
+            $from = '';
+
+
+        if (isset($params['chat_id']))
+            $chat_id = $params['chat_id'];
+        else
+            $chat_id = '';
+
+        Log::debug('$data that from response smaisync_tokens from APIsController : ' . info(print_r($data, true)));
+        Log::debug('$params smaisync_tokens from APIsController : ' . info(print_r($params, true)));
         Log::info(print_r($params, true));
-        Log::debug('User ID log in smaisync_tokens in Main APIsController from Digital_Asset : '.$user_id);
+        Log::debug('User ID log in smaisync_tokens in Main APIsController from Digital_Asset : ' . $user_id);
 
-        $new_update_digitalasset=NEW SMAISyncTokenController($data,$usage,$chatGPT_catgory);
-        $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id,$usage,$data,$params);
+        $new_update_digitalasset = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id);
+        $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data, $params);
 
 
         //$new_update_mobileapp=NEW SMAISyncTokenController($data);
         // if not called from SocialPost add extra update to MobileApp table
-        
-        if( $from != 'MobileAppV2')
-        $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id,$usage,$data,$params);
+
+        if ($from != 'MobileAppV2')
+            $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id, $usage, $data, $params);
 
 
         //$new_update_socialpost=NEW SMAISyncTokenController($data);
         // if not called from SocialPost add extra update to SocialPost SP table
-        $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id,$usage,$data,$params);
+        $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id, $usage, $data, $params);
 
 
         //$new_update_main=NEW SMAISyncTokenController();
         // if not called from SocialPost add extra update to MainCoIn table
-        
-        if( $from != 'main_coin')
-        $new_update_digitalasset->SMAI_UpdateGPT_MainCoIn($user_id,$usage,$data,$params);
 
-        if( $from != 'main_marketing')
-        $new_update_digitalasset->SMAI_UpdateGPT_MainMarketing($user_id,$usage,$data,$params);
+        if ($from != 'main_coin')
+            $new_update_digitalasset->SMAI_UpdateGPT_MainCoIn($user_id, $usage, $data, $params);
+
+        if ($from != 'main_marketing')
+            $new_update_digitalasset->SMAI_UpdateGPT_MainMarketing($user_id, $usage, $data, $params);
 
         /* $response = [
             'code' => '1',
             'msg' => 'success'
         ];
         return response()->json($response, 201); */
-        
+
 
     }
 
@@ -2431,12 +2438,12 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
     {
 
         //read user_id , key (column name), database
-        $user_id=$request->user_id;
-        $key=$request->key;
-        $database=$request->database;
+        $user_id = $request->user_id;
+        $key = $request->key;
+        $database = $request->database;
 
-        $checktoken_digitalasset=NEW SMAISyncTokenController();
-        $checktoken_digitalasset->SMAI_Check_DigitalAsset_UserColumn($user_id,$key,$database);
+        $checktoken_digitalasset = new SMAISyncTokenController();
+        $checktoken_digitalasset->SMAI_Check_DigitalAsset_UserColumn($user_id, $key, $database);
 
 
     }
@@ -2445,12 +2452,12 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
     {
 
         //read user_id , key (column name), database
-        $user_id=$request->user_id;
-        $key=$request->key;
-        $database=$request->database;
+        $user_id = $request->user_id;
+        $key = $request->key;
+        $database = $request->database;
 
-        $update_column_digitalasset=NEW SMAISyncTokenController();
-        $update_column_digitalasset->SMAI_Update_UserColumn($user_id,$key,$database);
+        $update_column_digitalasset = new SMAISyncTokenController();
+        $update_column_digitalasset->SMAI_Update_UserColumn($user_id, $key, $database);
 
 
     }
@@ -2461,107 +2468,104 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
     {
 
         //read data, key (column name), database
-        
-        if(isset($request->userId))
-        $uid=$request->userId;
-        else
-        $uid=$request->id;
 
-        if(isset($request->email))
-        $user_email=$request->email;
-        
-        $new_signup=NEW SMAISessionAuthController($request);
-        
-         //1.TODO add new user SocialPost Demo
-         //create session DB
-        
-         $user_id =  $new_signup->freetrial_socialpost($request,$uid);
-         //EOF TODO SocialPost Demo
+        if (isset($request->userId))
+            $uid = $request->userId;
+        else
+            $uid = $request->id;
+
+        if (isset($request->email))
+            $user_email = $request->email;
+
+        $new_signup = new SMAISessionAuthController($request);
+
+        //1.TODO add new user SocialPost Demo
+        //create session DB
+
+        $user_id = $new_signup->freetrial_socialpost($request, $uid);
+        //EOF TODO SocialPost Demo
 
         echo $user_id;
-        
+
         //
-        
-        if($user_id==-1)
-         $user_id =$uid;
+
+        if ($user_id == -1)
+            $user_id = $uid;
 
         //2.TODO add new user Main .co.in Demo
-        $new_signup->freetrial_main_co_in($request,$user_id);
+        $new_signup->freetrial_main_co_in($request, $user_id);
 
         //TODO add new user old Mobile app Demo
-        $new_signup->freetrial_mobileApp($request,$user_id);
+        $new_signup->freetrial_mobileApp($request, $user_id);
         //EOF TODO Mobile app Demo
-        
+
 
         //3.TODO add new user  Design app Demo
         //$id = auth()->user()->id;
         //$user = User::where('id', $id )->first();
-        
-        $new_signup->freetrial_design($request,$user_id);
 
-        
-        
+        $new_signup->freetrial_design($request, $user_id);
+
+
         //4.TODO add new user newMobileV2 app platform
-        if(isset($request->platform))
-        $from=$request->platform;
+        if (isset($request->platform))
+            $from = $request->platform;
         else
-        $from='';
+            $from = '';
 
-        if($from=="MobileAppV2")
-        $new_signup->freetrial_mobileAppV2_email($request,$user_id,$user_email);
+        if ($from == "MobileAppV2")
+            $new_signup->freetrial_mobileAppV2_email($request, $user_id, $user_email);
         else
-        $new_signup->freetrial_mobileAppV2($request,$user_id);
+            $new_signup->freetrial_mobileAppV2($request, $user_id);
 
-        
+
         //5.TODO add new user Smart BIO app
-       // $new_signup->freetrial_bio($request,$user_id);
-       if($from!="SmartBio")
-       {
-        $new_signup->freetrial_bio($request,$user_id);
-       }
+        // $new_signup->freetrial_bio($request,$user_id);
+        if ($from != "SmartBio") {
+            $new_signup->freetrial_bio($request, $user_id);
+        }
 
 
         //6.TODO add new user Smart Bio Blog app
-        $new_signup->freetrial_bio_blog($request,$user_id);
+        $new_signup->freetrial_bio_blog($request, $user_id);
 
 
         //7.TODO add new user CRM app
-        $new_signup->freetrial_crm($request,$user_id);
+        $new_signup->freetrial_crm($request, $user_id);
 
         //8.TODO add new user Sync app
-        $new_signup->freetrial_sync_node($request,$user_id);
+        $new_signup->freetrial_sync_node($request, $user_id);
 
         //9. TODO add new user Course Laravel app
-        $new_signup->freetrial_course($request,$user_id);
+        $new_signup->freetrial_course($request, $user_id);
 
         //10. TODO add new user Live Shopping app
-        $new_signup->freetrial_liveshop($request,$user_id);
+        $new_signup->freetrial_liveshop($request, $user_id);
 
         //11. TODO add new user SEO app
-        $new_signup->freetrial_seo($request,$user_id);
+        $new_signup->freetrial_seo($request, $user_id);
 
-       
 
     }
 
 
     //Working
-     //SMAI check user plan from all Platforms
+    //SMAI check user plan from all Platforms
     public function smaicheck_plans(Request $request)
     {
-        $platform=$request->platform;
-        $database=$request->database;
-        $user_id=$request->user_id;
+        $platform = $request->platform;
+        $database = $request->database;
+        $user_id = $request->user_id;
 
-        $check_plans_user=NEW SMAISyncPlanController();
+        $check_plans_user = new SMAISyncPlanController();
 
-        $return_plan=array();
-        $return_plan=$check_plans_user->SMAI_Check_Universal_UserPlans($user_id,$database,$platform);
-        
-        if($return_plan!=0)
-        return json_encode($return_plan);
+        $return_plan = array();
+        $return_plan = $check_plans_user->SMAI_Check_Universal_UserPlans($user_id, $database, $platform);
+
+        if ($return_plan != 0)
+            return json_encode($return_plan);
         else
-        return 0;
+            return 0;
 
     }
 
@@ -2570,23 +2574,21 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
     {
 
         Log::debug("API reach APIs Controller of smaiuser_update_plan of User Email : ");
-        $request_update=$request->data;
-        $user_id=$request->user_id;
-        $user_email=$request->email;
-        $whatup=$request->whatup;
-        
-        if(isset($request->upFromWhere))
-        $upFromWhere=$request->upFromWhere;
+        $request_update = $request->data;
+        $user_id = $request->user_id;
+        $user_email = $request->email;
+        $whatup = $request->whatup;
+
+        if (isset($request->upFromWhere))
+            $upFromWhere = $request->upFromWhere;
         else
-        $upFromWhere=NULL;
+            $upFromWhere = NULL;
 
         Log::info($user_email);
 
-        $update_plan_user=NEW SMAISyncPlanController($request,$user_id,$user_email,$whatup,$upFromWhere);
-        $update_plan_user->SMAI_Update_Universal_UserPlans($request,$user_id,$user_email,$whatup,$upFromWhere);
+        $update_plan_user = new SMAISyncPlanController($request, $user_id, $user_email, $whatup, $upFromWhere);
+        $update_plan_user->SMAI_Update_Universal_UserPlans($request, $user_id, $user_email, $whatup, $upFromWhere);
 
-
-        
 
     }
 
@@ -2601,24 +2603,22 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
     {
 
         Log::debug("API reach APIs Controller of smaiuser_update_profile of User Email : ");
-        $request_update=$request->data;
-        $user_id=$request->user_id;
-        $user_email=$request->email;
-        $whatup=$request->whatup;
-        
-        if(isset($request->upFromWhere))
-        $upFromWhere=$request->upFromWhere;
+        $request_update = $request->data;
+        $user_id = $request->user_id;
+        $user_email = $request->email;
+        $whatup = $request->whatup;
+
+        if (isset($request->upFromWhere))
+            $upFromWhere = $request->upFromWhere;
         else
-        $upFromWhere=NULL;
+            $upFromWhere = NULL;
 
         Log::info($user_email);
 
-        $update_profile_user=NEW SMAIUpdateProfileController($request,$user_id,$user_email,$whatup,$upFromWhere);
+        $update_profile_user = new SMAIUpdateProfileController($request, $user_id, $user_email, $whatup, $upFromWhere);
 
-
-        
 
     }
-    
+
 
 }

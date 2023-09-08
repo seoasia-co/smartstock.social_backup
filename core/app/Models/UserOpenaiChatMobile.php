@@ -10,15 +10,18 @@ class UserOpenaiChatMobile extends Model
     use HasFactory;
 
     protected $connection = 'mobileapp_db';
-    protected $table = "willdev_user_chat";
+    protected $table = "user_openai_chat";
 
     protected $fillable = [
         "user_id","chat_id","role","text","openai_chat_category_id"
     ];
 
-    public function user()
-    {
-        // โดยเอา คอลัม id ของ UserMoible มาบันทึกในตารางตัวเองชื่อ user_id เพื่อเชื่อมโยงกัน
-        return $this->hasOne("App\Models\UserMobile", "id", "user_id");
+    public function messages(){
+        return $this->hasMany(UserOpenaiChatMessageMobile::class);
+    }
+
+    public function category(){
+        // โดยเชื่อมตารางตัวเองคือ user_openai_chat  คอลัม openai_chat_category_id กับ id ของ OpenaiGeneratorChatCategory
+        return $this->belongsTo(OpenaiGeneratorChatCategory::class, 'openai_chat_category_id', 'id' );
     }
 }
