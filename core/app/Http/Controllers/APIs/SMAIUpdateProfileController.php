@@ -58,17 +58,18 @@ use App\Models\UserBio;
 use App\Models\UserSyncNodeJS;
 use App\Models\UserMobile;
 use App\Models\PlanBio;
+use App\Models\SPTeam;
 
 
-
-
-
+use Illuminate\Support\Arr;
+use App\Http\Controllers\Auth\SMAISessionAuthController;
+use Storage;
 
 class SMAIUpdateProfileController extends Controller
 {
 
 
-    //protected $request; 
+    //protected $request;
     protected $hash_password;
     protected $skip_update_pss=0;
     protected $upFromWhere=NULL;
@@ -79,7 +80,7 @@ class SMAIUpdateProfileController extends Controller
 
 
 
-    public function __construct($request_update,$user_id,$user_email,$whatup,$upFromWhere=NULL)
+    public function __construct($request_update=NULL,$user_id=NULL,$user_email=NULL,$whatup=NULL,$upFromWhere=NULL)
     {
         $this->plus_new_images_token=0;
         $this->plus_new_words_token=0;
@@ -92,6 +93,7 @@ class SMAIUpdateProfileController extends Controller
         Log::info($whatup);
         Log::info($upFromWhere);
 
+        if(isset($request_update->data))
         Log::info($request_update->data);
 
         if(isset($request_update->data['name']))
@@ -99,7 +101,7 @@ class SMAIUpdateProfileController extends Controller
         Log::debug(' Name for data : ');
         Log::info($request_update->data['name']);
         }
-       
+
 
         if(isset($request_update->data['password']))
         {
@@ -128,11 +130,18 @@ class SMAIUpdateProfileController extends Controller
 
         /* $request = json_encode($request_update->data);
         $request = json_decode($request,true); */
-        
+
+        if(isset($request_update->data))
         $request=$request_update->data;
+
         Log::debug('Debug request Decode Json');
+
+        if(isset($request))
         Log::info($request);
-      
+
+
+    if(isset($whatup) && $whatup!=NULL)
+    {
         if (in_array("profile", $whatup)) {
 
             //basic_profile universal
@@ -161,11 +170,15 @@ class SMAIUpdateProfileController extends Controller
             if (isset($request['username']))
                 $userdata['username'] = $request['username'];
 
+                //basic_profile phone all socialpost mobile bio
+            if (isset($request['phone']))
+            $userdata['phone'] = $request['phone'];
+
         }
 
         if (in_array("plan", $whatup))  {
 
-            
+
             //plan main_coin
             if (isset($request['remaining_words_plus']))
             $userdata['remaining_words_plus'] = $request['remaining_words_plus'];
@@ -254,8 +267,8 @@ class SMAIUpdateProfileController extends Controller
             //extra profile main
             if (isset($request['last_login_at']))
             $userdata['last_login_at'] = $request['last_login_at'];
-        
-        
+
+
             //extra profile main
             if (isset($request['last_login_ip']))
                         $userdata['last_login_ip'] = $request['last_login_ip'];
@@ -338,12 +351,31 @@ class SMAIUpdateProfileController extends Controller
 
 
         }
+        if (in_array("login", $whatup) )
+        {
+           
+            if(isset($request_update['data']['raw_password']))
+            $raw_password=$request_update['data']['raw_password'];
 
+            if(isset($request_update['data'][0]['raw_password']))
+            $raw_password=$request_update['data'][0]['raw_password'];
+            
+            //create session login
+            $user_bio_id=$user_id;
+
+            $session_php=$request_update['session_php'];
+            $universal_user=Auth::loginUsingId($user_id);
+            $login_session_bio = NEW SMAISessionAuthController();
+            $login_session_bio->freetrial_user_api($request_update,$user_id,$raw_password);
+            $login_session_bio->db_session_create($user_id,$session_php);
+
+
+        }
         if (in_array("password", $whatup) && $this->skip_update_pss != 1 )
         {
             Log::debug('Update Profile case Password ');
 
-            if($this->upFromWhere  == 'bio')
+            if($this->upFromWhere  == 'bio' || $this->upFromWhere  == 'main_coin' )
             {
                 $userdata['password'] =  $request_update->data['password'];
             }
@@ -357,15 +389,20 @@ class SMAIUpdateProfileController extends Controller
 
 
         }
-        else if ($whatup == 'profile' && $this->upFromWhere  == 'main_coin')
+        else if (in_array("profile", $whatup) && $this->upFromWhere  == 'main_coin')
         {
+            Log::debug('Now working in up_profile_main_co_in_by_admin case ');
+
+            $this->up_profile_main_co_in_by_admin($userdata,$user_id,$user_email);
+
 
 
         }
-        else if ($whatup == 'profile' && $this->upFromWhere  == 'socialpost')
+        else if (in_array("profile", $whatup) && $this->upFromWhere  == 'socialpost')
         {
 
-            
+
+            $this->up_profile_socialpost($userdata,$user_id,$user_email);
 
 
         }
@@ -394,16 +431,16 @@ class SMAIUpdateProfileController extends Controller
             ); */
 
             //send to medthod update bio profile to all platforms
-            $this->up_profile_bio($userdata,$user_id,$user_email);   
+            $this->up_profile_bio($userdata,$user_id,$user_email);
 
 
         }
         else if( in_array("plan", $whatup) && $this->upFromWhere  == 'bio')
-        {  
+        {
             // #ep2
 
             //send to medthod update bio profile to all platforms
-            $this->up_plan_bio($userdata,$user_id,$user_email);  
+            $this->up_plan_bio($userdata,$user_id,$user_email);
 
 
         }
@@ -412,7 +449,7 @@ class SMAIUpdateProfileController extends Controller
             // #ep3
 
             //send to medthod update bio profile to all platforms
-            $this->up_plan_main_coin($userdata,$user_id,$user_email); 
+            $this->up_plan_main_coin($userdata,$user_id,$user_email);
 
 
         }
@@ -427,12 +464,16 @@ class SMAIUpdateProfileController extends Controller
 
         }
 
+    }   
+
 
         // $this->upFromWhere  == 'socialpost_profile  ||  $this->upFromWhere  == 'socialpost_plan
-        if ($this->upFromWhere  == 'socialpost_profile')
+        
+        
+        if ( isset($this->upFromWhere)  && $this->upFromWhere  == 'socialpost_profile')
         {
 
-       
+
         //1. update to profile of SocialPost
         //2. update basic profile to all Platforms
         //3. update extra profile to some Platforms
@@ -443,7 +484,7 @@ class SMAIUpdateProfileController extends Controller
 
     }
 
-    
+
     public function checkColumnExist($column, $table, $db)
     {
         try {
@@ -460,18 +501,79 @@ class SMAIUpdateProfileController extends Controller
         return uniqid();
     }
 
-    public function up_profile_main_co_in($request, $user_id, $whatup, $db, $table)
+
+    //Done
+    public function up_profile_main_co_in_by_admin($userdata,$user_id,$user_email)
     {
 
-        
 
-        if ($this->upFromWhere  == 'socialpost')
         //1. update to profile of SocialPost
         //2. update basic profile to all Platforms
         //3. update extra profile to some Platforms
 
-        $user = UserSP::where('id', '=', $user_id)
-                ->update($userdata);
+        /* if ($this->upFromWhere  == 'socialpost')
+        {
+            $user = UserSP::where('id', '=', $user_id)
+                    ->update($userdata);
+        } */
+
+    Log::debug("Start update MainCoIn Profile to all Platforms in up_profile_main_coin with this data  :");
+    Log::info($userdata);
+
+
+
+        //Update phone to all platforms
+        if(isset($userdata['phone']))
+        $this->update_phone_centralize($user_id,$user_email,$userdata['phone']);
+
+        if(isset($userdata['remaining_words']))
+        {
+            Log::debug('FOund remaining_words Updating by token_centralize');
+
+            $token_array=array(
+                'remaining_words' =>  $userdata['remaining_words'],
+                'remaining_images' => $userdata['remaining_images'],
+
+            );
+            $this->update_token_centralize($user_id,$user_email,$token_array);
+
+
+        }
+
+
+
+        //Bio , Socialpost, Main
+        if(isset($userdata['country']))
+        {
+
+        // to Main , Socialpost
+        $userdata_country=array(
+            'country' => $userdata['country'],
+        );
+        $this->update_column_all( $userdata_country,$user_id,$user_email,'main_db','users');
+
+        $this->update_column_all( $userdata_country,$user_id,$user_email,'bio_db','users');
+
+        }
+
+          //Done
+        //Final update name to all platforms
+        if(isset($userdata['name']))
+        {
+            if(isset($userdata['surname']))
+            $userdata['name'].=" ".$userdata['surname'];
+
+            $userdata_name=array(
+                'name' => $userdata['name'],
+                'email' => $userdata['email'],
+
+            );
+
+            $this->update_column_all($userdata_name,$user_id,$user_email);
+
+        }
+
+
 
 
     }
@@ -532,159 +634,60 @@ class SMAIUpdateProfileController extends Controller
     }
 
 
-    public function up_profile_socialpost($request, $main_id = null)
+    //working
+    public function up_profile_socialpost($userdata,$user_id,$user_email)
     {
 
 
-        if (isset($request->password) && $this->skip_update_pss != 1) {
-            $privatehash_password = $this->hash_password;
-        } 
-
-        if (isset($request->surname))
-            $surname_ins = $request->surname;
-        else
-            $surname_ins = '';
-
-        if (isset($request->avatar))
-            $avatar = $request->avatar;
-        else if (isset($request->profileImage) && substr($request->profileImage, 0, 4) == "http")
-            $avatar = $request->profileImage;
-        else if (isset($request->image) && substr($request->image, 0, 4) == "http")
-            $avatar = $request->image;
-        else
-            $avatar = '';
-
-        //TODO SocialPost Demo
-        $sosialPost_connected = 1;
-        if ($sosialPost_connected == 1) {
-
-            $fullname = $request->name . " " . $surname_ins;
-            $username = $request->email;
-            $email = $request->email;
-            $password = $this->hash_password;
-            $plan = 0;
-            $expiration_date = 0;
-            $permissions = NULL;
-
-            /*  $plan_item = db_get("*", TB_PLANS, ["type" => 1, "status" => 1]); */
-            $plan_item = DB::connection('main_db')->table('sp_plans')
-                ->select('*')
-                ->where('type', '=', 1)
-                ->where('status', '=', 1)
-                ->limit(1)
-                ->get();
+        Log::debug("Start update SocialPost Profile to all Platforms in up_profile_socialpost ");
 
 
-            if (!empty($plan_item)) {
-                $plan = $plan_item[0]->id;
-                $permissions = $plan_item[0]->permissions;
-                if ($plan_item[0]->trial_day != -1) {
-                    $expiration_date = time() + $plan_item[0]->trial_day * 86400;
-                }
-            } else {
-                $plan = 1;
-                $expiration_date = time() + 14 * 86400;
-            }
+        //1.update name to all platforms
+        if(isset($userdata['name']))
+        {
+            $userdata_name=array(
+                'name' => $userdata['name'],
+            );
+        $this->update_column_all($userdata_name,$user_id,$user_email);
 
-            $timezone = NULL;
-            if (session("timezone")) {
-                $timezone = session("timezone");
-            }
-            if (Session::get('timezone')) {
-                $timezone = Session::get('timezone');
-            }
+        }
 
-            /*
-            Codeigniter
-            $language = db_get("*", TB_LANGUAGE_CATEGORY, ["is_default" => 1, "status" => 1]);
-            */
-            $settings_two = Schema::hasTable((new SettingTwo())->getTable()) ? SettingTwo::first() : null;
-
-            $language_code = "en";
-            if (!empty($settings_two)) {
-                $language_code = $settings_two->languages_default;
-            }
-
-            if (isset($main_id) && $main_id != NULL && $main_id != null)
-                $ins_id = $main_id;
-            else
-                $ins_id = '';
-
-            //$status=2;
-            $ids = $this->ids();
-
-            if ($ins_id > 0 && $ins_id != '') {
-                $data = [
-
-                    "id" => $ins_id,
-                    "ids" => $ids,
-                    "is_admin" => 0,
-                    "role" => 0,
-                    "fullname" => $fullname,
-                    "username" => $username,
-                    "email" => $email,
-                    "password" => $this->hash_password,
-                    "plan" => $plan,
-                    "expiration_date" => $expiration_date,
-                    "timezone" => $timezone,
-                    "recovery_key" => NULL,
-                    "language" => $language_code,
-                    "login_type" => "direct",
-                    "avatar" => $avatar,
-                    "last_login" => time(),
-                    "status" => 2,
-                    "changed" => time(),
-                    "created" => time(),
-
-                ];
-            } else {
-
-                $data = [
-
-                    "ids" => $ids,
-                    "is_admin" => 0,
-                    "role" => 0,
-                    "fullname" => $fullname,
-                    "username" => $username,
-                    "email" => $email,
-                    "password" => $this->hash_password,
-                    "plan" => $plan,
-                    "expiration_date" => $expiration_date,
-                    "timezone" => $timezone,
-                    "recovery_key" => NULL,
-                    "language" => $language_code,
-                    "login_type" => "direct",
-                    "avatar" => $avatar,
-                    "last_login" => time(),
-                    "status" => 2,
-                    "changed" => time(),
-                    "created" => time(),
-
-                ];
+        //Language email username avatar
 
 
-            }
+
+        //Bio , Socialpost, Main
+        if(isset($userdata['timezone']))
+        {
+
+        // to Main , Socialpost
+        $userdata_timezone=array(
+            'timezone' => $userdata['timezone'],
+        );
+
+        //add update timezone to Bio because request not from Bio
+        $this->update_column_all( $userdata_timezone,$user_id,$user_email,'bio_db','users');
+
+        $this->update_column_all( $userdata_timezone,$user_id,$user_email,'main_db','users');
+
+        $this->update_column_all( $userdata_timezone,$user_id,$user_email,'main_db','sp_users');
+
+        }
 
 
-            /* $user_id = db_insert(TB_USERS, $data);*/
-            $user_id = DB::connection('main_db')->table('sp_users')->insertGetId($data);
 
-            $save_team = [
-                "ids" => SMAISessionAuthController::ids(),
-                "owner" => $user_id,
-                "pid" => $plan,
-                "permissions" => $permissions
-            ];
-
-
-            /*  db_insert(TB_TEAM, $save_team);  */
-            $team_id = DB::connection('main_db')->table('sp_team')->update($save_team);
-
-            if (isset($main_id) && $main_id != NULL && $main_id != null)
-                return -1;
-            else
-                return $user_id;
-            //EOF TODO SocialPost Demo
+        if(isset($userdata['language']))
+        {
+        // to Main , Socialpost
+        //Bio use getDisplayLanguageForLocaleCode($langcode) to convert lnguage , lang
+        //CRM default_language
+        //SEO
+        //Bio blog
+        $userdata_language=array(
+            'language' => $userdata['language'],
+        );
+        $lang = $userdata['language'];
+        $this->update_language_centralize($user_id,$user_email,$lang);
 
         }
 
@@ -779,7 +782,7 @@ class SMAIUpdateProfileController extends Controller
 
             if (isset($request->password) && $this->skip_update_pss != 1) {
                 $privatehash_password = $this->hash_password;
-            } 
+            }
 
             if (isset($request->avatar))
                 $profile_pic = $request->avatar;
@@ -791,12 +794,12 @@ class SMAIUpdateProfileController extends Controller
                 $profile_pic = '';
 
             Log::debug('while Insert new Design Name found user :' . $total);
-           
+
                 $update_id = DB::connection('digitalasset_db')->table('users')->update($array);
-          
-	
+
+
         }
-        
+
 
     }
 
@@ -804,7 +807,7 @@ class SMAIUpdateProfileController extends Controller
     public function up_profile_mobileAppV2($request, $user_id)
     {
 
-        if (iseet($request->image))
+        if (isset($request->image))
             $user_avatar = $request->image;
         else
             $user_avatar = '';
@@ -856,7 +859,7 @@ class SMAIUpdateProfileController extends Controller
 
     }
 
-
+    //Done
     public function up_profile_bio($userdata,$user_id,$user_email)
     {
         Log::debug("Start update Bio Profile to all Platforms in up_profile_bio ");
@@ -877,7 +880,7 @@ class SMAIUpdateProfileController extends Controller
         //Bio , Socialpost, Main
         if(isset($userdata['timezone']))
         {
-        
+
         // to Main , Socialpost
         $userdata_timezone=array(
             'timezone' => $userdata['timezone'],
@@ -892,11 +895,11 @@ class SMAIUpdateProfileController extends Controller
         if(isset($userdata['is_newsletter_subscribed']))
         {
           //Only Smart Bio have newsletter subscribe
-            
+
         }
 
 
-       
+
 
     }
 
@@ -908,7 +911,7 @@ class SMAIUpdateProfileController extends Controller
 
     }
 
-
+    //DOne
     public function up_plan_bio($userdata,$user_id,$user_email)
     {
         Log::debug("Start update Bio Profile to all Platforms in up_plan_bio ");
@@ -920,17 +923,17 @@ class SMAIUpdateProfileController extends Controller
             $userdata_plan=array(
                 'plan' => $userdata['plan'],
             );
-        
-         
-            
 
-        // not working because each plan value not the same  
+
+
+
+        // not working because each plan value not the same
         //$this->update_column_all($userdata_name,$user_id,$user_email);
 
-       
-    
+
+
         $each_plan=PlanBio::where('plan_id',$userdata['plan'])->orderBy('plan_id', 'asc')->first();
-        
+
         $socialpost_plan=$each_plan->socialpost_id;
         $userdata_plan['plan']=$socialpost_plan;
 
@@ -947,7 +950,7 @@ class SMAIUpdateProfileController extends Controller
         }
 
         $userdata_plan['plan']=$main_coin_plan;
-        
+
 
         $this->update_column_all( $userdata_plan,$user_id,$user_email,'main_db','users');
 
@@ -970,14 +973,14 @@ class SMAIUpdateProfileController extends Controller
 
         // prepare for next update
         $userdata['package_id']= $main_marketing_id;
-    
+
         }
 
 
         //Bio ,Main, Socialpost, Design,Mobile2 Sync
         $user_old_data=UserMain::where('id',$user_id)->orderBy('id', 'asc')->first();
-        
-        
+
+
         //defind remaining_words
         $userdata['remaining_words']=$user_old_data->remaining_words;
         $userdata['remaining_images']=$user_old_data->remaining_images;
@@ -1034,8 +1037,8 @@ class SMAIUpdateProfileController extends Controller
 
 
 
-      
-        
+
+
         //To Bio ,Main, Socialpost, Design,Mobile2 Sync
         $userdata_remaining_words=array(
             'remaining_words' => $userdata['remaining_words'],
@@ -1055,7 +1058,7 @@ class SMAIUpdateProfileController extends Controller
 
         $userdata_remaining_words['gpt_words_limit'] = $userdata['remaining_words'];
         $userdata_remaining_words['dalle_limit'] = $userdata['remaining_images'];
-                
+
         $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'sync_db','user');
 
         unset($userdata_remaining_words['gpt_words_limit']);
@@ -1064,33 +1067,33 @@ class SMAIUpdateProfileController extends Controller
 
         }
 
-        //Separate all of these for each platform 
-            
+        //Separate all of these for each platform
+
         //plan main marketing && mobile old
             if (isset( $userdata['package_id']))
             {
 
 
-              
+
                 //To Main marketing co.in, Mobile old,
                 //Main expired_date => $userdata['expiration_date'],
 
                 $userdata_main_plan_array=array(
                     'package_id' => $userdata['package_id'],
-                    
-                    'total_words' => $userdata['total_words'],
-                    'total_images' => $userdata['total_images'], 
 
-                   
+                    'total_words' => $userdata['total_words'],
+                    'total_images' => $userdata['total_images'],
+
+
                     'plan_expire_date' => $userdata['plan_expire_date'],
                     'expired_date' => $userdata['expired_date'],
 
                     'available_words' => $userdata['available_words'],
                     'available_images' => $userdata['available_images'],
-                       
+
                 );
 
-                $this->update_column_all( $userdata_main_plan_array,$user_id,$user_email,'main_db','users');    
+                $this->update_column_all( $userdata_main_plan_array,$user_id,$user_email,'main_db','users');
 
 
                 //Socialpost Expired date
@@ -1098,7 +1101,7 @@ class SMAIUpdateProfileController extends Controller
                     'expiration_date' => strtotime($userdata['expiration_date']),
 
                 );
-                $this->update_column_all( $expire_date_arr,$user_id,$user_email,'main_db','sp_users');  
+                $this->update_column_all( $expire_date_arr,$user_id,$user_email,'main_db','sp_users');
 
 
                 //MobileApp Expired date
@@ -1106,7 +1109,7 @@ class SMAIUpdateProfileController extends Controller
                     'subscription_end_date' =>$userdata['expired_date'],
 
                 );
-                $this->update_column_all( $expire_dateMobile_arr,$user_id,$user_email,'mobileapp_db','users');   
+                $this->update_column_all( $expire_dateMobile_arr,$user_id,$user_email,'mobileapp_db','users');
 
 
                 //Sync Expired date planexpire
@@ -1114,59 +1117,59 @@ class SMAIUpdateProfileController extends Controller
                     'planexpire' => $userdata['expired_date'],
 
                 );
-                $this->update_column_all( $expire_dateSync_arr,$user_id,$user_email,'sync_db','user');   
+                $this->update_column_all( $expire_dateSync_arr,$user_id,$user_email,'sync_db','user');
 
-                
+
             }
 
                //plan mobile_old
                //Done
                if (isset($userdata['available_images']))
                {
-                   
+
                }
-   
+
                //plan mobile_old
                //Done
                if (isset($userdata['total_words']))
                {
-                   
+
                }
-   
+
                //plan mobile_old
                //Done
                if (isset($userdata['total_images'] ))
                {
-                   
+
                }
-   
+
                //plan universal
                //Done
                if (isset($userdata['expiration_date']))
                {
-                   
+
                }
-   
+
                //plan mobile_old
                //Done
                if (isset($userdata['plan_expire_date']))
                {
-                   
+
                }
-   
+
                //plan main
                //Done
                if (isset($userdata['expired_date']))
                {
-                   
+
                }
 
-               
+
                 //plan mobile_old
                 //Done
                 if (isset($userdata['available_words']))
                 {
-                    
+
                 }
 
             //plan mobile_new
@@ -1183,24 +1186,24 @@ class SMAIUpdateProfileController extends Controller
                 $userdata_mobile_plan_array=array(
                     'words_left' => $userdata['words_left'],
                     'image_left' => $userdata['image_left'],
-                 
+
                 );
             $this->update_column_all( $userdata_mobile_plan_array,$user_id,$user_email,'mobileapp_db','users');
-                
+
             }
 
 
             //plan mobile_new
             if (isset($userdata['image_left']))
             {
-                
+
             }
 
-            //plan bio 
+            //plan bio
             //because call from bio Do nothing
             if (isset($userdata['plan_id']))
             {
-                
+
             }
 
 
@@ -1208,9 +1211,9 @@ class SMAIUpdateProfileController extends Controller
             //because call from bio Do nothing
             if (isset($userdata['plan_settings']))
             {
-                
+
             }
-         
+
 
             //plan bio
             //because call from bio Do nothing
@@ -1219,13 +1222,14 @@ class SMAIUpdateProfileController extends Controller
 
             }
 
-            
-            
 
-       
+
+
+
 
     }
 
+    //Done
     public function up_plan_main_coin($userdata,$user_id,$user_email)
     {
         Log::debug("Start update Bio Profile to all Platforms in up_plan_bio ");
@@ -1237,17 +1241,17 @@ class SMAIUpdateProfileController extends Controller
             $userdata_plan=array(
                 'plan' => $userdata['plan'],
             );
-        
-         
-            
 
-        // not working because each plan value not the same  
+
+
+
+        // not working because each plan value not the same
         //$this->update_column_all($userdata_name,$user_id,$user_email);
 
-       
-    
+
+
         $each_plan=Plan::where('id',$userdata['plan'])->orderBy('id', 'asc')->first();
-        
+
         $socialpost_plan=$each_plan->socialpost_id;
         $userdata_plan['plan']=$socialpost_plan;
 
@@ -1291,14 +1295,14 @@ class SMAIUpdateProfileController extends Controller
 
         // prepare for next update
         $userdata['package_id']= $main_marketing_id;
-    
+
         }
 
 
         //Bio ,Main, Socialpost, Design,Mobile2 Sync
         $user_old_data=UserMain::where('id',$user_id)->orderBy('id', 'asc')->first();
-        
-        
+
+
         //defind remaining_words
         $userdata['remaining_words']=$user_old_data->remaining_words;
         $userdata['remaining_images']=$user_old_data->remaining_images;
@@ -1355,8 +1359,8 @@ class SMAIUpdateProfileController extends Controller
 
 
 
-      
-        
+
+
         //To Bio ,Main, Socialpost, Design,Mobile2 Sync
         $userdata_remaining_words=array(
             'remaining_words' => $userdata['remaining_words'],
@@ -1376,7 +1380,7 @@ class SMAIUpdateProfileController extends Controller
 
         $userdata_remaining_words['gpt_words_limit'] = $userdata['remaining_words'];
         $userdata_remaining_words['dalle_limit'] = $userdata['remaining_images'];
-                
+
         $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'sync_db','user');
 
         unset($userdata_remaining_words['gpt_words_limit']);
@@ -1385,33 +1389,33 @@ class SMAIUpdateProfileController extends Controller
 
         }
 
-        //Separate all of these for each platform 
-            
+        //Separate all of these for each platform
+
         //plan main marketing && mobile old
             if (isset( $userdata['package_id']))
             {
 
 
-              
+
                 //To Main marketing co.in, Mobile old,
                 //Main expired_date => $userdata['expiration_date'],
 
                 $userdata_main_plan_array=array(
                     'package_id' => $userdata['package_id'],
-                    
-                    'total_words' => $userdata['total_words'],
-                    'total_images' => $userdata['total_images'], 
 
-                   
+                    'total_words' => $userdata['total_words'],
+                    'total_images' => $userdata['total_images'],
+
+
                     'plan_expire_date' => $userdata['plan_expire_date'],
                     'expired_date' => $userdata['expired_date'],
 
                     'available_words' => $userdata['available_words'],
                     'available_images' => $userdata['available_images'],
-                       
+
                 );
 
-                $this->update_column_all( $userdata_main_plan_array,$user_id,$user_email,'main_db','users');    
+                $this->update_column_all( $userdata_main_plan_array,$user_id,$user_email,'main_db','users');
 
 
                 //Socialpost Expired date
@@ -1419,7 +1423,7 @@ class SMAIUpdateProfileController extends Controller
                     'expiration_date' => strtotime($userdata['expiration_date']),
 
                 );
-                $this->update_column_all( $expire_date_arr,$user_id,$user_email,'main_db','sp_users');  
+                $this->update_column_all( $expire_date_arr,$user_id,$user_email,'main_db','sp_users');
 
 
                 //MobileApp Expired date
@@ -1427,7 +1431,7 @@ class SMAIUpdateProfileController extends Controller
                     'subscription_end_date' =>$userdata['expired_date'],
 
                 );
-                $this->update_column_all( $expire_dateMobile_arr,$user_id,$user_email,'mobileapp_db','users');   
+                $this->update_column_all( $expire_dateMobile_arr,$user_id,$user_email,'mobileapp_db','users');
 
 
                 //Sync Expired date planexpire
@@ -1435,59 +1439,59 @@ class SMAIUpdateProfileController extends Controller
                     'planexpire' => $userdata['expired_date'],
 
                 );
-                $this->update_column_all( $expire_dateSync_arr,$user_id,$user_email,'sync_db','user');   
+                $this->update_column_all( $expire_dateSync_arr,$user_id,$user_email,'sync_db','user');
 
-                
+
             }
 
                //plan mobile_old
                //Done
                if (isset($userdata['available_images']))
                {
-                   
+
                }
-   
+
                //plan mobile_old
                //Done
                if (isset($userdata['total_words']))
                {
-                   
+
                }
-   
+
                //plan mobile_old
                //Done
                if (isset($userdata['total_images'] ))
                {
-                   
+
                }
-   
+
                //plan universal
                //Done
                if (isset($userdata['expiration_date']))
                {
-                   
+
                }
-   
+
                //plan mobile_old
                //Done
                if (isset($userdata['plan_expire_date']))
                {
-                   
+
                }
-   
+
                //plan main
                //Done
                if (isset($userdata['expired_date']))
                {
-                   
+
                }
 
-               
+
                 //plan mobile_old
                 //Done
                 if (isset($userdata['available_words']))
                 {
-                    
+
                 }
 
             //plan mobile_new
@@ -1504,24 +1508,24 @@ class SMAIUpdateProfileController extends Controller
                 $userdata_mobile_plan_array=array(
                     'words_left' => $userdata['words_left'],
                     'image_left' => $userdata['image_left'],
-                 
+
                 );
             $this->update_column_all( $userdata_mobile_plan_array,$user_id,$user_email,'mobileapp_db','users');
-                
+
             }
 
 
             //plan mobile_new
             if (isset($userdata['image_left']))
             {
-                
+
             }
 
-            //plan bio 
+            //plan bio
             //because call from bio Do nothing
             if (isset($userdata['plan_id']))
             {
-                
+
             }
 
 
@@ -1529,9 +1533,9 @@ class SMAIUpdateProfileController extends Controller
             //because call from bio Do nothing
             if (isset($userdata['plan_settings']))
             {
-                
+
             }
-         
+
 
             //plan bio
             //because call from bio Do nothing
@@ -1540,10 +1544,10 @@ class SMAIUpdateProfileController extends Controller
 
             }
 
-            
-            
 
-       
+
+
+
 
     }
 
@@ -1605,7 +1609,7 @@ class SMAIUpdateProfileController extends Controller
 
              $userliveshop = UserLiveShop::where('email', '=', $user_email)->where('id', '=', $user_id)
              ->update($userdata);
-            
+
 
 
     }
@@ -1661,7 +1665,7 @@ class SMAIUpdateProfileController extends Controller
 
              $userliveshop = UserLiveShop::where('email', '=', $user_email)->where('id', '=', $user_id)
              ->update($userdata);
-            
+
 
 
     }
@@ -1676,17 +1680,34 @@ class SMAIUpdateProfileController extends Controller
             ->update($userdata);  */
             Log::debug(" Start update Universal Column case Not Null db table that exist to all Platforms in update_column_all ".$db." in Table ".$table);
 
+
+          if($db=='bio_db')
+          {
+
             if($user_email!=NULL && Str::length($user_email) > 2)
-            $user_data_update=DB::connection($db)->table($table)->where('email', $user_email)->where('id', $user_id)->orderBy('id','asc')->update($userdata);  
+            $user_data_update=DB::connection($db)->table($table)->where('email', $user_email)->where('user_id', $user_id)->orderBy('user_id','asc')->update($userdata);
             else
-            $user_data_update=DB::connection($db)->table($table)->where('id', $user_id)->orderBy('id','asc')->update($userdata);  
+            $user_data_update=DB::connection($db)->table($table)->where('user_id', $user_id)->orderBy('user_id','asc')->update($userdata);
+
+
+          }
+          else{
+
+            if($user_email!=NULL && Str::length($user_email) > 2)
+            $user_data_update=DB::connection($db)->table($table)->where('email', $user_email)->where('id', $user_id)->orderBy('id','asc')->update($userdata);
+            else
+            $user_data_update=DB::connection($db)->table($table)->where('id', $user_id)->orderBy('id','asc')->update($userdata);
+
+
+          }
+
 
 
         }
     else
     {
 
-   
+
         Log::debug(" Start update Universal Column case NULL db table that exist to all Platforms in update_column_all ");
 
         Log::debug(' With these info Data : ');
@@ -1696,10 +1717,31 @@ class SMAIUpdateProfileController extends Controller
             ->update($userdata);
 
             //Main CoIn  Main.marketing  Mobile old
+
+            if(strpos($userdata['name'], " ") !== false)
+                {
+                    $firstname=$this->get_first_last_name($userdata['name'],'firstname');
+                    $lastname=$this->get_first_last_name($userdata['name'],'lastname');
+
+                }
+                else{
+                    $firstname=$userdata['name'];
+                    $lastname='';
+                }
+
+                $userdata['name']=$firstname;
+                $userdata['surname']=$lastname;
             $usermaincoin = UserMain::where('email', '=', $user_email)->where('id', '=', $user_id)
             ->update($userdata);
 
-            
+            $userdata['name']=$userdata['name']." ".$userdata['surname'];
+            if(isset($userdata['surname']))
+            {
+                unset($userdata['surname']);
+
+            }
+
+
 
             //Design
             $userdesign = UserDesign::where('email', '=', $user_email)->where('id', '=', $user_id)
@@ -1747,7 +1789,7 @@ class SMAIUpdateProfileController extends Controller
             ->update($userdata);
 
             //Unset first_name,last_name  after update
-          
+
              if(isset($userdata['first_name']))
             {
                 unset($userdata['first_name']);
@@ -1759,33 +1801,33 @@ class SMAIUpdateProfileController extends Controller
              $usercourse = UserCourse::where('email', '=', $user_email)->where('id', '=', $user_id)
              ->update($userdata);
 
-             
-             
+
+
              //Live Shopping that upgrade from Old PunBot (firstname,lastname)
              if(isset($userdata['name']))
              {
- 
+
                  if(strpos($userdata['name'], " ") !== false)
                  {
                      $firstname=$this->get_first_last_name($userdata['name'],'firstname');
                      $lastname=$this->get_first_last_name($userdata['name'],'lastname');
- 
+
                  }
                  else{
                      $firstname=$userdata['name'];
                      $lastname='';
                  }
- 
+
                  $userdata['firstname']=$firstname;
                  $userdata['lastname']=$lastname;
- 
- 
+
+
              }
 
 
              $userliveshop = UserLiveShop::where('email', '=', $user_email)->where('id', '=', $user_id)
              ->update($userdata);
-            
+
               //Unset firstname,lastname after update
              if(isset($userdata['firstname']))
             {
@@ -1810,7 +1852,7 @@ class SMAIUpdateProfileController extends Controller
                 unset($userdata['fullname']);
             }
 
-            
+
         }
 
 
@@ -1819,7 +1861,7 @@ class SMAIUpdateProfileController extends Controller
     public function check_old_user($db,$table,$email)
     {
 
-        $user_old=DB::connection($db)->table($table)->where('email', $email)->orderBy('id','asc')->get();   
+        $user_old=DB::connection($db)->table($table)->where('email', $email)->orderBy('id','asc')->get();
 
         $found_user= $user_old->count();
         return $found_user;
@@ -1844,4 +1886,746 @@ class SMAIUpdateProfileController extends Controller
         return $last_name;
     }
 
-}
+    //Done
+    public function update_phone_centralize($user_id,$user_email,$phone)
+    {
+        Log::debug('Now working in update_phone_centralize ');
+        //MainCoIn   phone
+        //MainMarketing mobile, phone
+        $userdata_phone=array(
+            'phone' => $phone,
+            'mobile' => $phone,
+        );
+        $db="main_db";
+        $table="users";
+
+        $this->update_column_all($userdata_phone,$user_id,$user_email,$db,$table);
+
+        // SocialPost   phone
+        unset($userdata_phone['mobile']);
+        $db="main_db";
+        $table="sp_users";
+        $this->update_column_all($userdata_phone,$user_id,$user_email,$db,$table);
+
+
+        // blog Bio.bio   phone
+        $db="bio_blog_db";
+        $table="users";
+        $this->update_column_all($userdata_phone,$user_id,$user_email,$db,$table);
+
+        // SEO  phone
+        $db="seo_db";
+        $table="users";
+        $this->update_column_all($userdata_phone,$user_id,$user_email,$db,$table);
+
+
+        // Sync  phone
+        $db="sync_db";
+        $table="user";
+        $this->update_column_all($userdata_phone,$user_id,$user_email,$db,$table);
+
+        // Bio  phone
+        $db="bio_db";
+        $table="users";
+        $this->update_column_all($userdata_phone,$user_id,$user_email,$db,$table);
+
+        // Design phone_no ,   phone
+        $userdata_phone['phone_no']=$phone;
+
+        $db="digitalasset_db";
+        $table="users";
+        $this->update_column_all($userdata_phone,$user_id,$user_email,$db,$table);
+        unset($userdata_phone['phone_no']);
+
+        // Mobile  	mobile_no, phone
+        $userdata_phone['mobile_no']=$phone;
+        $db="mobileapp_db";
+        $table="users";
+        $this->update_column_all($userdata_phone,$user_id,$user_email,$db,$table);
+        unset($userdata_phone['mobile_no']);
+
+
+        // CRM phonenumber ,phone
+        $userdata_phone['phonenumber']=$phone;
+        $db="crm_db";
+        $table="tblleads";
+        $this->update_column_all($userdata_phone,$user_id,$user_email,$db,$table);
+        unset($userdata_phone['phonenumber']);
+
+
+
+
+
+    }
+
+    //Done
+    public function update_token_centralize($user_id,$user_email,$token_array)
+    {
+
+
+        //MainCoIn default remaining_words,remaining_images
+        //MainMarketing use same MainCoIn remaining_words,remaining_images
+
+        /* $token_array= array(
+            'remaining_words' => $userdata['remaining_words'],
+            'remaining_images' => $userdata['remaining_images'],
+        ); */
+
+       /*  $userdata_example=array(
+            'phone' => $phone,
+            'mobile' => $phone,
+        ); */
+
+        $db="main_db";
+        $table="users";
+
+        $this->update_column_all($token_array,$user_id,$user_email,$db,$table);
+
+        // SocialPost   openai_usage_tokens in array permissions column
+        $db="main_db";
+        $table="sp_users";
+        $this->update_column_all($token_array,$user_id,$user_email,$db,$table);
+
+        $team_data=DB::connection('main_db')->table('sp_team')->where('owner',$user_id)->first();
+        $team_id=$team_data->ids;
+        $total_token=$token_array['remaining_words']+$token_array['remaining_images'];
+        //$this->update_team_permissions($key, $value, $team_id);
+        $this->update_team_permissions('openai_limit_tokens', $total_token,$team_id,$user_id);
+        
+        //recheck gin if it subtrck by openai_usage_tokens then .. openai_limit_tokens = openai_usage_tokens + openai_limit_tokens 
+        //set this $value to 0 if want to reset token usage
+        //$this->update_team_permissions('openai_usage_tokens', $total_token,$team_id,$user_id);
+        
+
+
+        // blog Bio.bio   $token_array
+       /*  $db="bio_blog_db";
+        $table="users";
+        $this->update_column_all($userdata_token_arr,$user_id,$user_email,$db,$table); */
+
+        // SEO  $token_array
+        /* $db="seo_db";
+        $table="users";
+        $this->update_column_all($token_array,$user_id,$user_email,$db,$table);
+ */
+
+        // Sync tts_words_limit,  dalle_limit, gpt_words_limit, $token_array
+
+        $token_array['dalle_limit']=$token_array['remaining_images'];
+        $token_array['gpt_words_limit']=$token_array['remaining_words'];
+        $db="sync_db";
+        $table="user";
+        $this->update_column_all($token_array,$user_id,$user_email,$db,$table);
+
+        unset( $token_array['dalle_limit']);
+        unset( $token_array['gpt_words_limit']);
+
+
+
+        // Bio plan_settings, aix_images_current_month, aix_words_current_month
+        $db="bio_db";
+        $table="users";
+        $this->update_column_all($token_array,$user_id,$user_email,$db,$table);
+        
+        //aix_words_current_month
+        //aix_images_current_month
+        $this->update_bio_users_plan_settings('words_per_month_limit', $token_array['remaining_words'],$user_id);
+        $this->update_bio_users_plan_settings('images_per_month_limit', $token_array['remaining_images'],$user_id);
+
+
+
+        // Design default remaining_words
+        $db="digitalasset_db";
+        $table="users";
+        $this->update_column_all($token_array,$user_id,$user_email,$db,$table);
+
+
+        // Mobile  	words_left, image_left
+        $token_array['words_left']=$token_array['remaining_words'];
+        $token_array['image_left']=$token_array['remaining_images'];
+        $db="mobileapp_db";
+        $table="users";
+        $this->update_column_all($token_array,$user_id,$user_email,$db,$table);
+        unset($token_array['words_left']);
+        unset($token_array['image_left']);
+
+
+        // CRM default remaining_words
+        $db="crm_db";
+        $table="tblleads";
+        $this->update_column_all($token_array,$user_id,$user_email,$db,$table);
+
+
+
+    }
+
+
+    public function update_language_centralize($user_id,$user_email,$lang)
+    {
+        //MainCoIn   language
+        //MainMarketing  lang
+        $userdata_lang=array(
+            'lang' => $lang,
+            'language' => $lang,
+        );
+        $db="main_db";
+        $table="users";
+
+        $this->update_column_all($userdata_lang,$user_id,$user_email,$db,$table);
+
+        // SocialPost   language
+        unset($userdata_lang['lang']);
+        $db="main_db";
+        $table="sp_users";
+        $this->update_column_all($userdata_lang,$user_id,$user_email,$db,$table);
+
+
+        // blog Bio.bio   language
+        $db="bio_blog_db";
+        $table="users";
+        $this->update_column_all($userdata_lang,$user_id,$user_email,$db,$table);
+
+        // SEO  language
+        $db="seo_db";
+        $table="users";
+        $this->update_column_all($userdata_lang,$user_id,$user_email,$db,$table);
+
+
+        // Sync  language
+        $db="sync_db";
+        $table="user";
+        $this->update_column_all($userdata_lang,$user_id,$user_email,$db,$table);
+
+
+        // Bio  language,lang
+        $userdata_lang['lang']=$lang;
+        $userdata_lang['language']=$this->getDisplayLanguageForLocaleCode($lang);
+        $db="bio_db";
+        $table="users";
+        $this->update_column_all($userdata_lang,$user_id,$user_email,$db,$table);
+        unset($userdata_lang['lang']);
+        $userdata_lang['language']=$lang;
+
+
+        // Design language
+        $db="digitalasset_db";
+        $table="users";
+        $this->update_column_all($userdata_lang,$user_id,$user_email,$db,$table);
+
+
+        // Mobile  language
+        $db="mobileapp_db";
+        $table="users";
+        $this->update_column_all($userdata_lang,$user_id,$user_email,$db,$table);
+
+
+
+        // CRM default_language,language
+        $userdata_lang['default_language']=$lang;
+        $db="crm_db";
+        $table="tblleads";
+        $this->update_column_all($userdata_lang,$user_id,$user_email,$db,$table);
+        unset($userdata_lang['default_language']);
+
+
+
+
+
+    }
+
+    //Update SocialPost Team Setting
+
+    public function update_team_permissions($key, $value, $team_id = 0, $owner = 0)
+    {
+
+       $sp_team_set=SPTeam::where('owner',$owner)->where('ids',$team_id)->first();
+       // $data = ['products' => ['desk' => ['price' => 100]]];
+       $permissions=$sp_team_set->permissions;
+       
+       Log::debug('Value of new Token in SocialPost Team to update '.$value);
+
+       //data_set($permissions, 'permissions.'.$key, $value);
+       //$permissions_array = Arr::wrap($permissions);
+       $permissions_json=json_decode($permissions,true);
+       $permissions_json[$key]= $value;
+    
+       $permissions=json_encode($permissions_json);
+       $sp_team_set->permissions=$permissions;
+       $sp_team_update=$sp_team_set->save();
+      
+       if($sp_team_update>0)
+        Log::debug('Sucess update Plan SP_Team permisssion  '.$key);
+       
+    }
+
+
+    
+
+    //Get Team Settings
+
+    function get_team_data($key, $value = "", $team_id = 0){
+
+       
+    }
+
+    //GET Bio plan_settings
+    function get_bio_users_plan_settings($key, $value = "", $user_id = 0)
+    {
+        
+
+
+        
+        
+    }
+
+
+
+    //Update Bio plan_settings
+
+    public function update_bio_users_plan_settings($key, $value, $user_id = 0){
+
+        $user_bio=UserBio::where('user_id',$user_id)->first();
+        // $data = ['products' => ['desk' => ['price' => 100]]];
+        $plan_settings=$user_bio->plan_settings;
+
+        Log::debug('Value of new Token in Bio to update '.$value);
+
+        //data_set($plan_settings, 'plan_settings.'.$key, $value);
+        //$plan_settings_array = Arr::wrap($plan_settings);
+  
+
+        Log::debug('Found old data aix_words_current_month '.$user_bio['aix_words_current_month']);
+
+        Log::debug('Found old data aix_images_current_month '.$user_bio['aix_images_current_month']);
+
+        //add  old value because SmartBio auto subtrack old usage
+        if($key=='words_per_month_limit')
+        $value+=$user_bio['aix_words_current_month'];
+
+        if($key=='images_per_month_limit')
+        $value+=$user_bio['aix_images_current_month'];
+
+        Log::debug('New value + is'.$value);
+
+        $plan_settings_json=json_decode($plan_settings,true);
+        //assign new value to plan_setting
+        $plan_settings_json[$key]= $value;
+
+    
+       $plan_settings=json_encode($plan_settings_json);
+       $user_bio->plan_settings=$plan_settings;
+      
+        //$plan_settings_array->$key= $value;
+        $user_bio_update=$user_bio->save();
+        
+        if($user_bio_update>0)
+        Log::debug('Sucess update Bio user plan_settings '.$key);
+
+
+
+       
+    }
+
+
+    function getLocaleCodeForDisplayLanguage($name){
+        $languageCodes = array(
+        "aa" => "Afar",
+        "ab" => "Abkhazian",
+        "ae" => "Avestan",
+        "af" => "Afrikaans",
+        "ak" => "Akan",
+        "am" => "Amharic",
+        "an" => "Aragonese",
+        "ar" => "Arabic",
+        "as" => "Assamese",
+        "av" => "Avaric",
+        "ay" => "Aymara",
+        "az" => "Azerbaijani",
+        "ba" => "Bashkir",
+        "be" => "Belarusian",
+        "bg" => "Bulgarian",
+        "bh" => "Bihari",
+        "bi" => "Bislama",
+        "bm" => "Bambara",
+        "bn" => "Bengali",
+        "bo" => "Tibetan",
+        "br" => "Breton",
+        "bs" => "Bosnian",
+        "ca" => "Catalan",
+        "ce" => "Chechen",
+        "ch" => "Chamorro",
+        "co" => "Corsican",
+        "cr" => "Cree",
+        "cs" => "Czech",
+        "cu" => "Church Slavic",
+        "cv" => "Chuvash",
+        "cy" => "Welsh",
+        "da" => "Danish",
+        "de" => "German",
+        "dv" => "Divehi",
+        "dz" => "Dzongkha",
+        "ee" => "Ewe",
+        "el" => "Greek",
+        "en" => "English",
+        "eo" => "Esperanto",
+        "es" => "Spanish",
+        "et" => "Estonian",
+        "eu" => "Basque",
+        "fa" => "Persian",
+        "ff" => "Fulah",
+        "fi" => "Finnish",
+        "fj" => "Fijian",
+        "fo" => "Faroese",
+        "fr" => "French",
+        "fy" => "Western Frisian",
+        "ga" => "Irish",
+        "gd" => "Scottish Gaelic",
+        "gl" => "Galician",
+        "gn" => "Guarani",
+        "gu" => "Gujarati",
+        "gv" => "Manx",
+        "ha" => "Hausa",
+        "he" => "Hebrew",
+        "hi" => "Hindi",
+        "ho" => "Hiri Motu",
+        "hr" => "Croatian",
+        "ht" => "Haitian",
+        "hu" => "Hungarian",
+        "hy" => "Armenian",
+        "hz" => "Herero",
+        "ia" => "Interlingua (International Auxiliary Language Association)",
+        "id" => "Indonesian",
+        "ie" => "Interlingue",
+        "ig" => "Igbo",
+        "ii" => "Sichuan Yi",
+        "ik" => "Inupiaq",
+        "io" => "Ido",
+        "is" => "Icelandic",
+        "it" => "Italian",
+        "iu" => "Inuktitut",
+        "ja" => "Japanese",
+        "jv" => "Javanese",
+        "ka" => "Georgian",
+        "kg" => "Kongo",
+        "ki" => "Kikuyu",
+        "kj" => "Kwanyama",
+        "kk" => "Kazakh",
+        "kl" => "Kalaallisut",
+        "km" => "Khmer",
+        "kn" => "Kannada",
+        "ko" => "Korean",
+        "kr" => "Kanuri",
+        "ks" => "Kashmiri",
+        "ku" => "Kurdish",
+        "kv" => "Komi",
+        "kw" => "Cornish",
+        "ky" => "Kirghiz",
+        "la" => "Latin",
+        "lb" => "Luxembourgish",
+        "lg" => "Ganda",
+        "li" => "Limburgish",
+        "ln" => "Lingala",
+        "lo" => "Lao",
+        "lt" => "Lithuanian",
+        "lu" => "Luba-Katanga",
+        "lv" => "Latvian",
+        "mg" => "Malagasy",
+        "mh" => "Marshallese",
+        "mi" => "Maori",
+        "mk" => "Macedonian",
+        "ml" => "Malayalam",
+        "mn" => "Mongolian",
+        "mr" => "Marathi",
+        "ms" => "Malay",
+        "mt" => "Maltese",
+        "my" => "Burmese",
+        "na" => "Nauru",
+        "nb" => "Norwegian Bokmal",
+        "nd" => "North Ndebele",
+        "ne" => "Nepali",
+        "ng" => "Ndonga",
+        "nl" => "Dutch",
+        "nn" => "Norwegian Nynorsk",
+        "no" => "Norwegian",
+        "nr" => "South Ndebele",
+        "nv" => "Navajo",
+        "ny" => "Chichewa",
+        "oc" => "Occitan",
+        "oj" => "Ojibwa",
+        "om" => "Oromo",
+        "or" => "Oriya",
+        "os" => "Ossetian",
+        "pa" => "Panjabi",
+        "pi" => "Pali",
+        "pl" => "Polish",
+        "ps" => "Pashto",
+        "pt" => "Portuguese",
+        "qu" => "Quechua",
+        "rm" => "Raeto-Romance",
+        "rn" => "Kirundi",
+        "ro" => "Romanian",
+        "ru" => "Russian",
+        "rw" => "Kinyarwanda",
+        "sa" => "Sanskrit",
+        "sc" => "Sardinian",
+        "sd" => "Sindhi",
+        "se" => "Northern Sami",
+        "sg" => "Sango",
+        "si" => "Sinhala",
+        "sk" => "Slovak",
+        "sl" => "Slovenian",
+        "sm" => "Samoan",
+        "sn" => "Shona",
+        "so" => "Somali",
+        "sq" => "Albanian",
+        "sr" => "Serbian",
+        "ss" => "Swati",
+        "st" => "Southern Sotho",
+        "su" => "Sundanese",
+        "sv" => "Swedish",
+        "sw" => "Swahili",
+        "ta" => "Tamil",
+        "te" => "Telugu",
+        "tg" => "Tajik",
+        "th" => "Thai",
+        "ti" => "Tigrinya",
+        "tk" => "Turkmen",
+        "tl" => "Tagalog",
+        "tn" => "Tswana",
+        "to" => "Tonga",
+        "tr" => "Turkish",
+        "ts" => "Tsonga",
+        "tt" => "Tatar",
+        "tw" => "Twi",
+        "ty" => "Tahitian",
+        "ug" => "Uighur",
+        "uk" => "Ukrainian",
+        "ur" => "Urdu",
+        "uz" => "Uzbek",
+        "ve" => "Venda",
+        "vi" => "Vietnamese",
+        "vo" => "Volapuk",
+        "wa" => "Walloon",
+        "wo" => "Wolof",
+        "xh" => "Xhosa",
+        "yi" => "Yiddish",
+        "yo" => "Yoruba",
+        "za" => "Zhuang",
+        "zh" => "Chinese",
+        "zu" => "Zulu"
+        );
+        //return array_search($name, $languageCodes);
+        if(null!==array_search($name, $languageCodes))
+        return array_search($name, $languageCodes);
+        else
+        return "en";
+    }
+
+    function getDisplayLanguageForLocaleCode($langcode){
+        $languageCodes = array(
+        "aa" => "Afar",
+        "ab" => "Abkhazian",
+        "ae" => "Avestan",
+        "af" => "Afrikaans",
+        "ak" => "Akan",
+        "am" => "Amharic",
+        "an" => "Aragonese",
+        "ar" => "Arabic",
+        "as" => "Assamese",
+        "av" => "Avaric",
+        "ay" => "Aymara",
+        "az" => "Azerbaijani",
+        "ba" => "Bashkir",
+        "be" => "Belarusian",
+        "bg" => "Bulgarian",
+        "bh" => "Bihari",
+        "bi" => "Bislama",
+        "bm" => "Bambara",
+        "bn" => "Bengali",
+        "bo" => "Tibetan",
+        "br" => "Breton",
+        "bs" => "Bosnian",
+        "ca" => "Catalan",
+        "ce" => "Chechen",
+        "ch" => "Chamorro",
+        "co" => "Corsican",
+        "cr" => "Cree",
+        "cs" => "Czech",
+        "cu" => "Church Slavic",
+        "cv" => "Chuvash",
+        "cy" => "Welsh",
+        "da" => "Danish",
+        "de" => "German",
+        "dv" => "Divehi",
+        "dz" => "Dzongkha",
+        "ee" => "Ewe",
+        "el" => "Greek",
+        "en" => "English",
+        "eo" => "Esperanto",
+        "es" => "Spanish",
+        "et" => "Estonian",
+        "eu" => "Basque",
+        "fa" => "Persian",
+        "ff" => "Fulah",
+        "fi" => "Finnish",
+        "fj" => "Fijian",
+        "fo" => "Faroese",
+        "fr" => "French",
+        "fy" => "Western Frisian",
+        "ga" => "Irish",
+        "gd" => "Scottish Gaelic",
+        "gl" => "Galician",
+        "gn" => "Guarani",
+        "gu" => "Gujarati",
+        "gv" => "Manx",
+        "ha" => "Hausa",
+        "he" => "Hebrew",
+        "hi" => "Hindi",
+        "ho" => "Hiri Motu",
+        "hr" => "Croatian",
+        "ht" => "Haitian",
+        "hu" => "Hungarian",
+        "hy" => "Armenian",
+        "hz" => "Herero",
+        "ia" => "Interlingua (International Auxiliary Language Association)",
+        "id" => "Indonesian",
+        "ie" => "Interlingue",
+        "ig" => "Igbo",
+        "ii" => "Sichuan Yi",
+        "ik" => "Inupiaq",
+        "io" => "Ido",
+        "is" => "Icelandic",
+        "it" => "Italian",
+        "iu" => "Inuktitut",
+        "ja" => "Japanese",
+        "jv" => "Javanese",
+        "ka" => "Georgian",
+        "kg" => "Kongo",
+        "ki" => "Kikuyu",
+        "kj" => "Kwanyama",
+        "kk" => "Kazakh",
+        "kl" => "Kalaallisut",
+        "km" => "Khmer",
+        "kn" => "Kannada",
+        "ko" => "Korean",
+        "kr" => "Kanuri",
+        "ks" => "Kashmiri",
+        "ku" => "Kurdish",
+        "kv" => "Komi",
+        "kw" => "Cornish",
+        "ky" => "Kirghiz",
+        "la" => "Latin",
+        "lb" => "Luxembourgish",
+        "lg" => "Ganda",
+        "li" => "Limburgish",
+        "ln" => "Lingala",
+        "lo" => "Lao",
+        "lt" => "Lithuanian",
+        "lu" => "Luba-Katanga",
+        "lv" => "Latvian",
+        "mg" => "Malagasy",
+        "mh" => "Marshallese",
+        "mi" => "Maori",
+        "mk" => "Macedonian",
+        "ml" => "Malayalam",
+        "mn" => "Mongolian",
+        "mr" => "Marathi",
+        "ms" => "Malay",
+        "mt" => "Maltese",
+        "my" => "Burmese",
+        "na" => "Nauru",
+        "nb" => "Norwegian Bokmal",
+        "nd" => "North Ndebele",
+        "ne" => "Nepali",
+        "ng" => "Ndonga",
+        "nl" => "Dutch",
+        "nn" => "Norwegian Nynorsk",
+        "no" => "Norwegian",
+        "nr" => "South Ndebele",
+        "nv" => "Navajo",
+        "ny" => "Chichewa",
+        "oc" => "Occitan",
+        "oj" => "Ojibwa",
+        "om" => "Oromo",
+        "or" => "Oriya",
+        "os" => "Ossetian",
+        "pa" => "Panjabi",
+        "pi" => "Pali",
+        "pl" => "Polish",
+        "ps" => "Pashto",
+        "pt" => "Portuguese",
+        "qu" => "Quechua",
+        "rm" => "Raeto-Romance",
+        "rn" => "Kirundi",
+        "ro" => "Romanian",
+        "ru" => "Russian",
+        "rw" => "Kinyarwanda",
+        "sa" => "Sanskrit",
+        "sc" => "Sardinian",
+        "sd" => "Sindhi",
+        "se" => "Northern Sami",
+        "sg" => "Sango",
+        "si" => "Sinhala",
+        "sk" => "Slovak",
+        "sl" => "Slovenian",
+        "sm" => "Samoan",
+        "sn" => "Shona",
+        "so" => "Somali",
+        "sq" => "Albanian",
+        "sr" => "Serbian",
+        "ss" => "Swati",
+        "st" => "Southern Sotho",
+        "su" => "Sundanese",
+        "sv" => "Swedish",
+        "sw" => "Swahili",
+        "ta" => "Tamil",
+        "te" => "Telugu",
+        "tg" => "Tajik",
+        "th" => "Thai",
+        "ti" => "Tigrinya",
+        "tk" => "Turkmen",
+        "tl" => "Tagalog",
+        "tn" => "Tswana",
+        "to" => "Tonga",
+        "tr" => "Turkish",
+        "ts" => "Tsonga",
+        "tt" => "Tatar",
+        "tw" => "Twi",
+        "ty" => "Tahitian",
+        "ug" => "Uighur",
+        "uk" => "Ukrainian",
+        "ur" => "Urdu",
+        "uz" => "Uzbek",
+        "ve" => "Venda",
+        "vi" => "Vietnamese",
+        "vo" => "Volapuk",
+        "wa" => "Walloon",
+        "wo" => "Wolof",
+        "xh" => "Xhosa",
+        "yi" => "Yiddish",
+        "yo" => "Yoruba",
+        "za" => "Zhuang",
+        "zh" => "Chinese",
+        "zu" => "Zulu"
+        );
+
+        //return array_search($name, $languageCodes);
+        if(isset($languageCodes[$langcode]))
+        return $languageCodes[$langcode];
+        else
+        return "English";
+
+    }
+
+
+
+
+    }
+
+
+
+
+
+
+
+

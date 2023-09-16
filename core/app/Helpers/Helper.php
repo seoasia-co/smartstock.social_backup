@@ -109,6 +109,14 @@ class Helper
     // detect browser
     static function getBrowser()
     {
+    if(empty($_SERVER['HTTP_USER_AGENT'])) {
+
+        //
+
+    }
+
+    else
+    {
         // check if IE 8 - 11+
         preg_match('/Trident\/(.*)/', $_SERVER['HTTP_USER_AGENT'], $matches);
         if ($matches) {
@@ -129,6 +137,7 @@ class Helper
                     $browser);   // we don't care about the version, because this is a modern browser that updates itself unlike IE
             }
         }
+      }
     }
 
     // detect OS

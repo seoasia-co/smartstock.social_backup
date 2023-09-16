@@ -42,6 +42,26 @@ return [
         ],
     ],
 
+
+
+
+    'guards' => [
+        'web' => [
+            'driver' => 'session',
+            'provider' => 'users',
+        ],
+        'web_main' => [
+            'driver' => 'session',
+            'provider' => 'users_main',
+        ],
+        'web_bio' => [
+            'driver' => 'session',
+            'provider' => 'users_bio',
+        ],
+    ],
+
+
+
     /*
     |--------------------------------------------------------------------------
     | User Providers
@@ -65,7 +85,17 @@ return [
             'model' => App\Models\User::class,
         ],
 
-        // 'users' => [
+        'users_main' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\UserMain::class,
+        ],
+
+        'users_bio' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\UserBio::class,
+        ],
+
+        // 'users_main' => [
         //     'driver' => 'database',
         //     'table' => 'users',
         // ],
@@ -90,10 +120,32 @@ return [
     |
     */
 
-    'passwords' => [
+    /* 'passwords' => [
         'users' => [
             'provider' => 'users',
             'table' => 'password_reset_tokens',
+            'expire' => 60,
+            'throttle' => 60,
+        ],
+    ], */
+
+
+    'passwords' => [
+        'users' => [
+            'provider' => 'users',
+            'table' => 'password_resets_tokens',
+            'expire' => 60,
+            'throttle' => 60,
+        ],
+        'users_main' => [
+            'provider' => 'users_main',
+            'table' => 'password_resets_tokens',
+            'expire' => 60,
+            'throttle' => 60,
+        ],
+        'users_bio' => [
+            'provider' => 'users_bio',
+            'table' => 'password_resets_tokens',
             'expire' => 60,
             'throttle' => 60,
         ],
@@ -110,6 +162,6 @@ return [
     |
     */
 
-    'password_timeout' => 10800,
+    'password_timeout' => 7776000,
 
 ];

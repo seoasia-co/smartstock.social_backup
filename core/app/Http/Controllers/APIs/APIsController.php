@@ -29,8 +29,10 @@ use App\Http\Controllers\APIs\SMAIUpdateProfileController;
 use App\Http\Controllers\APIs\SMAISyncPlanController;
 
 use Log;
+use Str;
 
 use App\Http\Controllers\Auth\SMAISessionAuthController;
+use App\Models\UserMain;
 
 
 class APIsController extends Controller
@@ -2375,6 +2377,9 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $usage = $request->usage;
         $data = $request->data;
 
+        Log::debug('DEbug Usage from Start Sync Token : '.$usage);
+        
+
         $params = json_decode($request->params_input, true);
 
         if (isset($params['gpt_category']))
@@ -2398,6 +2403,48 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         Log::debug('$params smaisync_tokens from APIsController : ' . info(print_r($params, true)));
         Log::info(print_r($params, true));
         Log::debug('User ID log in smaisync_tokens in Main APIsController from Digital_Asset : ' . $user_id);
+
+     
+        if(Str::contains($chatGPT_catgory,'Images_'))
+        {
+
+            // $user_id,$usage,$data_image,$image_params
+            $new_update_main_image = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id=NULL);
+            $return_arr = $new_update_main_image->imageOutput_save_main_coin($user_id, $usage, $data, $params,$size=NULL, $post=NULL,  $style=NULL, $lighting=NULL, $mood=NULL, $number_of_images=1, $image_generator='DE', $negative_prompt=NULL);
+
+            Log::debug('Return array from new_update_main_image ');
+            Log::info($return_arr);
+
+            $path_array =$return_arr['path_array'];
+            $image_array =$return_arr['image_array'];
+
+            //save image to BIo OpenAI
+            $number_of_images=$params['n'];
+            $prompt=$params['prompt'];
+            $image_array['size']=$params['size'];
+            //$image_array['img_width']
+            //$image_array['img_height']
+            $new_update_main_image->imageOutput_save_Bio($user_id,$prompt, $number_of_images,$path_array,$image_array);
+           
+
+
+            //save image to SocialPost OpenAI
+            $new_update_main_image->imageOutput_save_SocialPost($user_id,$prompt, $number_of_images,$path_array,$image_array);
+            
+
+
+            //save image to Design OpenAI
+            $new_update_main_image->imageOutput_save_Design($user_id,$prompt, $number_of_images,$path_array);
+
+            //save image to Sync OpenAI
+            $new_update_main_image->imageOutput_save_Sync($user_id,$prompt, $number_of_images,$path_array);
+
+            //save image to MobielApp OpenAI
+            $new_update_main_image->imageOutput_save_MobileAppV2($user_id,$prompt, $number_of_images,$path_array);
+
+        }
+        else
+        {
 
         $new_update_digitalasset = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id);
         $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data, $params);
@@ -2430,6 +2477,54 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         ];
         return response()->json($response, 201); */
 
+        //$data_json = json_decode($data ,true);
+
+
+    }
+
+   
+
+        $user_data_db=UserMain::where('id',$user_id)->first();
+        $remaining_images=$user_data_db->remaining_images;
+        $remaining_words=$user_data_db->remaining_words;
+        $user_email = $user_data_db->email;
+        
+
+
+
+         
+
+        if(Str::contains($chatGPT_catgory,'Images_'))
+        {
+            Log::debug('Debug case Images GPT with usage '.$usage);
+
+            $remaining_images-=$usage;
+            $token_array= array(
+                
+                'remaining_images' => $remaining_images,
+                'remaining_words' => $remaining_words,
+            );
+
+            $new_token_centralize=NEW SMAIUpdateProfileController();
+            $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array);
+
+        }
+        else{
+
+            Log::debug('Debug case None-Images GPT with usage '.$usage);
+
+            $remaining_words-=$usage;
+            $token_array= array(
+                
+                'remaining_images' => $remaining_images,
+                'remaining_words' => $remaining_words,
+            );
+
+            $new_token_centralize=NEW SMAIUpdateProfileController();
+            $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array);
+
+        }
+
 
     }
 
@@ -2443,9 +2538,9 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $database = $request->database;
 
         $checktoken_digitalasset = new SMAISyncTokenController();
-        $checktoken_digitalasset->SMAI_Check_DigitalAsset_UserColumn($user_id, $key, $database);
+        $token_total = $checktoken_digitalasset->SMAI_Check_DigitalAsset_UserColumn($user_id, $key, $database);
 
-
+        return $token_total;
     }
 
     public function smaiupdate_column(Request $request)

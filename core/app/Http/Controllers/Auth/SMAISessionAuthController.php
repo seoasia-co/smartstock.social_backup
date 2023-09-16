@@ -59,7 +59,7 @@ class SMAISessionAuthController extends Controller
     //protected $request; 
     protected $hash_password;
     // request as an attribute of the controllers
-    public function __construct($request_mobile)
+    public function __construct($request_mobile=NULL)
     {
        
         
@@ -108,23 +108,37 @@ class SMAISessionAuthController extends Controller
         return uniqid();
     }
 
-    public function db_session_create()
+    public function db_session_create($user_id=NULL,$session_php=NULL)
     {
         if (session_status() != PHP_SESSION_ACTIVE) {
             session_start();
         }
-        if(isset($_COOKIE['PHPSESSID'])) 
+        if(isset($_COOKIE['PHPSESSID']) || $session_php!=NULL) 
        {
+
+        Log::debug(" Found PHP Session ID ".$session_php);
        // dd(Auth::user()->id);
         //socialpost subfolder session login create
+       
+        
+        if($user_id != NULL)
+        {
+          Auth::loginUsingId($user_id);
+          $user_id= $user_id;
+        }
+        else
+        {
+          $user_id=Auth::user()->id;
+        }
+
         $team_id = DB::connection('main_db')->table('sp_team')
                 ->select('id', 'ids')
-                ->where('owner', '=', Auth::user()->id)
+                ->where('owner', '=', $user_id)
                 ->limit(1)
                 ->get();
         $user_uid = DB::connection('main_db')->table('sp_users')
                 ->select('id', 'ids')
-                ->where('id', '=', Auth::user()->id)
+                ->where('id', '=', $user_id)
                 ->limit(1)
                 ->get(); 
          
@@ -138,12 +152,20 @@ class SMAISessionAuthController extends Controller
                 Session::put('uid', $team_id[0]->ids);
                 Session::put('team_id', $user_uid[0]->ids);
                 //set_session(["team_id" => $user_uid[0]->ids]);
+
+                if($session_php!=NULL)
+                $sessionId = $session_php;
+                else if ($_COOKIE['PHPSESSID'] != NULL)
+                $sessionId = $_COOKIE['PHPSESSID'];
+                else
                 $sessionId = Session::getId();
-                Log::debug('Debug Current Session ID : '.$sessionId);
+
+
+                Log::debug('Debug Current Session get ID : '.$sessionId);
                // dd($sessionId);
-                Log::debug('Debug PHP Session ID : '.$_COOKIE['PHPSESSID']);
+               // Log::debug('Debug PHP Session ID : '.$_COOKIE['PHPSESSID']);
                 
-                $current_session_id = DB::table('sessions')
+                $current_session_id = DB::connection('main_db')->table('sessions')
                 ->select('pub_id','id','session_PHPSESSID')
                 ->where('id', '=', $sessionId)
                 ->orderBy('pub_id', 'desc')
@@ -153,10 +175,13 @@ class SMAISessionAuthController extends Controller
                
                 $current_time = \Carbon\Carbon::now()->timestamp;
 
+                if($session_php==NULL)
+                $session_php=$_COOKIE['PHPSESSID'];
+
                 if(count($current_session_id)>0)
-                DB::connection('main_db')->update('update sessions set session_PHPSESSID = ? where id LIKE ? order by pub_id desc', [$_COOKIE['PHPSESSID'],$sessionId]);
+                DB::connection('main_db')->update('update sessions set session_PHPSESSID = ? where id LIKE ? order by pub_id desc', [$session_php,$sessionId]);
                 else
-                DB::connection('main_db')->insert('insert into sessions (id, session_PHPSESSID, user_id, last_activity, ids, team_id, payload) values (?, ?, ?, ?, ?, ?, ?)', [$sessionId, $_COOKIE['PHPSESSID'], Auth::user()->id, $current_time, $user_uid[0]->ids, $team_id[0]->ids, 'payload']);
+                DB::connection('main_db')->insert('insert into sessions (id, session_PHPSESSID, user_id, last_activity, ids, team_id, payload) values (?, ?, ?, ?, ?, ?, ?)', [$sessionId, $session_php, $user_id, $current_time, $user_uid[0]->ids, $team_id[0]->ids, 'payload']);
         
                 //eof socialpost subfolder session login create
          }
@@ -948,6 +973,32 @@ class SMAISessionAuthController extends Controller
         $found_user= $user_old->count();
         return $found_user;
 
+    }
+
+    public function freetrial_user_api($request,$user_id,$raw_password=NULL)
+    {
+        if($raw_password!=NULL)
+        $password_ins=$raw_password;
+        else if(isset($request->raw_password))
+        $password_ins=$request->raw_password;
+        else
+        $password_ins=$this->hash_password;
+
+        $userdata = [
+            'id' => $user_id,
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' =>  $password_ins,
+        ];
+
+        if($this->check_old_user('mysql','users',$request->email) < 1)  
+          {
+              $insert_id  = DB::connection('mysql')->table('users')->insert($userdata);
+          }
+          else{
+
+            Log::debug('this user already in the DB '.$request->email);
+          }
     }
 
 

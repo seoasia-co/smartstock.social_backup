@@ -57,6 +57,16 @@ use App\Models\UserOpenaiChatMessageSocialPost;
 
 use App\Models\OpenaiGeneratorChatCategory;
 
+use App\Models\UserBioOpenai;
+use App\Models\UserBio;
+use App\Models\SPTeam;
+use App\Models\ImagesBio;
+use App\Models\Files_SP;
+
+use App\Models\UserSyncNodeJS;
+use App\Models\UserSyncNodeJSOpenai;
+
+use App\Models\UserMobile;
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\File;
@@ -71,6 +81,11 @@ use Log;
 use DB;
 use Illuminate\Support\Arr;
 use function PHPUnit\Framework\lessThanOrEqual;
+
+use App\Http\Controllers\APIs\SMAIUpdateProfileController;
+//use File;
+
+
 
 /* for update Token and chatGTP usage including Log history of chat GPT data */
 
@@ -157,6 +172,18 @@ class SMAISyncTokenController extends Controller
 
     }
 
+    
+
+    public function get_size($file_path)
+    {
+        return Storage::disk('s3')->size($file_path);
+    }
+
+    public function ids(){
+        return uniqid();
+    }
+
+    //Working can not find the exactly Table that specific the remaining_words and images
     public function SMAI_UpdateGPT_MainMarketing($user_id, $usage, $response, $params)
     {
 
@@ -181,7 +208,10 @@ class SMAISyncTokenController extends Controller
                 $chatGPT_catgory=NULL;
 
             $response = json_decode($response, true);
-            if (Str::contains($chatGPT_catgory, 'Chat_')) {
+
+            //save chatGPT Chat data to DB
+            if (Str::contains($chatGPT_catgory, 'Chat_'))
+            {
                 //add Sync GPT chat version here
 
                 $total_used_tokens = $usage;
@@ -252,7 +282,10 @@ class SMAISyncTokenController extends Controller
                 $message->response = $responsedText;
                 $message->output = $output;
                 $message->hash = Str::random(256);
+
+                //save token to chat message and if sum all chat message token = chat_id token
                 $message->credits = $total_used_tokens;
+
                 $message->words = 0;
                 $message->updated_at = $time;
                 $message->save();
@@ -274,12 +307,16 @@ class SMAISyncTokenController extends Controller
                     'remaining_words' => $new_remaining_words,
                 );
 
-                $user_update = DB::connection('main_db')->table('users')
+                /* $user_update = DB::connection('main_db')->table('users')
                     ->where('id', $user_id)
-                    ->update($remaining_words_arr);
+                    ->update($remaining_words_arr); */
+
+                if(isset($user_update))
+                Log::debug('Update#1 of Chat text remaining at MainMarketing success by + add $total_used_tokens to old remaining_words in users table in Main ');
 
                 //$user->save();
 
+                //save token to chat ID
                 $chat->total_credits += $total_used_tokens;
                 $chat->save();
 
@@ -295,6 +332,8 @@ class SMAISyncTokenController extends Controller
                 $description = implode(" ", $description);
 
             } else {
+
+                //save text Doc in others case that not Chat
                 if ($settings->openai_default_model == 'gpt-3.5-turbo') {
                     if (isset($response['choices'][0]['delta']['content'])) {
                         $message = $response['choices'][0]['delta']['content'];
@@ -371,6 +410,8 @@ class SMAISyncTokenController extends Controller
                     $params_json = $params;
                 else
                     $params_json = json_decode($params, true);
+
+
                 $keywords = '';
                 $description = $params_json["prompt"];
                 $creativity = 1;
@@ -421,34 +462,38 @@ class SMAISyncTokenController extends Controller
                     Log::debug('Save UserOpenai Log Success ');
                 }
 
-            }
-
-
-            //Update remaining  to users section
+                //Update remaining  to users section
             if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-                $total_used_tokens = $this->total_used_tokens;
+            $total_used_tokens = $this->total_used_tokens;
 
-            //Update new remaining Tokens
-            $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
-            if ($user[0]->remaining_words != -1) {
-                $user[0]->remaining_words -= $total_used_tokens;
-                $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-                // $user[0]->save();
-                $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+        //Update new remaining Tokens to user
+        $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
+        if ($user[0]->remaining_words != -1) {
+            $user[0]->remaining_words -= $total_used_tokens;
+            $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
+            // $user[0]->save();
+            $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+        }
+
+        if ($user[0]->remaining_words < -1) {
+            $user[0]->remaining_words = 0;
+            // $user[0]->save();
+            $new_remaining_words = 0;
+            $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+        }
+
+        if ($user_update > 0)
+            Log::debug('Update remaining at MainMarketing success by + add $total_used_tokens to old remaining_words in users table in Main ');
+
+        //echo 'data: [DONE]';
+        //echo "\n\n";
+
+                //EOF case none Chat
             }
+            //EOF case Doc text or Chat Text
 
-            if ($user[0]->remaining_words < -1) {
-                $user[0]->remaining_words = 0;
-                // $user[0]->save();
-                $new_remaining_words = 0;
-                $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-            }
 
-            if ($user_update > 0)
-                Log::debug('Update remaining at Main1 success');
-
-            //echo 'data: [DONE]';
-            //echo "\n\n";
+            
 
 
         } else {
@@ -568,9 +613,9 @@ class SMAISyncTokenController extends Controller
                     'remaining_words' => $new_remaining_words,
                 );
 
-                $user_update = DB::connection('main_db')->table('users')
+                /* $user_update = DB::connection('main_db')->table('users')
                     ->where('id', $user_id)
-                    ->update($remaining_words_arr);
+                    ->update($remaining_words_arr); */
 
                 //$user->save();
 
@@ -714,35 +759,36 @@ class SMAISyncTokenController extends Controller
                 } else {
                     Log::debug('Save UserOpenai Log Success ');
                 }
-
-
-            }
-
-            //Update remaining  to users section
+                 //Update remaining  to users section
             if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-                $total_used_tokens = $this->total_used_tokens;
+            $total_used_tokens = $this->total_used_tokens;
 
-            //Update new remaining Tokens
-            $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
-            if ($user[0]->remaining_words != -1) {
-                $user[0]->remaining_words -= $total_used_tokens;
-                $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-                // $user[0]->save();
-                $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+        //Update new remaining Tokens
+        $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
+        if ($user[0]->remaining_words != -1) {
+            $user[0]->remaining_words -= $total_used_tokens;
+            $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
+            // $user[0]->save();
+            $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+        }
+
+        if ($user[0]->remaining_words < -1) {
+            $user[0]->remaining_words = 0;
+            // $user[0]->save();
+            $new_remaining_words = 0;
+            $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+        }
+
+        if ($user_update > 0)
+            Log::debug('Update remaining at MainCoIn by + add $total_used_tokens to old remaining_words in users table in users Main success');
+
+        //echo 'data: [DONE]';
+        //echo "\n\n";
+
+
             }
 
-            if ($user[0]->remaining_words < -1) {
-                $user[0]->remaining_words = 0;
-                // $user[0]->save();
-                $new_remaining_words = 0;
-                $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-            }
-
-            if ($user_update > 0)
-                Log::debug('Update remaining at Main1 success');
-
-            //echo 'data: [DONE]';
-            //echo "\n\n";
+           
 
 
         } else {
@@ -858,9 +904,9 @@ class SMAISyncTokenController extends Controller
                     'remaining_words' => $new_remaining_words,
                 );
 
-                $user_update = DB::connection('main_db')->table('sp_users')
+                /* $user_update = DB::connection('main_db')->table('sp_users')
                     ->where('id', $user_id)
-                    ->update($remaining_words_arr);
+                    ->update($remaining_words_arr); */
 
                 //$user->save();
 
@@ -960,6 +1006,7 @@ class SMAISyncTokenController extends Controller
                 else
                     $params_json = json_decode($params, true);
 
+
                 $keywords = '';
                 $description = $params_json["prompt"];
                 $creativity = 1;
@@ -1007,6 +1054,36 @@ class SMAISyncTokenController extends Controller
                     Log::debug('Save SP_UserOpenai Log Success ');
                 }
 
+                //Update remaining  to users section
+            if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
+            $total_used_tokens = $this->total_used_tokens;
+
+        Log::debug('before update TOken numbers remaining_words');
+        // Save Users of Digital_Asset
+        //Update new remaining Tokens
+        $user = \DB::connection('main_db')->table('sp_users')->where('id', $user_id)->get();
+        Log::debug('User email test : ' . $user[0]->email);
+
+        if ($user[0]->remaining_words != -1) {
+            $user[0]->remaining_words -= $total_used_tokens;
+            $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
+            // $user[0]->save();
+            $user_update = DB::connection('main_db')->update('update sp_users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+        }
+
+        if ($user[0]->remaining_words < -1) {
+            $user[0]->remaining_words = 0;
+            // $user[0]->save();
+            $new_remaining_words = 0;
+            $user_update = DB::connection('main_db')->update('update sp_users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+        }
+        if ($user_update > 0)
+            Log::debug('Update remaining at Main Socialpost by + add $total_used_tokens to old remaining_words in table sp_users in success');
+
+        //echo 'data: [DONE]';
+        //echo "\n\n";
+
+
 
             }
 
@@ -1017,38 +1094,12 @@ class SMAISyncTokenController extends Controller
                 $caption_table = "sp_captions";
                 $caption_database = "main_db";
                 $this->SMAI_Ins_Eloq_openAI_Caption_Socialpost($description, $responsedText, $user_id, $message_id, $caption_database, $caption_table);
+           
+            
             }
 
 
-            //Update remaining  to users section
-            if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-                $total_used_tokens = $this->total_used_tokens;
-
-            Log::debug('before update TOken numbers remaining_words');
-            // Save Users of Digital_Asset
-            //Update new remaining Tokens
-            $user = \DB::connection('main_db')->table('sp_users')->where('id', $user_id)->get();
-            Log::debug('User email test : ' . $user[0]->email);
-
-            if ($user[0]->remaining_words != -1) {
-                $user[0]->remaining_words -= $total_used_tokens;
-                $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-                // $user[0]->save();
-                $user_update = DB::connection('main_db')->update('update sp_users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-            }
-
-            if ($user[0]->remaining_words < -1) {
-                $user[0]->remaining_words = 0;
-                // $user[0]->save();
-                $new_remaining_words = 0;
-                $user_update = DB::connection('main_db')->update('update sp_users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-            }
-            if ($user_update > 0)
-                Log::debug('Update remaining at Main Socialpost success');
-
-            //echo 'data: [DONE]';
-            //echo "\n\n";
-
+            
 
         } else {
             //echo 'data: [Update Failed user not found]';
@@ -1170,9 +1221,9 @@ class SMAISyncTokenController extends Controller
                     'remaining_words' => $new_remaining_words,
                 );
 
-                $user_update = DB::connection('digitalasset_db')->table('users')
+                /* $user_update = DB::connection('digitalasset_db')->table('users')
                     ->where('id', $user_id)
-                    ->update($remaining_words_arr);
+                    ->update($remaining_words_arr); */
 
                 //$user->save();
 
@@ -1277,6 +1328,7 @@ class SMAISyncTokenController extends Controller
                 else
                     $params_json = json_decode($params, true);
 
+
                 $keywords = '';
                 $description = $params_json["prompt"];
                 $creativity = 1;
@@ -1326,33 +1378,36 @@ class SMAISyncTokenController extends Controller
                     Log::debug('Save DigitalAsset Log Success ');
                 }
 
-            }
-
-            //Update remaining  to users section
-            if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
+                //Update remaining  to users section
+                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
                 $total_used_tokens = $this->total_used_tokens;
 
-            //Update new remaining Tokens
-            $user = \DB::connection('digitalasset_db')->table('users')->where('id', $user_id)->get();
-            if ($user[0]->remaining_words != -1) {
+                //Update new remaining Tokens
+                $user = \DB::connection('digitalasset_db')->table('users')->where('id', $user_id)->get();
+                if ($user[0]->remaining_words != -1) {
                 $user[0]->remaining_words -= $total_used_tokens;
                 $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
                 // $user[0]->save();
                 $user_update = DB::connection('digitalasset_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-            }
+                }
 
-            if ($user[0]->remaining_words < -1) {
+                if ($user[0]->remaining_words < -1) {
                 $user[0]->remaining_words = 0;
                 // $user[0]->save();
                 $new_remaining_words = 0;
                 $user_update = DB::connection('digitalasset_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                }
+
+                if ($user_update > 0)
+                Log::debug('Update remaining at Design by + add $total_used_tokens to old remaining_words in users table in Design success');
+
+                //echo 'data: [DONE]';
+                //echo "\n\n";
+
+
             }
 
-            if ($user_update > 0)
-                Log::debug('Update remaining at Design success');
-
-            //echo 'data: [DONE]';
-            //echo "\n\n";
+            
 
 
         } else {
@@ -1466,9 +1521,9 @@ class SMAISyncTokenController extends Controller
                 );
 
 
-                $user_update = DB::connection('mobileapp_db')->table('users')
+                /* $user_update = DB::connection('mobileapp_db')->table('users')
                     ->where('id', $user_id)
-                    ->update($remaining_words_arr);
+                    ->update($remaining_words_arr); */
 
                 //$user->save();
 
@@ -1560,6 +1615,7 @@ class SMAISyncTokenController extends Controller
                 else
                     $params_json = json_decode($params, true);
 
+
                 $keywords = '';
                 $description = $params_json["prompt"];
                 $creativity = 1;
@@ -1607,38 +1663,39 @@ class SMAISyncTokenController extends Controller
                 } else {
                     Log::debug('Save Mobile Log Success ');
                 }
-
-            }
-
-
-            //Update remaining  to users section
+                //Update remaining  to users section
 
             if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-                $total_used_tokens = $this->total_used_tokens;
+            $total_used_tokens = $this->total_used_tokens;
 
-            //Update new remaining Tokens
-            $user = \DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->get();
-            if ($user[0]->remaining_words != -1) {
-                $user[0]->remaining_words -= $total_used_tokens;
-                $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-                // $user[0]->save();
-                $user_update = DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+        //Update new remaining Tokens
+        $user = \DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->get();
+        if ($user[0]->remaining_words != -1) {
+            $user[0]->remaining_words -= $total_used_tokens;
+            $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
+            // $user[0]->save();
+            $user_update = DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+
+        }
+
+        if ($user[0]->remaining_words < -1) {
+            $user[0]->remaining_words = 0;
+            // $user[0]->save();
+            $new_remaining_words = 0;
+            $user_update = DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+
+
+        }
+        if ($user_update > 0)
+            Log::debug('Update remaining at MobileApp by + add $total_used_tokens to old remaining_words in users table in Mobileapp success');
+
+        //echo 'data: [DONE]';
+        //echo "\n\n";
 
             }
 
-            if ($user[0]->remaining_words < -1) {
-                $user[0]->remaining_words = 0;
-                // $user[0]->save();
-                $new_remaining_words = 0;
-                $user_update = DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
 
-
-            }
-            if ($user_update > 0)
-                Log::debug('Update remaining at MobileApp success');
-
-            //echo 'data: [DONE]';
-            //echo "\n\n";
+            
 
 
         } else {
@@ -1653,7 +1710,7 @@ class SMAISyncTokenController extends Controller
     public function SMAI_Check_DigitalAsset_UserColumn($user_id, $key, $database)
     {
 
-        /*   Log::debug('User ID  SMAI_Check_DigitalAsset_UserPlans from SMAIsyncController : '.$user_id);
+        /*  Log::debug('User ID  SMAI_Check_DigitalAsset_UserPlans from SMAIsyncController : '.$user_id);
             Log::debug('Key SMAI_Check_DigitalAsset_UserPlans from SMAIsyncController : '.$key);
             Log::debug('Database SMAI_Check_DigitalAsset_UserPlans from SMAIsyncController : '.$database);
 
@@ -1685,12 +1742,12 @@ class SMAISyncTokenController extends Controller
 
 //Woring
 //Universal SMAI fnc
-    public function SMAI_Update_TableColumn($arr_ids, $database, $table, $data)
+    public function SMAI_Update_TableColumn($arr_ids, $database, $table, $data_array)
     {
 
 
         $array_of_ids = $arr_ids;
-        $table_update = DB::connection($database)->table($table)->whereIn('id', $array_of_ids)->update(array('votes' => 1));
+        $table_update = DB::connection($database)->table($table)->whereIn('id', $array_of_ids)->update(array($data_array));
 
 
     }
@@ -1727,6 +1784,7 @@ class SMAISyncTokenController extends Controller
 
     }
 
+    //Working
     public function SMAI_Ins_Eloq_openAI_content_TB($user_id, $database, $table)
     {
 
@@ -1768,6 +1826,7 @@ class SMAISyncTokenController extends Controller
 
     }
 
+    //Done
     public function SMAI_Ins_Eloq_openAI_Caption_Socialpost($title, $content, $user_id, $openai_id, $database, $table)
     {
 
@@ -1798,6 +1857,731 @@ class SMAISyncTokenController extends Controller
 
 
     }
+
+    public function update_token_centralize($user_id,$email,$token_array)
+    {
+
+
+
+    }
+
+
+    public function imageOutput_save_main_coin($user_id,$usage,$response,$params, $size=NULL, $post=NULL,  $style=NULL, $lighting=NULL, $mood=NULL, $number_of_images=1, $image_generator='DE', $negative_prompt=NULL)
+    {
+        $image_arr=array(
+            'style' => $style,
+             'artist' => 'Leonardo da Vinci',
+             'lighting' => $lighting,
+             'mood' => $mood,
+        );
+
+        
+
+        $path_array=array();
+        $image_storage = "s3";
+        Log::debug('Usage in imageOutput_save '.$usage);
+        Log::debug('user_id in imageOutput_save '.$user_id);
+        Log::debug('response in imageOutput_save '.$response);
+        Log::info($response);
+        Log::debug('params in imageOutput_save ');
+        Log::info($params);
+        
+        //$params_json = json_decode($params, true);
+        if(is_array($params))
+        $params_json =$params;
+        else
+        $params_json = json_decode($params, true);
+
+        $prompt=$params_json['prompt'];
+        $prompt = preg_replace('/[^A-Za-z0-9 ]/', '', $prompt);
+        $size=$params_json['size'];
+        $number_of_images=$params_json['n'];
+        $chatGPT_catgory=$params_json['gpt_category'];
+
+        $image_arr['size']=$size;
+        $file_ImageSize=$params_json['file_size'];
+        
+
+        $user=UserMain::where('id',$user_id)->first();
+        //save generated image datas
+        $entries=[];
+
+        if ($user->remaining_images <= 0) {
+            $data = array(
+                'errors' => ['You have no credits left. Please consider upgrading your plan.'],
+            );
+            return response()->json($data, 419);
+        }
+
+        if ($style != null)
+            $prompt .= ' ' . $style . ' style.';
+        if ($lighting != null)
+            $prompt .= ' ' . $lighting . ' lighting.';
+        if ($mood != null)
+            $prompt .= ' ' . $mood . ' mood.';
+
+        $this->settings_two  =  SettingTwo::first();
+        $image_storage = $this->settings_two->ai_image_storage;
+
+        Log::debug('Current Storage setting'.$image_storage);
+
+
+
+
+        for ($i = 0; $i < $number_of_images; $i++) {
+
+            //use this for openAI Images
+            if($image_generator != self::STABLEDIFFUSION) {
+                //send prompt to openai
+                if($prompt == null) return response()->json(["status" => "error", "message" => "You must provide a prompt"]);
+                
+                /* $response = FacadesOpenAI::images()->create([
+                    'model' => 'image-alpha-001',
+                    'prompt' => $prompt,
+                    'size' => $size,
+                    'response_format' => 'b64_json',
+                ]); */
+
+                $response=json_decode($response,true);
+
+                if($chatGPT_catgory=='Images_Design')
+                $image_url = $response['data'][0]['url'];
+                else
+                $image_url = $response['data'][0]['b64_json'];
+
+
+               //$contents = base64_decode($image_url);
+
+                $contents=$image_url;
+                $nameOfImage = Str::random(12) . '-DALL-E-' . Str::slug($prompt) . '.png';
+
+                //save file on local storage or aws s3
+                
+                Storage::disk('topics')->put($nameOfImage, file_get_contents($image_url));
+                $path = 'https://smartstock.social/uploads/topics/' . $nameOfImage;
+
+                
+
+                $path_s3 = 'uploads/topics/' . $nameOfImage;
+                
+                //$imageName = time().'.'.$request->image->extension();  
+
+                //$uploadedFile = new File($path);
+                //$path = Storage::disk('s3')->put('images', $uploadedFile);
+                //$path = Storage::disk('s3')->url($path);
+
+                /* try { */
+                    $uploadedFile = new File($path_s3);
+                    $aws_path = Storage::disk('s3')->put('', $uploadedFile);
+                    unlink($path_s3);
+                    $path = Storage::disk('s3')->url($aws_path);
+                    if($path)
+                    {
+                    Log::debug('success path of upload');
+                    Log::info($path);
+                    }
+                /* } catch (\Exception $e) {
+                    return response()->json(["status" => "error", "message" => "AWS Error - ".$e->getMessage()]);
+                }  */
+            
+            
+            } else {
+
+                //send prompt to stablediffusion
+                $settings = SettingTwo::first();
+                $stablediffusionKeys = explode(',', $settings->stable_diffusion_api_key);
+                $stablediffusionKey = $stablediffusionKeys[array_rand($stablediffusionKeys)];
+                if($prompt == null) 
+                    return response()->json(["status" => "error", "message" => "You must provide a prompt"]);
+                if ($stablediffusionKey == "") 
+                    return response()->json(["status" => "error", "message" => "You must provide a StableDiffusion API Key."]);
+                $width = explode('x', $size)[0];
+                $height = explode('x', $size)[1];
+                $client = new Client([
+                    'base_uri' => 'https://api.stability.ai/v1/generation/',
+                    'headers' => [
+                        'content-type' => 'application/json',
+                        'Authorization' => "Bearer ".$stablediffusionKey
+                    ]
+                ]);
+                try {
+                    $response = $client->post('stable-diffusion-512-v2-1/text-to-image', [
+                        // 'json' => [
+                        //     'content-type' => 'application/json',
+                        //     'cfg_scale' => 7,
+                        //     'clip_guidance_preset' => "FAST_BLUE",
+                        //     'width' => $width,
+                        //     'height' => $height,
+                        //     'sampler' => "K_DPM_2_ANCESTRAL",
+                        //     'samples' => "1",
+                        //     'steps' => "50",
+                        //     'text_prompts' => ['text' => $prompt]
+                        // ],
+                        'json' => [
+                            'cfg_scale' => 7,
+                            'clip_guidance_preset' => 'FAST_BLUE',
+                            'width' => 512,
+                            'height' => 512,
+                            'sampler' => 'K_DPM_2_ANCESTRAL',
+                            'samples' => 1,
+                            'steps' => 50,
+                            'text_prompts' => [
+                                [
+                                    'text' => $prompt
+                                ]
+                            ]
+                        ],
+                    ]);
+                } catch (\Exception $e) {
+                    return response()->json(["status" => "error", "message" => $e->getMessage()]);
+                }
+
+
+
+                //SMAI response data start
+                $body = $response->getBody();
+                if ($response->getStatusCode() == 200){
+                    $nameOfImage = Str::random(12) . '-' . Str::slug($prompt) . '.png';
+                    
+                    $contents = base64_decode(json_decode($body)->artifacts[0]->base64);
+                }
+                else {
+                    $message = '';
+                    if ($body->status == "error")
+                        $message = $body->message;
+                    else
+                        $message = "Failed, Try Again";
+                    return response()->json(["status" => "error", "message" => $message]);
+                }
+                
+                Storage::disk('public')->put($nameOfImage, $contents);
+                $path = 'uploads/' . $nameOfImage;
+            }
+
+           /*  if($image_storage == "s3") {
+                try {
+                    $uploadedFile = new File($path);
+                    $aws_path = Storage::disk('s3')->put('', $uploadedFile);
+                    unlink($path);
+                    $path = Storage::disk('s3')->url($aws_path);
+                } catch (\Exception $e) {
+                    return response()->json(["status" => "error", "message" => "AWS Error - ".$e->getMessage()]);
+                }
+            } */
+            
+            $post_type='ai_image_generator';
+            $post = OpenAIGenerator::where('slug', $post_type)->first();
+            $entry = new UserOpenai();
+            $entry->title = 'New Image';
+            $entry->slug = Str::random(7) . Str::slug($user->fullName()) . '-workbsook';
+            $entry->user_id = $user_id;
+            $entry->openai_id = $post->id;
+            $entry->input = $prompt;
+            $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
+            $entry->output = $image_storage == "s3" ? $path : '/' . $path;
+            $entry->hash = Str::random(256);
+            $entry->credits = 1;
+            $entry->words = 0;
+            $entry->storage = UserOpenai::STORAGE_AWS ;
+            $entry->file_size=$file_ImageSize;
+            $entry->save();
+
+            //push each generated image to an array
+            array_push($entries, $entry);
+
+            if ($user->remaining_images - 1 == -1) {
+                $user->remaining_images = 0;
+                $user->save();
+                $userOpenai = UserOpenai::where('user_id', $user_id)->where('openai_id', $post->id)->orderBy('created_at', 'desc')->get();
+                $openai = OpenAIGenerator::where('id', $post->id)->first();
+                return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+            }
+
+            if ($user->remaining_images == 1) {
+                $user->remaining_images = 0;
+                $user->save();
+            }
+
+            if ($user->remaining_images != -1 and $user->remaining_images != 1 and $user->remaining_images != 0) {
+                $user->remaining_images -= 1;
+                $user->save();
+            }
+
+            if ($user->remaining_images < -1) {
+                $user->remaining_images = 0;
+                $user->save();
+            }
+
+            if ($user->remaining_images == 0) {
+                //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+            }
+
+            array_push($path_array,$path);
+        }
+
+         $image_arr['file_size']=$file_ImageSize;
+         $return_arr=array(
+            'path_array' => $path_array ,
+            'image_array' => $image_arr,
+
+         );
+
+          return $return_arr;
+
+       // return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+    }
+
+
+    public function imageOutput_save_SocialPost_self($user_id,$size,$path,$img_width,$img_height,$image_arr,$prompt)
+    {
+
+        //update openai_usage_tokens
+        //update_team_data("openai_usage_tokens", get_team_data("openai_usage_tokens", 0) + $usage);
+  
+        $team_data=SPTeam::where('owner',$user_id)->first();
+        $team_id=$team_data->id;
+
+        $tmp_file = "";
+        $file_path=$path;
+        $folder=0;
+
+        $fileSize = $image_arr['file_size'];
+
+        $data_image=array(
+            "ids" => $this->ids(),
+            "team_id" => $team_id,
+            "is_folder" => 0,
+            "pid" => $folder,
+            "name" => str_replace( "https://smartcontent-ai-image.s3.amazonaws.com/", "", $file_path),
+            "file" => $file_path,
+            "type" => "image/jpeg",
+            "extension" => "jpg",
+            "detect" => "image",
+            "size" => $fileSize,
+            "is_image" => 1,
+            "width" => (int)$img_width,
+            "height" => (int)$img_height,
+            "created" => time(),
+        );
+
+        $image_sp_new_ins = Files_SP::create($data_image);
+        Log::debug('Insert new image to self_SocialPost result');
+        Log::info($image_sp_new_ins);
+
+    
+    }
+ 
+    public function imageOutput_save_Bio_self($user_id,$size,$path,$img_width,$img_height,$image_arr,$prompt)
+    {
+
+
+        $user_bio=UserBio::where('user_id',$user_id)->first();
+        $plan_settings=$user_bio->plan_settings;
+        $plan_settings_json=json_decode($plan_settings,true);
+        //api from plan_setting
+        $images_api=$plan_settings_json['images_api'];
+
+        $settings_arr=array(
+            "variants" => 1,
+        );
+        $settings=json_encode($settings_arr);
+        $project_id=NULL;
+        $name=str_replace( "https://smartcontent-ai-image.s3.amazonaws.com/", "", $path);
+        /* Prepare the statement and execute query */
+        $data_image = array(
+            'user_id' => $user_id,
+            'project_id' => $project_id,
+            'name' => $name,
+            'input' => $prompt,
+            'image' => $path,
+            'style' => $image_arr['style'],
+            'artist' => $image_arr['artist'],
+            'lighting' => $image_arr['lighting'],
+            'mood' => $image_arr['mood'],
+            'size' => $size,
+            'settings' => $settings,
+            'api' => $images_api,
+            'api_response_time' => 9999,
+            'datetime' => date("Y-m-d H:i:s"),
+        );
+
+
+        $image_bio_new_ins = new ImagesBio([
+            'user_id' => $user_id,
+            'project_id' => $project_id,
+            'name' => $name,
+            'input' => $prompt,
+            'image' => $path,
+            'style' => $image_arr['style'],
+            'artist' => $image_arr['artist'],
+            'lighting' => $image_arr['lighting'],
+            'mood' => $image_arr['mood'],
+            'size' => $size,
+            'settings' => $settings,
+            'api' => $images_api,
+            'api_response_time' => 9999,
+            'datetime' => date("Y-m-d H:i:s"),
+        ]);
+        
+        $image_bio_new_ins->save(); //returns true
+
+       // $image_bio_new_ins = ImagesBio::create($data_image);
+        Log::debug('Insert new image to self_Bio result');
+        Log::info($image_bio_new_ins);
+    }
+
+    public function imageOutput_save_Bio($user_id,$prompt, $number_of_images,$path_array,$image_array)
+    {
+
+
+        $image_generator='DE';
+        $entries=[];
+        $user=UserBio::where('user_id',$user_id)->first();
+
+        for ($i = 0; $i < count($path_array); $i++) {
+        
+            $post_type='ai_image_generator';
+            $image_storage="s3";
+            $path=$path_array[$i];
+
+            $post = OpenAIGenerator::where('slug', $post_type)->first();
+            $entry = new UserBioOpenai();
+            $entry->title = 'New Image';
+            $entry->slug = Str::random(7) . Str::slug($user->name) . '-workbsook';
+            $entry->user_id = $user_id;
+            $entry->openai_id = $post->id;
+            $entry->input = $prompt;
+            $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
+            $entry->output = $image_storage == "s3" ? $path : '/' . $path;
+            $entry->hash = Str::random(256);
+            $entry->credits = 1;
+            $entry->words = 0;
+            $entry->storage = UserOpenai::STORAGE_AWS ;
+            $entry->save();
+
+            //push each generated image to an array
+            array_push($entries, $entry);
+
+            if ($user->remaining_images - 1 == -1) {
+                $user->remaining_images = 0;
+                $user->save();
+                $userOpenai = UserBioOpenai::where('user_id', $user_id)->where('openai_id', $post->id)->orderBy('created_at', 'desc')->get();
+                $openai = OpenAIGenerator::where('id', $post->id)->first();
+                return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+            }
+
+            if ($user->remaining_images == 1) {
+                $user->remaining_images = 0;
+                $user->save();
+            }
+
+            if ($user->remaining_images != -1 and $user->remaining_images != 1 and $user->remaining_images != 0) {
+                $user->remaining_images -= 1;
+                $user->save();
+            }
+
+            if ($user->remaining_images < -1) {
+                $user->remaining_images = 0;
+                $user->save();
+            }
+
+            if ($user->remaining_images == 0) {
+                //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+            }
+
+            $size=$image_array['size'];
+            $size_arr=explode("x",$size);
+            $img_width=$size_arr[0];
+            $img_height=$size_arr[1];
+            $this->imageOutput_save_Bio_self($user_id,$size,$path,$img_width,$img_height,$image_array,$prompt);
+        
+        }
+        //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+
+       Log::debug('imageOutput_save_Bio');
+       Log::debug(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+
+    }
+
+    public function imageOutput_save_SocialPost($user_id,$prompt, $number_of_images,$path_array,$image_array)
+    {
+        $image_generator='DE';
+        $entries=[];
+        $user=UserSP::where('id',$user_id)->first();
+
+        for ($i = 0; $i < count($path_array); $i++) {
+        
+            $post_type='ai_image_generator';
+            $image_storage="s3";
+            $path=$path_array[$i];
+
+            $post = OpenAIGenerator::where('slug', $post_type)->first();
+            $entry = new SP_UserOpenai();
+            $entry->title = 'New Image';
+            $entry->slug = Str::random(7) . Str::slug($user->name) . '-workbsook';
+            $entry->user_id = $user_id;
+            $entry->openai_id = $post->id;
+            $entry->input = $prompt;
+            $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
+            $entry->output = $image_storage == "s3" ? $path : '/' . $path;
+            $entry->hash = Str::random(256);
+            $entry->credits = 1;
+            $entry->words = 0;
+            $entry->storage = UserOpenai::STORAGE_AWS ;
+            $entry->save();
+
+            //push each generated image to an array
+            array_push($entries, $entry);
+
+            if ($user->remaining_images - 1 == -1) {
+                $user->remaining_images = 0;
+                $user->save();
+                $userOpenai = SP_UserOpenai::where('user_id', $user_id)->where('openai_id', $post->id)->orderBy('created_at', 'desc')->get();
+                $openai = OpenAIGenerator::where('id', $post->id)->first();
+                return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+            }
+
+            if ($user->remaining_images == 1) {
+                $user->remaining_images = 0;
+                $user->save();
+            }
+
+            if ($user->remaining_images != -1 and $user->remaining_images != 1 and $user->remaining_images != 0) {
+                $user->remaining_images -= 1;
+                $user->save();
+            }
+
+            if ($user->remaining_images < -1) {
+                $user->remaining_images = 0;
+                $user->save();
+            }
+
+            if ($user->remaining_images == 0) {
+                //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+            }
+
+            $size=$image_array['size'];
+            $size_arr=explode("x",$size);
+            $img_width=$size_arr[0];
+            $img_height=$size_arr[1];
+            $this->imageOutput_save_SocialPost_self($user_id,$size,$path,$img_width,$img_height,$image_array,$prompt);
+        }
+        //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+
+       Log::debug('imageOutput_save_SocialPost ');
+       Log::debug(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+
+
+    }
+
+    public function imageOutput_save_Design($user_id,$prompt, $number_of_images,$path_array)
+    {
+
+        $image_generator='DE';
+        $entries=[];
+        $user=UserDesign::where('id',$user_id)->first();
+
+        for ($i = 0; $i < count($path_array); $i++) {
+        
+            $post_type='ai_image_generator';
+            $image_storage="s3";
+            $path=$path_array[$i];
+
+            $post = OpenAIGenerator::where('slug', $post_type)->first();
+            $entry = new DigitalAsset_UserOpenai();
+            $entry->title = 'New Image';
+            $entry->slug = Str::random(7) . Str::slug($user->name) . '-workbsook';
+            $entry->user_id = $user_id;
+            $entry->openai_id = $post->id;
+            $entry->input = $prompt;
+            $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
+            $entry->output = $image_storage == "s3" ? $path : '/' . $path;
+            $entry->hash = Str::random(256);
+            $entry->credits = 1;
+            $entry->words = 0;
+            $entry->storage = UserOpenai::STORAGE_AWS ;
+            $entry->save();
+
+            //push each generated image to an array
+            array_push($entries, $entry);
+
+            if ($user->remaining_images - 1 == -1) {
+                $user->remaining_images = 0;
+                $user->save();
+                $userOpenai = DigitalAsset_UserOpenai::where('user_id', $user_id)->where('openai_id', $post->id)->orderBy('created_at', 'desc')->get();
+                $openai = OpenAIGenerator::where('id', $post->id)->first();
+                return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+            }
+
+            if ($user->remaining_images == 1) {
+                $user->remaining_images = 0;
+                $user->save();
+            }
+
+            if ($user->remaining_images != -1 and $user->remaining_images != 1 and $user->remaining_images != 0) {
+                $user->remaining_images -= 1;
+                $user->save();
+            }
+
+            if ($user->remaining_images < -1) {
+                $user->remaining_images = 0;
+                $user->save();
+            }
+
+            if ($user->remaining_images == 0) {
+                //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+            }
+        }
+        //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+        Log::debug('imageOutput_save_Design ');
+        Log::debug(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+ 
+
+
+    }
+
+
+    public function imageOutput_save_Sync($user_id,$prompt, $number_of_images,$path_array)
+    {
+
+        $image_generator='DE';
+        $entries=[];
+        $user=UserSyncNodeJS::where('id',$user_id)->first();
+
+        for ($i = 0; $i < count($path_array); $i++) {
+        
+            $post_type='ai_image_generator';
+            $image_storage="s3";
+            $path=$path_array[$i];
+
+            $post = OpenAIGenerator::where('slug', $post_type)->first();
+            $entry = new UserSyncNodeJSOpenai();
+            $entry->title = 'New Image';
+            $entry->slug = Str::random(7) . Str::slug($user->name) . '-workbsook';
+            $entry->user_id = $user_id;
+            $entry->openai_id = $post->id;
+            $entry->input = $prompt;
+            $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
+            $entry->output = $image_storage == "s3" ? $path : '/' . $path;
+            $entry->hash = Str::random(256);
+            $entry->credits = 1;
+            $entry->words = 0;
+            $entry->storage = UserOpenai::STORAGE_AWS ;
+            $entry->save();
+
+            //push each generated image to an array
+            array_push($entries, $entry);
+
+            if ($user->remaining_images - 1 == -1) {
+                $user->remaining_images = 0;
+                $user->save();
+                $userOpenai = UserSyncNodeJSOpenai::where('user_id', $user_id)->where('openai_id', $post->id)->orderBy('created_at', 'desc')->get();
+                $openai = OpenAIGenerator::where('id', $post->id)->first();
+                return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+            }
+
+            if ($user->remaining_images == 1) {
+                $user->remaining_images = 0;
+                $user->save();
+            }
+
+            if ($user->remaining_images != -1 and $user->remaining_images != 1 and $user->remaining_images != 0) {
+                $user->remaining_images -= 1;
+                $user->save();
+            }
+
+            if ($user->remaining_images < -1) {
+                $user->remaining_images = 0;
+                $user->save();
+            }
+
+            if ($user->remaining_images == 0) {
+                //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+            }
+        }
+        //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+
+        Log::debug('imageOutput_save_Sync ');
+        Log::debug(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+
+
+
+    }
+
+
+    public function imageOutput_save_MobileAppV2($user_id,$prompt, $number_of_images,$path_array)
+    {
+
+        $image_generator='DE';
+        $entries=[];
+        $user=UserMobile::where('id',$user_id)->first();
+
+        for ($i = 0; $i < count($path_array); $i++) {
+        
+            $post_type='ai_image_generator';
+            $image_storage="s3";
+            $path=$path_array[$i];
+
+            $post = OpenAIGenerator::where('slug', $post_type)->first();
+            $entry = new Mobile_UserOpenai();
+            $entry->title = 'New Image';
+            $entry->slug = Str::random(7) . Str::slug($user->name) . '-workbsook';
+            $entry->user_id = $user_id;
+            $entry->openai_id = $post->id;
+            $entry->input = $prompt;
+            $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
+            $entry->output = $image_storage == "s3" ? $path : '/' . $path;
+            $entry->hash = Str::random(256);
+            $entry->credits = 1;
+            $entry->words = 0;
+            $entry->storage = UserOpenai::STORAGE_AWS ;
+            $entry->save();
+
+            //push each generated image to an array
+            array_push($entries, $entry);
+
+            if ($user->remaining_images - 1 == -1) {
+                $user->remaining_images = 0;
+                $user->save();
+                $userOpenai = Mobile_UserOpenai::where('user_id', $user_id)->where('openai_id', $post->id)->orderBy('created_at', 'desc')->get();
+                $openai = OpenAIGenerator::where('id', $post->id)->first();
+                return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+            }
+
+            if ($user->remaining_images == 1) {
+                $user->remaining_images = 0;
+                $user->save();
+            }
+
+            if ($user->remaining_images != -1 and $user->remaining_images != 1 and $user->remaining_images != 0) {
+                $user->remaining_images -= 1;
+                $user->save();
+            }
+
+            if ($user->remaining_images < -1) {
+                $user->remaining_images = 0;
+                $user->save();
+            }
+
+            if ($user->remaining_images == 0) {
+                //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+            }
+        }
+        //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+
+
+        Log::debug('imageOutput_save_MobileApp ');
+        Log::debug(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+
+
+
+    }
+
+
+
+
+
+
 
 
 }

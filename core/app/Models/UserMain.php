@@ -79,4 +79,28 @@ class UserMain extends Authenticatable
     {
         return $this->belongsTo('App\Models\Permissions', 'permissions_id');
     }
+    public function fullName()
+    {
+        return $this->name . ' ' . $this->surname;
+    }
+
+    public function email()
+    {
+        return $this->email;
+    }
+
+    public function openai()
+    {
+        return $this->hasMany(UserOpenai::class);
+    }
+
+    public function orders()
+    {
+        return $this->hasMany(UserOrder::class)->orderBy('created_at', 'desc');
+    }
+
+    public function plan()
+    {
+        return $this->hasMany(UserOrder::class)->where('type', 'subscription')->orderBy('created_at', 'desc')->first();
+    }
 }

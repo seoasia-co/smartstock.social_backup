@@ -15,6 +15,9 @@ class UserBio extends Authenticatable
     protected $connection = 'bio_db';
     protected $table='users';
 
+    //protected $primaryKey = 'user_id';
+    protected $primaryKey = null;
+
     /**
      * The attributes that are mass assignable.
      *
@@ -48,6 +51,19 @@ class UserBio extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+  /*   protected function setKeysForSaveQuery(Builder $query)
+    {
+        $query
+            ->where('user_id', '=', $this->getAttribute('user_id'));
+
+        return $query;
+    } */
+
+   /*  public function fullName()
+    {
+        return $this->name . ' ' . $this->surname;
+    } */
 
  
 }
