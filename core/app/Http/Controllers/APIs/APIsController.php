@@ -27,6 +27,7 @@ use Mail;
 use App\Http\Controllers\APIs\SMAISyncTokenController;
 use App\Http\Controllers\APIs\SMAIUpdateProfileController;
 use App\Http\Controllers\APIs\SMAISyncPlanController;
+use App\Http\Controllers\APIs\SMAISyncSEOController;
 
 use Log;
 use Str;
@@ -2371,16 +2372,135 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
     //Done
     //SMAI Sync
+
+    
+
+    public function smaisync_main_tokens(Request $request)
+    {
+        $user_id = $request->user_id;
+        $usage = $request->usage;
+        $data = $request->data;
+        $main_message_id = $request->main_useropenai_message_id;
+
+        Log::debug('DEbug Data from Start MainCoIn Sync Token : '.$data);
+        Log::debug('DEbug REquest from Start  MainCoIn Sync Token : '.$request);
+        Log::debug('DEbug Usage from Start  MainCoIn Sync Token : '.$usage);
+
+        Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+        Log::debug('DEbug Main Message ID from Start  MainCoIn Sync Token : '. $main_message_id );
+        Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+       
+
+        if(isset($request->params_input))
+        $params =$request->params_input;
+        else if(isset($request['params_input']))
+        $params =$request['params_input'];
+        else 
+        $params = json_decode($request->params_input, true);
+
+
+        if (isset($params['gpt_category']))
+            $chatGPT_catgory = $params['gpt_category'];
+        else
+            $chatGPT_catgory = NULL;
+
+
+        if (isset($params['platform']))
+            $from = $params['platform'];
+        else
+            $from = '';
+
+
+        if (isset($params['chat_id']))
+            $chat_id = $params['chat_id'];
+        else
+            $chat_id = '';
+           
+        if (isset($params['response']))
+            $response = $params['response'];
+
+        Log::debug('$data  MainCoIn that from response smaisync_tokens from APIsController : ' . info(print_r($data, true)));
+        Log::debug('$params  MainCoIn smaisync_tokens from APIsController : ' . info(print_r($params, true)));
+        Log::info(print_r($params, true));
+        Log::debug('User ID  MainCoIn log in smaisync_tokens in Main APIsController from Digital_Asset : ' . $user_id);
+
+        Log::debug('With Response!!!!!!!!!!! '.$response);
+
+        /* if(isset($request->data,))
+        {
+        $res_data =$request->data;
+        $response=$res_data->response;
+        }
+        else if(isset($request['data']))
+        {
+        $res_data =$request['data'];
+        $response=$res_data['response'];
+        }
+        else 
+        {
+        $res_data = json_decode($request->params_input, true);
+        $response=$res_data->response;
+        } */
+
+        
+
+        //update UserOpenAI entry
+        $new_update_main_lower_save = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id);
+        $new_update_main_lower_save->lowGenerateSaveAll($usage,$response,$main_message_id);
+
+
+        //this below should be token centralize
+        $user_data_db=UserMain::where('id',$user_id)->first();
+        $remaining_images=$user_data_db->remaining_images;
+        $remaining_words=$user_data_db->remaining_words;
+        $user_email = $user_data_db->email;
+
+
+
+        $old_reamaining_word=$user_data_db->remaining_words;
+        $old_reamaining_image=$user_data_db->remaining_images;
+
+        $remaining_words-=$usage;
+
+        if(isset($usage) && $usage>0)
+        $token_update_type="text";
+        else
+        $token_update_type="both";
+
+        $token_array= array(
+            
+            'remaining_images' => $remaining_images,
+            'remaining_words' => $remaining_words,
+        );
+
+
+        $new_token_centralize=NEW SMAIUpdateProfileController();
+        $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array,$usage,$from,$old_reamaining_word,$old_reamaining_image,$chatGPT_catgory,$token_update_type);
+
+    }
     public function smaisync_tokens(Request $request)
     {
         $user_id = $request->user_id;
         $usage = $request->usage;
         $data = $request->data;
 
-        Log::debug('DEbug Usage from Start Sync Token : '.$usage);
+
+
+        Log::debug('DEbug Data from Start  Sync Token : '.$data);
+        Log::debug('DEbug REquest from Start   Sync Token : '.$request);
+        Log::debug('DEbug Usage from Start  Sync Token : '.$usage);
         
 
+        //$params = json_decode($request->params_input, true);
+        
+        if(isset($request->params_input))
+        $params =$request->params_input;
+        else if(isset($request['params_input']))
+        $params =$request['params_input'];
+        else 
         $params = json_decode($request->params_input, true);
+
+
 
         if (isset($params['gpt_category']))
             $chatGPT_catgory = $params['gpt_category'];
@@ -2399,7 +2519,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         else
             $chat_id = '';
 
-        Log::debug('$data that from response smaisync_tokens from APIsController : ' . info(print_r($data, true)));
+        Log::debug('$data  that from response smaisync_tokens from APIsController : ' . info(print_r($data, true)));
         Log::debug('$params smaisync_tokens from APIsController : ' . info(print_r($params, true)));
         Log::info(print_r($params, true));
         Log::debug('User ID log in smaisync_tokens in Main APIsController from Digital_Asset : ' . $user_id);
@@ -2447,30 +2567,52 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         {
 
         $new_update_digitalasset = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id);
-        $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data, $params);
+        
+          
+        // if not called from SocialPost add extra update to MainCoIn table
+        if ($from != 'main_coin')
+        {
+        $main_message_id = $new_update_digitalasset->SMAI_UpdateGPT_MainCoIn($user_id, $usage, $data, $params,$from,NULL);
+        }
+        else
+        {
+            if(isset($request->main_useropenai_message_id))
+             $main_message_id = $request->main_useropenai_message_id;
+             else
+             $main_message_id = $params['main_useropenai_message_id'];
+
+        
+        
+        }
+        Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+        Log::debug(' Check main_message_id Before next Step '.$main_message_id );
+        Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+        //update DEsign
+        $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data, $params,$from,$main_message_id);
 
 
-        //$new_update_mobileapp=NEW SMAISyncTokenController($data);
         // if not called from SocialPost add extra update to MobileApp table
 
         if ($from != 'MobileAppV2')
-            $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id, $usage, $data, $params);
+            $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id, $usage, $data, $params,$from,$main_message_id);
 
 
-        //$new_update_socialpost=NEW SMAISyncTokenController($data);
         // if not called from SocialPost add extra update to SocialPost SP table
-        $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id, $usage, $data, $params);
+        $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id, $usage, $data, $params,$from,$main_message_id);
 
+        if ($from != 'bio')
+        $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data, $params,$from,$main_message_id);
+      
 
-        //$new_update_main=NEW SMAISyncTokenController();
-        // if not called from SocialPost add extra update to MainCoIn table
+        if ($from != 'SyncNodeJS')
+        $new_update_digitalasset->SMAI_UpdateGPT_SyncNodeJS($user_id, $usage, $data, $params,$from,$main_message_id);
 
-        if ($from != 'main_coin')
-            $new_update_digitalasset->SMAI_UpdateGPT_MainCoIn($user_id, $usage, $data, $params);
+       
+            if ($from != 'main_marketing')
+        {
+            // $new_update_digitalasset->SMAI_UpdateGPT_MainMarketing($user_id, $usage, $data, $params,$from);
 
-        if ($from != 'main_marketing')
-            $new_update_digitalasset->SMAI_UpdateGPT_MainMarketing($user_id, $usage, $data, $params);
-
+        }
         /* $response = [
             'code' => '1',
             'msg' => 'success'
@@ -2488,6 +2630,9 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $remaining_images=$user_data_db->remaining_images;
         $remaining_words=$user_data_db->remaining_words;
         $user_email = $user_data_db->email;
+
+        $old_reamaining_word=$user_data_db->remaining_words;
+        $old_reamaining_image=$user_data_db->remaining_images;
         
 
 
@@ -2499,6 +2644,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
             Log::debug('Debug case Images GPT with usage '.$usage);
 
             $remaining_images-=$usage;
+            $token_update_type="image";
             $token_array= array(
                 
                 'remaining_images' => $remaining_images,
@@ -2506,7 +2652,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
             );
 
             $new_token_centralize=NEW SMAIUpdateProfileController();
-            $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array);
+            $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array,$usage,$from,$old_reamaining_word,$old_reamaining_image,$chatGPT_catgory,$token_update_type);
 
         }
         else{
@@ -2514,14 +2660,22 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
             Log::debug('Debug case None-Images GPT with usage '.$usage);
 
             $remaining_words-=$usage;
+
+            if(isset($usage) && $usage>0)
+            $token_update_type="text";
+            else
+            $token_update_type="both";
+
             $token_array= array(
                 
                 'remaining_images' => $remaining_images,
                 'remaining_words' => $remaining_words,
             );
 
+
+
             $new_token_centralize=NEW SMAIUpdateProfileController();
-            $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array);
+            $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array,$usage,$from,$old_reamaining_word,$old_reamaining_image,$chatGPT_catgory,$token_update_type);
 
         }
 
@@ -2711,6 +2865,161 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         Log::info($user_email);
 
         $update_profile_user = new SMAIUpdateProfileController($request, $user_id, $user_email, $whatup, $upFromWhere);
+
+
+    }
+
+    public function smai_seo_manage_cron_all_posts($id)
+    {
+
+        Log::debug('Start accept value form Website ID '.$id);
+        Log::info($id);
+
+        $new_seo_sync=NEW SMAISyncSEOController();
+        $response_onoff=$new_seo_sync->cron_seo_on_off_posts($id);
+        return $response_onoff;
+
+
+    }
+
+    public function smai_seo_user_create_cron_posts(Request $request)
+    {
+        
+        $keywords = $request->Keyword;
+        $user_id = $request->user_id;
+        $description = $keywords ;
+        $creativity = 1;
+        $number_of_results = 1;
+        $tone_of_voice = 0;
+        $maximum_length = 2000;
+        $language = "en";
+        $post_type = 'paragraph_generator';
+        $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
+    Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
+    ";
+
+        $post = OpenAIGenerator::where('slug', $post_type)->first();
+
+        Log::debug('All Qry strign form Cron Sync.Smartcontent Node.js  SEO');
+        Log::info($request);
+
+        $user_id=$request->user_id;
+        $user = UserMain::where('id',$user_id)->first();
+        if ($user->remaining_words <= 0  and $user->remaining_words != -1) {
+            $data = array(
+                'errors' => ['You have no credits left. Please consider upgrading your plan.'],
+            );
+            return response()->json($data, 419);
+        }
+        $entry = new UserOpenai();
+        $entry->title = 'New Workbook';
+        $entry->slug = str()->random(7) . str($user->fullName())->slug() . '-workbook';
+        $entry->user_id = Auth::id();
+        $entry->openai_id = $post->id;
+        $entry->input = $prompt;
+        $entry->response = null;
+        $entry->output = null;
+        $entry->hash = str()->random(256);
+        $entry->credits = 0;
+        $entry->words = 0;
+        $entry->save();
+
+        $message_id = $entry->id;
+        //send this $message_id to all Platforms as reference $main_useropenai id
+
+        $workbook = $entry;
+        $inputPrompt = $prompt;
+
+        $post='';
+
+
+        $stream = FacadesOpenAI::completions()->createStreamed([
+            'model' => 'text-davinci-003',
+            'prompt' => $prompt,
+            'temperature' => (int)$creativity,
+            'max_tokens' => (int)$maximum_length,
+            'n' => (int)$number_of_results
+        ]);
+
+
+        //$request =  response()->json(compact('message_id', 'creativity', 'maximum_length', 'number_of_results', 'inputPrompt'));
+
+        foreach ($stream as $response) {
+            if ($settings->openai_default_model == 'gpt-3.5-turbo') {
+                if (isset($response['choices'][0]['delta']['content'])) {
+                    $message = $response['choices'][0]['delta']['content'];
+                    $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
+                    $output .= $messageFix;
+                    $responsedText .= $message;
+                    $total_used_tokens += Str::of($messageFix)->wordCount();
+
+                    $string_length = Str::length($messageFix);
+                    $needChars = 6000 - $string_length;
+                    $random_text = Str::random($needChars);
+
+
+                    echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
+                    ob_flush();
+                    flush();
+                    usleep(500);
+                }
+            } else {
+                if (isset($response->choices[0]->text)) {
+                    $message = $response->choices[0]->text;
+                    $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
+                    $output .= $messageFix;
+                    $responsedText .= $message;
+                    $total_used_tokens += Str::of($messageFix)->wordCount();
+                   
+
+                    $string_length = Str::length($messageFix);
+                    $needChars = 6000 - $string_length;
+                    $random_text = Str::random($needChars);
+
+
+                    // SMAI text-davinci-003 start sync  token usage
+                    if( $send_smai==1)
+                     {
+                        $smai_params_input['platform'] = 'main_coin';
+                        $smai_params_input['gpt_category'] = 'DocText_SmartContentCoIn';
+
+                        $usage= $total_used_tokens;
+
+                        $data_api=  json_encode($response);
+                        //SMAITokenSyncController::synctoken_digitalasset($user_id,$usage,$data_api,$smai_params_input);
+
+                        //$request =  response()->json(compact('message_id', 'creativity', 'maximum_length', 'number_of_results', 'inputPrompt'));
+
+                        $params = json_encode(array( 
+                            'user_id' => $user_id,
+                            'usage'	 => $usage,
+                            'data' => $data_api,
+                            'params_input' => $smai_params_input,
+                            'main_useropenai_message_id' => $message_id,
+                            
+                          ));  
+
+                        $this->smaisync_main_tokens( $params);
+
+                     }
+                        //eof SMAI text-davinci-003 start sync  token usage
+
+
+                    }
+
+                }
+
+            }
+
+
+                    
+
+
+
+
+
+       
+
 
 
     }

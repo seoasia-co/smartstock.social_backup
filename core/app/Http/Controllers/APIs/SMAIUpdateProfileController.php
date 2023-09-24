@@ -59,7 +59,26 @@ use App\Models\UserSyncNodeJS;
 use App\Models\UserMobile;
 use App\Models\PlanBio;
 use App\Models\SPTeam;
+use App\Models\TokenLogs;
+use App\Models\UserCRM;
 
+
+
+use App\Models\UserOpenaiChatMessage;
+use App\Models\UserOpenaiChatDesign;
+use App\Models\UserOpenaiChatMessageDesign;
+use App\Models\UserOpenaiChatMainMarketing;
+use App\Models\UserOpenaiChatMessageMainMarketing;
+use App\Models\UserOpenaiChatMobile;
+use App\Models\UserOpenaiChatMessageMobile;
+use App\Models\UserOpenaiChatSocialPost;
+use App\Models\UserOpenaiChatMessageSocialPost;
+use App\Models\UserOpenaiChatBio;
+use App\Models\UserOpenaiChatMessageBio;
+use App\Models\UserOpenaiChatSyncNodeJS;
+use App\Models\UserOpenaiChatMessageSyncNodeJS;
+
+use App\Models\OpenaiGeneratorChatCategory;
 
 use Illuminate\Support\Arr;
 use App\Http\Controllers\Auth\SMAISessionAuthController;
@@ -366,12 +385,42 @@ class SMAIUpdateProfileController extends Controller
             $session_php=$request_update['session_php'];
             $universal_user=Auth::loginUsingId($user_id);
             $login_session_bio = NEW SMAISessionAuthController();
+
+            //add user to users table if not exist 
+            $start_add_user=0;
             $login_session_bio->freetrial_user_api($request_update,$user_id,$raw_password);
+            if($user_id==1 && $start_add_user==4)
+            {
+                $login_session_bio->freetrial_socialpost($request_update,$user_id,$raw_password);
+                $login_session_bio->freetrial_mobileApp($request_update,$user_id,$raw_password);
+                $login_session_bio->freetrial_main_co_in($request_update,$user_id,$raw_password);
+                $login_session_bio->freetrial_main_marketing($request_update,$user_id,$raw_password);
+                $login_session_bio->freetrial_design($request_update,$user_id,$raw_password);
+                $login_session_bio->freetrial_mobileAppV2($request_update,$user_id,$raw_password);
+           
+                $login_session_bio->freetrial_bio_blog($request_update,$user_id,$raw_password);
+                $login_session_bio->freetrial_sync_node($request_update,$user_id,$raw_password);
+                $login_session_bio->freetrial_crm($request_update,$user_id,$raw_password);
+                $login_session_bio->freetrial_bio($request_update,$user_id,$raw_password);
+                $login_session_bio->freetrial_course($request_update,$user_id,$raw_password);
+                $login_session_bio->freetrial_liveshop($request_update,$user_id,$raw_password);
+                $login_session_bio->freetrial_seo($request_update,$user_id,$raw_password);
+
+            }
+
             $login_session_bio->db_session_create($user_id,$session_php);
 
 
         }
-        if (in_array("password", $whatup) && $this->skip_update_pss != 1 )
+
+        if(in_array("delete", $whatup))
+        {
+            //DEl all users Platform
+            $this->del_user_all_platforms($user_id,$user_email,$this->upFromWhere);
+        }
+
+
+        else if (in_array("password", $whatup) && $this->skip_update_pss != 1 )
         {
             Log::debug('Update Profile case Password ');
 
@@ -1698,6 +1747,7 @@ class SMAIUpdateProfileController extends Controller
             else
             $user_data_update=DB::connection($db)->table($table)->where('id', $user_id)->orderBy('id','asc')->update($userdata);
 
+            return $user_data_update;
 
           }
 
@@ -1959,7 +2009,7 @@ class SMAIUpdateProfileController extends Controller
     }
 
     //Done
-    public function update_token_centralize($user_id,$user_email,$token_array)
+    public function update_token_centralize($user_id,$user_email,$token_array,$usage=NULL,$from=NULL,$old_reamaining_word=NULL,$old_reamaining_image=NULL,$chatGPT_catgory=NULL,$token_update_type=NULL)
     {
 
 
@@ -2051,9 +2101,80 @@ class SMAIUpdateProfileController extends Controller
 
 
         // CRM default remaining_words
+
+
         $db="crm_db";
         $table="tblleads";
-        $this->update_column_all($token_array,$user_id,$user_email,$db,$table);
+        
+        Log::debug('Check params before update : ');
+        Log::info($token_array);
+        Log::info($user_id);
+        Log::info($user_email);
+        Log::info($db);
+        Log::info($table);
+
+        $sync_token=$this->update_column_all($token_array,$user_id,$user_email,$db,$table);
+        
+        Log::debug('After Sync CRM Token Updated? : '.$sync_token);
+
+        $token_before_text=$token_array['remaining_words'];
+        $token_before_image=$token_array['remaining_images'];
+        
+       
+        
+
+        if($token_update_type=='text')
+        {
+              $token_before_text=$token_array['remaining_words']+$usage;
+        }
+        else if($token_update_type=='image')
+        {
+              $token_before_image=$token_array['remaining_images']+$usage;
+        }
+
+        else
+        { 
+           
+
+            if($token_update_type=='both')
+            {
+                $token_before_text=$old_reamaining_word;
+                $token_before_image=$old_reamaining_image;
+                $chatGPT_catgory="AdminManualUpdate";
+
+
+            }
+
+
+        }
+
+        $token_before=$token_before_text+$token_before_image;
+        $token_after=$token_array['remaining_words']+$token_array['remaining_images'];
+        $openai_record=NULL;
+
+        if($sync_token >= 0 )
+        {
+          $log_data=array(
+
+            'user_openai_id' => NULL ,
+            'user_openai_chat_id' => NULL ,
+            'amount' => $usage ,
+            'platform' => $from ,
+            'token_before' => $token_before ,
+            'token_after' => $token_after ,
+            'user_id' => $user_id ,
+            'type' => $chatGPT_catgory ,
+            'token_text_before' => $token_before_text,
+            'token_text_after' => $token_array['remaining_words'],
+            'token_image_before' => $token_before_image,
+            'token_image_after' => $token_array['remaining_images'],
+
+
+          );
+
+          $log_token=TokenLogs::create($log_data);
+
+        }
 
 
 
@@ -2614,6 +2735,264 @@ class SMAIUpdateProfileController extends Controller
         return $languageCodes[$langcode];
         else
         return "English";
+
+    }
+
+
+    public function lowChatSave($user_request,$user_id,$save_to_where,$user_email,$from,$chat_role)
+    {
+       // $chat = UserOpenaiChat::where('id', $user_request->chat_id)->first();
+
+       if(isset($user_request['chat_id']))
+        $chat_id=$user_request['chat_id'];
+        else
+        $chat_id=$user_request['chat_id_mobile'];
+
+
+        if($save_to_where=="SocialPost")
+        $message = new UserOpenaiChatMessageSocialPost();
+
+        else if($save_to_where=="Design")
+        $message = new UserOpenaiChatMessageDesign();
+
+        else if ($save_to_where=="MobileAppV2")
+        $message = new UserOpenaiChatMessageMobile();
+
+        else if($save_to_where=="MainMarketing")
+        $message = new UserOpenaiChatMessageMainMarketing();
+
+        else if($save_to_where=="Bio")
+        $message = new UserOpenaiChatMessageBio();
+
+        else if($save_to_where=="SyncNodeJS")
+        $message = new UserOpenaiChatMessageSyncNodeJS();
+
+        else
+        $message = new UserOpenaiChatMessage();
+
+
+        $message->user_openai_chat_id = $chat_id;
+        $message->user_id =$user_id;
+        $message->input = $user_request['input'];
+
+        if($save_to_where=="MainMarketing")
+        $message->content = $user_request['input'];
+
+        $message->response = $user_request['response'];
+        $message->output = $user_request['response'];
+        $message->hash = Str::random(256);
+       // $message->credits = countWords($user_request['response']);
+        $message->credits = Str::of($user_request['response'])->wordCount();
+        $message->words = Str::of($user_request['response'])->wordCount();
+        if($save_to_where=="Bio")
+        {
+            
+            $message->content = $user_request['response'];
+            $message->chat_id=$chat_id;
+            $message->role=$chat_role;
+             
+        
+
+        }
+        
+        $message->save();
+        $save_id_message  = $message->chat_message_id ;
+
+        Log::debug('save Bio messsage that not NUll content ID '.$save_id_message);
+
+
+        if($save_to_where=="Bio" && $message->content !=NULL)
+        {
+            
+            $id_before=$save_id_message ;
+            $id_before-=1;
+            Log::debug('Case Bio correction input message');
+            //$message_before=DB::connection('bio_db')->where('chat_message_id',$id_before)->first();
+            $message_before=UserOpenaiChatMessageBio::where('chat_message_id',$id_before)->first();
+            Log::info( $message_before);
+
+            if(($message_before->content==NULL) && ($message_before->user_openai_chat_id == $message->user_openai_chat_id ))
+            {
+                
+            
+                $chat_input_role= explode('user ',$user_request['input']);
+                $message_before->role = 'user';
+                //Log::debug('Found Role in Bio Update message '.$chat_input_role[0]);
+                $message_before->content=$chat_input_role[1];
+                //Log::debug('Found content input in Bio Update message '.$chat_input_role[1]);
+                $message_before->chat_id=$message->chat_id;
+                $message_before->save();
+                 
+
+            }
+
+        }
+
+       
+
+       if($save_to_where=="Design")
+
+       {
+
+        $usage=$message->credits;
+        $user=UserMain::where('id',$user_id)->first();
+        $token_update_type="Chat_User";
+        $chatGPT_catgory="Chat_";
+        $old_reamaining_word=$user->remaining_words;
+        $old_reamaining_image=$user->remaining_images;
+
+        
+
+
+        if ($user->remaining_words != -1) {
+            $user->remaining_words-=$usage;
+        }
+
+        if ($user->remaining_words < -1) {
+            $user->remaining_words = 0;
+        }
+
+         $token_array= array(
+            'remaining_words' => $user->remaining_words,
+            'remaining_images' => $user->remaining_images,
+        ); 
+
+        $this->update_token_centralize($user_id,$user_email,$token_array,$usage,$from,$old_reamaining_word,$old_reamaining_image,$chatGPT_catgory,$token_update_type);
+        
+       /*  $user = UserMain::where('id',$user_id)->first();
+
+        if ($user->remaining_words != -1) {
+            $user->remaining_words -= $message->credits;
+        }
+
+        if ($user->remaining_words < -1) {
+            $user->remaining_words = 0;
+        }
+        $user->save(); */
+
+      }
+
+
+
+        return response()->json([]);
+    }
+
+    public function del_user_all_platforms($user_id,$user_email,$upFromWhere)
+    {
+        if($upFromWhere=='bio')
+        {
+            Log::debug('Debug FOund Bio user ID before find Email '.$user_id);
+            $userbio_data = UserBio::where('user_id', '=', $user_id);
+            $user_email=$userbio_data->email;
+        }
+
+        if($user_email !='seoasia.co@gmail.com' && $user_id>1 )
+
+        {
+
+        //Del mainUser
+        if($user_email!='' && $user_email!=NULL)
+        $usermaincoin = UserMain::where('email', '=', $user_email)->where('id', '=', $user_id);
+        else
+        $usermaincoin = UserMain::where('id', '=', $user_id);
+
+
+        if($usermaincoin)
+        $usermaincoin->delete();
+
+
+            //SocialPost
+            if($user_email!='' && $user_email!=NULL)
+            $usersocial = UserSP::where('email', '=', $user_email)->where('id', '=', $user_id);
+            else
+            $usersocial = UserSP::where('id', '=', $user_id);
+
+            
+            if($usersocial)
+            $usersocial->delete();
+
+            //Design
+            if($user_email!='' && $user_email!=NULL)
+            $userdesign = UserDesign::where('email', '=', $user_email)->where('id', '=', $user_id);
+            else
+            $userdesign = UserDesign::where('id', '=', $user_id);
+
+
+            if($userdesign)
+            $userdesign->delete();
+
+            //Bio
+            if($user_email!='' && $user_email!=NULL)
+            $userbio = UserBio::where('email', '=', $user_email)->where('user_id', '=', $user_id);
+            else
+            $userbio = UserBio::where('user_id', '=', $user_id);
+
+            if($userbio)
+            $userbio->delete();
+
+            //BioBlog
+            if($user_email!='' && $user_email!=NULL)
+            $userbioblog = UserBioBlog::where('email', '=', $user_email)->where('id', '=', $user_id);
+            else
+            $userbioblog = UserBioBlog::where('id', '=', $user_id);
+            
+            if($userbioblog)
+            $userbioblog->delete();
+
+            //Sync
+            if($user_email!='' && $user_email!=NULL)
+            $usersync = UserSyncNodeJS::where('email', '=', $user_email)->where('id', '=', $user_id);
+            else
+            $usersync = UserSyncNodeJS::where('id', '=', $user_id);
+            
+            if($usersync)
+            $usersync->delete();
+
+            //CRM  Lead need not to be updated
+            if($user_email!='' && $user_email!=NULL)
+             $usercrm = UserCRM::where('email', '=', $user_email)->where('id', '=', $user_id);
+             else
+             $usercrm = UserCRM::where('id', '=', $user_id);
+
+
+             if($usercrm)
+             $usercrm->delete();
+
+            //SEO
+            if($user_email!='' && $user_email!=NULL)
+            $userseo = UserSEO::where('email', '=', $user_email)->where('id', '=', $user_id);
+            else
+            $userseo = UserSEO::where('id', '=', $user_id);
+
+
+            if($userseo)
+            $userseo->delete();
+
+
+             //Course Laravel
+             if($user_email!='' && $user_email!=NULL)
+             $usercourse = UserCourse::where('email', '=', $user_email)->where('id', '=', $user_id);
+             else
+             $usercourse = UserCourse::where('id', '=', $user_id);
+
+
+             if($usercourse)
+             $usercourse->delete();
+
+             //Live Shopping that upgrade from Old PunBot
+             if($user_email!='' && $user_email!=NULL)
+             $userliveshop = UserLiveShop::where('email', '=', $user_email)->where('id', '=', $user_id);
+             else
+             $userliveshop = UserLiveShop::where('id', '=', $user_id);
+
+
+             if($userliveshop)
+             $userliveshop->delete();
+
+
+        }
+
+
 
     }
 

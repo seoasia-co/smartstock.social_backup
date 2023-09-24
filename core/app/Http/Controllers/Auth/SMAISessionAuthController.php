@@ -501,6 +501,11 @@ class SMAISessionAuthController extends Controller
         if($affiliate_user_id === null) $affiliate_user_id = 0;
         //set_agency_config();
 
+        if($user_id==1)
+        $user_type='Admin';
+        else
+        $user_type='Member';
+
         //$affiliate_user_id = 0;
         $package_info = DB::connection('main_db')->table('packages')->where(['is_default'=>'1'])->first();
         $validity = isset($package_info->validity) ? $package_info->validity : 0;
@@ -513,13 +518,13 @@ class SMAISessionAuthController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => $this->hash_password,
-            'user_type'=>'Member',
+            'user_type'=>$user_type,
             'package_id'=>$package_id,
             'created_at'=>$curtime,
             'updated_at'=>$curtime,
             'expired_date'=>$expiry_date,
             'last_login_at'=>date('Y-m-d H:i:s'),
-            'last_login_ip'=>get_real_ip(),
+            'last_login_ip'=>'',
             'under_which_affiliate_user'=>$affiliate_user_id
 
         ];

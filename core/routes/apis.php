@@ -40,6 +40,8 @@ Route::post('/contact', 'APIsController@ContactPageSubmit');
 Route::post('/smaisync/tokens', 'APIsController@smaisync_tokens');
 Route::post('/smaicheck/column', 'APIsController@smaicheck_column');
 Route::post('/smaiupdate/column', 'APIsController@smaiupdate_column');
+Route::post('/smaisync/maintokens', 'APIsController@smaisync_main_tokens');
+
 
 // update profile     
 Route::post('/smaiupdate/profile', 'APIsController@smaiuser_update_profile');
@@ -51,7 +53,11 @@ Route::post('/smainewuser/createallfreetrial', 'APIsController@smainewuser_creat
 Route::post('/smaicheck/plans', 'APIsController@smaicheck_plans');
 Route::post('/smaiupdate/plan', 'APIsController@smaiuser_update_plan');
 
-       
+//SEO from smartcontent.co.in/seo
+Route::get('/manage-cron-all-posts/{id}', 'APIsController@smai_seo_manage_cron_all_posts');
+Route::post('/smai-seo/usercreatepost', 'APIsController@smai_seo_user_create_cron_posts');
+  
+
 
 // EOF SMAI Sync data
 
