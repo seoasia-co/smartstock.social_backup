@@ -279,6 +279,10 @@
       <path value="$PROJECT_DIR$/_OLD/core/vendor/psr/event-dispatcher" />
       <path value="$PROJECT_DIR$/_OLD/core/vendor/psr/log" />
       <path value="$PROJECT_DIR$/_OLD/core/vendor/psr/simple-cache" />
+      <path value="$PROJECT_DIR$/core/vendor/aws/aws-crt-php" />
+      <path value="$PROJECT_DIR$/core/vendor/aws/aws-sdk-php" />
+      <path value="$PROJECT_DIR$/core/vendor/mtdowling/jmespath.php" />
+      <path value="$PROJECT_DIR$/core/vendor/league/flysystem-aws-s3-v3" />
     </include_path>
   </component>
   <component name="PhpProjectSharedConfiguration" php_language_level="8.1" />

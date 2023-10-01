@@ -10,7 +10,7 @@ class UserOpenaiChatMobile extends Model
     use HasFactory;
 
     protected $connection = 'mobileapp_db';
-    protected $table = "user_openai_chat";
+    protected $table = "willdev_user_chat";
 
     protected $fillable = [
         "user_id","chat_id","role","text","openai_chat_category_id"

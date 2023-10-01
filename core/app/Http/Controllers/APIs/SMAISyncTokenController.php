@@ -87,8 +87,8 @@ use Illuminate\Support\Arr;
 use function PHPUnit\Framework\lessThanOrEqual;
 
 use App\Http\Controllers\APIs\SMAIUpdateProfileController;
-//use File;
 
+//use File;
 
 
 /* for update Token and chatGTP usage including Log history of chat GPT data */
@@ -107,19 +107,37 @@ class SMAISyncTokenController extends Controller
 
     protected $response_bk;
     public $chat_role;
+    public $chat_name;
+    public $chat_main_id;
 
-    public function __construct($response = NULL, $usage = NULL, $chatGPT_catgory = NULL, $chat_id = NULL)
+
+    public function __construct($response = NULL, $usage = NULL, $chatGPT_catgory = NULL, $chat_id = NULL,$chat_main_id =NULL,$chat_name=NULL,$params=NULL,$user_id=NULL)
     {
         //Settings
         $this->settings = Settings::first();
         $this->settings_two = SettingTwo::first();
 
+        if (is_array($params))
+        $params_json1 = $params;
+        else
+        $params_json1 = json_decode($params, true);
+
+        Log::debug('Debug params in SMAISyncTokenController constructor ');
+        Log::info($params);
+
+        Log::debug(' Test Main ID of Chat '.$params_json1['chat_main_id']);
+        
+        if(isset($params_json1['chat_main_id']))
+        $this->chat_main_id=$params_json1['chat_main_id'];
+
+
+        $from=$params_json1['platform'];
+
 
         if (isset($response)) {
-           
-            if($response!=NULL)
-            {
-            $this->response_bk=$response;
+
+            if ($response != NULL) {
+                $this->response_bk = $response;
             }
 
             $json_array = json_decode($response, true);
@@ -167,39 +185,160 @@ class SMAISyncTokenController extends Controller
 
 
             //$response['choices'][0]['delta']['content']
+            //create chat_id only in Iniiate
+
+            if($chat_id!=NULL)
+            $this->chat_id = $chat_id;
+
+            else if($from=='bio' && $this->chat_id==NULL)
+            $this->chat_id=$this->find_chat_id($from);
+
+            else if($from=='main_coin' && $this->chat_id==NULL)
+            $this->chat_id=$this->find_chat_id($from);
+
+            else 
+            $this->chat_id=NULL;
 
 
-            if ($chat_id == NULL || Str::length($chat_id) < 5) {
-                $this->chat_id = "chat_";
-                $this->chat_id .= strval(time());
-                $ran = random_int(100, 999);
-                $this->chat_id .= $ran;
 
-            } else {
-                $this->chat_id = $chat_id;
+            Log::debug('Debug $this_chat_id ' . $this->chat_id);
+
+            
+            if ($chat_main_id == NULL || $chat_main_id  < 0) {
+            
+                $this->chat_main_id=NULL;
+            }
+            else{
+
+                $this->chat_main_id=$chat_main_id ;
             }
 
-            Log::debug('Debug $this_chat_id '. $this->chat_id);
+
+             Log::debug('!!!!!! Debug $chat_main_id !!!!!' . $this->chat_main_id);
+             if($this->chat_main_id==NULL)
+             $this->chat_main_id=$params_json1['chat_main_id'];
 
 
+        }
+
+        if($chat_name != NULL)
+        $this->chat_name = $chat_name;
+        else
+        $this->chat_name =NULL;
+
+        /* if (is_array($params))
+                $params_json1 = $params;
+            else
+                $params_json1 = json_decode($params, true); */
+
+
+        if(isset($params_json1['prompt']))
+        $prompt=$params_json1['prompt'];
+        else
+        $prompt=NULL;
+
+
+        //check chat_id again
+        if( strlen($this->chat_id) >2 ) 
+        {
+           Log::debug('!!!!!! Debug $this->chat_id  again!!!!!' . $this->chat_id);
+        }
+        else
+        {
+       
+           Log::debug('!!!!!! Debug $this->chat_id  again!!!!! case No cat ID' . $this->chat_id);
+                   if($params_json1['platform']=='bio')
+                   {
+
+                       Log::debug('!!!!!! Debug fine Bio old ChatID !!!!!' );
+               // $chat_id_find=UserOpenaiChatBio::where('chat_id',$this->chat_main_id)->first();
+                   
+                   $chat_id_find=DB::connection('bio_db')->table('chats')->where('chat_id',$this->chat_main_id)->first();
+                   $new_chat_id=$chat_id_find->chat_id_mobile;
+                   $this->chat_id = $new_chat_id;
+
+                           if($this->chat_id==NULL)
+                           {
+                                   $chat_mobile_id= "chat_";
+                                   $chat_mobile_id.= strval(time());
+                                   $ran = rand(100, 999);
+                                   $chat_mobile_id.= $ran;
+
+                                   $new_chat_id=array(
+                                       'chat_id_mobile' => $chat_mobile_id,
+                                   );
+
+                                $chatData = DB::connection('bio_db')->table('chats')
+                                ->where('chat_id',$this->chat_main_id)
+                                ->update($new_chat_id);
+
+                                 //$chat_id_find->update($new_chat_id);
+                                   
+
+                                   $this->chat_id =$chat_mobile_id;
+
+
+
+                           }
+                   }
+                   else
+                   {
+                   $chat_id_find=UserOpenaiChat::where('id',$this->chat_main_id)->first();
+                   $new_chat_id=$chat_id_find->chat_id;
+                   $this->chat_id = $new_chat_id;
+               
+                   }
+
+           // $chat_id_find=DB::connection('main_db')->table('user_openai_chat')->wherewhere('id',$this->chat_main_id)->first();
+
+        
+
+             Log::debug('!!!!!! Debug $this->chat_id Define  again!!!!!' . $this->chat_id);
+
+        }
+
+        if($this->chat_name !=NULL && $prompt=='SKIP' )
+        {
+            //send first chatname to all platforms
+            // check and update chat_id before send
+            Log::debug('!!!!!! Debug $chat_main_id !!!!!' . $this->chat_main_id);
+
+            if($params_json1['platform']=='main_coin')
+            $main_db_chat=UserOpenaiChat::where('id',$this->chat_main_id)->first();
+
+            if($params_json1['platform']=='bio')
+            $main_db_chat=UserOpenaiChatBio::where('chat_id',$this->chat_main_id)->first();
+
+           
+            if($main_db_chat->chat_id==NULL || $main_db_chat->chat_id <1 )
+            {
+                $main_db_chat->chat_id=$this->chat_id;
+                $main_db_chat->save();
+
+
+            }
+
+
+            
+            $new_chat_ins_all = $this->new_chat_all_platforms($this->chat_name,$this->chat_id,$user_id,$this->chat_main_id);
         }
 
 
     }
 
-    
 
     public function get_size($file_path)
     {
         return Storage::disk('s3')->size($file_path);
     }
 
-    public function ids(){
+    public function ids()
+    {
         return uniqid();
     }
 
     //Working can not find the exactly Table that specific the remaining_words and images
-    public function SMAI_UpdateGPT_MainMarketing($user_id, $usage, $response, $params,$from,$main_message_id=NULL)
+    public function SMAI_UpdateGPT_MainMarketing($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
     {
 
         $settings = $this->settings;
@@ -212,22 +351,21 @@ class SMAISyncTokenController extends Controller
 
             Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_MainMarketing from SMAIsyncController : ' . $user_id);
 
-            if(is_array($params))
+            if (is_array($params))
                 $params_json1 = $params;
             else
                 $params_json1 = json_decode($params, true);
 
-            if(isset($params_json1['gpt_category']))
+            if (isset($params_json1['gpt_category']))
                 $chatGPT_catgory = $params_json1['gpt_category'];
             else
-                $chatGPT_catgory=NULL;
+                $chatGPT_catgory = NULL;
 
-            $response_bk=$response;
+            $response_bk = $response;
             $response = json_decode($response, true);
 
             //save chatGPT Chat data to DB
-            if (Str::contains($chatGPT_catgory, 'Chat_'))
-            {
+            if (Str::contains($chatGPT_catgory, 'Chat_')) {
                 //add Sync GPT chat version here
 
                 $total_used_tokens = $usage;
@@ -294,15 +432,18 @@ class SMAISyncTokenController extends Controller
                 $time = strval(time());
 
                 $message = UserOpenaiChatMessageMainMarketing::whereId($message_id)->first();
+               
+                if($chat_id != NULL && $chat_id !='')
                 $chat = UserOpenaiChatMainMarketing::where('chat_id', $chat_id)->first();
-                if($params_json1["model"] =='whisper-1')
-                {
+                else
+                $chat = UserOpenaiChatMainMarketing::where('user_openai_chat_id', $this->chat_main_id)->first();
+               
+                if ($params_json1["model"] == 'whisper-1') {
                     $message->response = serialize(json_encode($response_arr));
-                    
-                }
-                else{
-                $message->response = $responsedText;
-                
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
                 $message->output = $output;
                 $message->sender = "assistant";
@@ -318,7 +459,7 @@ class SMAISyncTokenController extends Controller
                 //$user = UserMain::where('id',$user_id);
                 $user = DB::connection('main_db')->table('users')->where('id', $user_id)->first();
 
-                $user_email=$user->email;
+                $user_email = $user->email;
                 $old_remaining_words = $user->remaining_words;
 
                 $new_remaining_words = $old_remaining_words - $total_used_tokens;
@@ -336,8 +477,8 @@ class SMAISyncTokenController extends Controller
                     ->where('id', $user_id)
                     ->update($remaining_words_arr); */
 
-                if(isset($user_update))
-                Log::debug('Update#1 of Chat text remaining at MainMarketing success by + add $total_used_tokens to old remaining_words in users table in Main ');
+                if (isset($user_update))
+                    Log::debug('Update#1 of Chat text remaining at MainMarketing success by + add $total_used_tokens to old remaining_words in users table in Main ');
 
                 //$user->save();
 
@@ -345,32 +486,65 @@ class SMAISyncTokenController extends Controller
                 $chat->total_credits += $total_used_tokens;
                 $chat->save();
 
-                $chat_openai_id=$chat->id;
-                $save_user_request_chat=array(
+                $chat_openai_id = $chat->id;
+                $save_user_request_chat = array(
 
-                    'chat_id' =>$chat_openai_id,
-                    'response' => $responsedText ,
+                    'chat_id' => $chat_openai_id,
+                    'response' => $responsedText,
                 );
 
 
                 //Define CHat Role Universal
-                $n_prompt = count($params_json1["prompt"]);
-                $this->chat_role= $params_json1["prompt"][$n_prompt]["role"];
-             
+                if (is_array($params_json1["prompt"])!=FALSE)
+                {
+                    $n_prompt = count($params_json1["prompt"]);
+
+                    if (isset($response['choices'][0]['message']['role']))
+                        $this->chat_role = $response['choices'][0]['message']['role'];
+                    else
+                        $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
+    
+    
+                    if ($n_prompt > 0) {
+                        $n_prompt -= 1;
+                    }
+    
+                    Log::debug('Count n_prompt' . $n_prompt);
+                    $x = intval($n_prompt);
+    
+                    $description = Arr::last($params_json1["prompt"]);
+                    $description = implode(" ", $description);
+
+            }
+            else{
+
+                $n_prompt = 2;
+
+                $this->chat_role = $params_json1['messages'][1]['role'];
+
+                //Define CHat Role Universal
+
                 if ($n_prompt > 0) {
                     $n_prompt -= 1;
                 }
 
-                Log::debug('Count n_prompt' . $n_prompt);
-                $x = intval($n_prompt);
+                Log::debug('Count n_prompt ' . $n_prompt);
+                $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                Log::debug('Which Role is : ' . $this->chat_role);
+                $description = $params_json1['messages'][0]['content'];
 
-                $description = Arr::last($params_json1["prompt"]);
-                $description = implode(" ", $description);
 
-                $save_to_where="MainMarketing";
-                $save_user_request_chat["input"]=$description;
-                $save_user_q=NEW SMAIUpdateProfileController();
-                $save_user_q->lowChatSave($save_user_request_chat,$user_id,$save_to_where,$user_email,$from,$this->chat_role);
+            }
+
+            if(!isset($save_user_request_chat["chat_id"]))
+                $save_user_request_chat["chat_id"]=$this->chat_main_id;
+
+
+                $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
+                $save_to_where = "MainMarketing";
+                $save_user_request_chat["input"] = $description;
+                $save_user_q = new SMAIUpdateProfileController();
+                $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
 
             } else {
 
@@ -475,22 +649,18 @@ class SMAISyncTokenController extends Controller
                 $entry = new UserOpenai();
                 $entry->title = 'New Workbook';
 
-                if($params_json1["model"] =='whisper-1')
-                {
-                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                }
-                else
-                {
-                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                if ($params_json1["model"] == 'whisper-1') {
+                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                } else {
+                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
                 }
 
-                if($params_json1["model"] =='whisper-1')
-               {
-                $prompt = $description;
-                $output  = $response['text'];
-               }
-                
-                $response_arr=json_decode($response_bk,true);
+                if ($params_json1["model"] == 'whisper-1') {
+                    $prompt = $description;
+                    $output = $response['text'];
+                }
+
+                $response_arr = json_decode($response_bk, true);
 
                 $entry->user_id = $user_id;
                 $entry->openai_id = $post->id;
@@ -505,19 +675,17 @@ class SMAISyncTokenController extends Controller
 
                 $message_id = $entry->id;
 
-                Log::debug('Message_ID of MainMarketing '.$message_id);
+                Log::debug('Message_ID of MainMarketing ' . $message_id);
 
 
                 // Create UserOpenai Models belong to OpenAIGenerator Models
                 $message = UserOpenai::whereId($message_id)->first();
-                if($params_json1["model"] =='whisper-1')
-                {
+                if ($params_json1["model"] == 'whisper-1') {
                     $message->response = serialize(json_encode($response_arr));
-                    
-                }
-                else{
-                $message->response = $responsedText;
-                
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
                 $message->output = $output;
                 $message->hash = Str::random(256);
@@ -532,37 +700,34 @@ class SMAISyncTokenController extends Controller
                 }
 
                 //Update remaining  to users section
-            if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-            $total_used_tokens = $this->total_used_tokens;
+                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
+                    $total_used_tokens = $this->total_used_tokens;
 
-        //Update new remaining Tokens to user
-        $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
-        if ($user[0]->remaining_words != -1) {
-            $user[0]->remaining_words -= $total_used_tokens;
-            $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-            // $user[0]->save();
-            $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-        }
+                //Update new remaining Tokens to user
+                $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
+                if ($user[0]->remaining_words != -1) {
+                    $user[0]->remaining_words -= $total_used_tokens;
+                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
+                    // $user[0]->save();
+                    $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                }
 
-        if ($user[0]->remaining_words < -1) {
-            $user[0]->remaining_words = 0;
-            // $user[0]->save();
-            $new_remaining_words = 0;
-            $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-        }
+                if ($user[0]->remaining_words < -1) {
+                    $user[0]->remaining_words = 0;
+                    // $user[0]->save();
+                    $new_remaining_words = 0;
+                    $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                }
 
-        if ($user_update > 0)
-            Log::debug('Update remaining at MainMarketing success by + add $total_used_tokens to old remaining_words in users table in Main ');
+                if ($user_update > 0)
+                    Log::debug('Update remaining at MainMarketing success by + add $total_used_tokens to old remaining_words in users table in Main ');
 
-        //echo 'data: [DONE]';
-        //echo "\n\n";
+                //echo 'data: [DONE]';
+                //echo "\n\n";
 
                 //EOF case none Chat
             }
             //EOF case Doc text or Chat Text
-
-
-            
 
 
         } else {
@@ -573,8 +738,20 @@ class SMAISyncTokenController extends Controller
     }
 
     //Done
-    public function SMAI_UpdateGPT_MainCoIn($user_id, $usage, $response, $params,$from,$main_message_id=NULL)
+    public function SMAI_UpdateGPT_MainCoIn($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
     {
+        if (is_array($params))
+                $params_json1 = $params;
+            else
+                $params_json1 = json_decode($params, true);
+
+            if (isset($params_json1['gpt_category']))
+                $chatGPT_catgory = $params_json1['gpt_category'];
+            else
+                $chatGPT_catgory = NULL;
+        
+        if($params_json1['prompt']!='SKIP')
+        {
 
         $settings = $this->settings;
         $settings_two = $this->settings_two;
@@ -586,17 +763,17 @@ class SMAISyncTokenController extends Controller
 
             Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_MainCoIn from SMAIsyncController : ' . $user_id);
 
-            if(is_array($params))
+           /*  if (is_array($params))
                 $params_json1 = $params;
             else
                 $params_json1 = json_decode($params, true);
 
-            if(isset($params_json1['gpt_category']))
+            if (isset($params_json1['gpt_category']))
                 $chatGPT_catgory = $params_json1['gpt_category'];
             else
-                $chatGPT_catgory=NULL;
-            
-            $response_bk=$response;
+                $chatGPT_catgory = NULL; */
+
+            $response_bk = $response;
             $response = json_decode($response, true);
             if (Str::contains($chatGPT_catgory, 'Chat_')) {
                 //add Sync GPT chat version here
@@ -649,23 +826,48 @@ class SMAISyncTokenController extends Controller
 
                 if (isset($response['choices'][0]['delta']['content']))
                     $message_response = $response['choices'][0]['delta']['content'];
-                if (isset($response['choices'][0]['message']['content']))
+                
+                else if (isset($response['choices'][0]['message']['content']))
                     $message_response = $response['choices'][0]['message']['content'];
+
+                else if(isset($params_json1['messages'][1]['content']))
+                $message_response=$params_json1['messages'][1]['content'];
+                
+                else if(isset($params_json1['response']))
+                $message_response=$params_json1['response'];
+                 
+                else
+                $message_response=NULL;
+              
+                /*  if($params_json1['prompt']=='SKIP')
+                {
+
+                    $new_chat_ins_all = $this->new_chat_all_platforms($this->chat_name,$this->chat_id,$user_id,$this->chat_main_id); 
+                    $message_response=$params_json1['chat_name'];
+
+                } 
+                   */
 
                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
                 $output .= $messageFix;
                 $responsedText .= $message_response;
 
                 $message = UserOpenaiChatMessage::whereId($message_id)->first();
-                $chat = UserOpenaiChat::where('chat_id', $chat_id)->first();
-                if($params_json1["model"] =='whisper-1')
-                {
-                    $message->response = serialize(json_encode($response_arr));
-                    
-                }
-                else{
-                $message->response = $responsedText;
                 
+                if($chat_id != NULL && $chat_id !='')
+                $chat = UserOpenaiChat::where('chat_id', $this->chat_id)->first();
+                else
+                $chat = UserOpenaiChat::where('id', $this->chat_main_id)->first();
+
+
+
+                
+                if ($params_json1["model"] == 'whisper-1') {
+                    $message->response = serialize(json_encode($response_arr));
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
                 $message->output = $output;
                 $message->hash = Str::random(256);
@@ -677,7 +879,7 @@ class SMAISyncTokenController extends Controller
                 $user1 = DB::connection('main_db')->table('users')->where('id', $user_id)->first();
                 //$user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
 
-                $user_email=$user1->email;
+                $user_email = $user1->email;
                 Log::debug('FOund user main Email ' . $user1->email);
                 $old_remaining_words = $user1->remaining_words;
                 $new_remaining_words = $old_remaining_words - $total_used_tokens;
@@ -691,47 +893,73 @@ class SMAISyncTokenController extends Controller
                     'remaining_words' => $new_remaining_words,
                 );
 
- 
 
                 $chat->total_credits += $total_used_tokens;
                 $chat->save();
 
-                $chat_openai_id=$chat->id;
-                $save_user_request_chat=array(
+                $chat_openai_id = $chat->id;
+                $save_user_request_chat = array(
 
-                    'chat_id' =>$chat_openai_id,
-                    'response' => $responsedText ,
+                    'chat_id' => $chat_openai_id,
+                    'response' => $responsedText,
                 );
 
-               
+
+               if (is_array($params_json1["prompt"])!=FALSE)
+                {
                 $n_prompt = count($params_json1["prompt"]);
 
-               if (isset($response['choices'][0]['message']['role']))
-               $this->chat_role= $response['choices'][0]['message']['role'];
-               else
-               $this->chat_role= $params_json1["prompt"][$n_prompt]["role"];
-               
-                 //Define CHat Role Universal
-                 
+                if (isset($response['choices'][0]['message']['role']))
+                    $this->chat_role = $response['choices'][0]['message']['role'];
+                else
+                    $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
+
+                //Define CHat Role Universal
+
                 if ($n_prompt > 0) {
                     $n_prompt -= 1;
                 }
 
                 Log::debug('Count n_prompt ' . $n_prompt);
-                
                 $role_of_previous_chat = $params_json1["prompt"][$n_prompt]["role"];
-                Log::debug('Which Role is : '.$this->chat_role);
-               
-
+                Log::debug('Which Role is : ' . $this->chat_role);
                 $description = $params_json1["prompt"][$n_prompt]["content"];
 
+            }
+            else{
+
+                $n_prompt = 2;
+
+               
                 
-                $save_to_where="MainCoIn";
-                $save_user_request_chat["input"]=$description;
-                $save_user_q=NEW SMAIUpdateProfileController();
-                $save_user_q->lowChatSave($save_user_request_chat,$user_id,$save_to_where,$user_email,$from,$this->chat_role);
+
+                $this->chat_role = $params_json1['messages'][1]['role'];
+                if ($n_prompt > 0) {
+                    $n_prompt -= 1;
+                }
+
+                Log::debug('Count n_prompt ' . $n_prompt);
+                $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                Log::debug('Which Role is : ' . $this->chat_role);
+                $description = $params_json1['messages'][0]['content'];
+
+                
+                //Define CHat Role Universal
+
+                
 
 
+            }
+
+
+                if(!isset($save_user_request_chat["chat_id"]))
+                $save_user_request_chat["chat_id"]=$this->chat_main_id;
+
+                $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
+                $save_to_where = "MainCoIn";
+                $save_user_request_chat["input"] = $description;
+                $save_user_q = new SMAIUpdateProfileController();
+                $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
 
 
             } else {
@@ -835,23 +1063,19 @@ class SMAISyncTokenController extends Controller
                 $entry = new UserOpenai();
                 $entry->title = 'New Workbook';
 
-                if($params_json1["model"] =='whisper-1')
-                {
-                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                }
-                else
-                {
-                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                if ($params_json1["model"] == 'whisper-1') {
+                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                } else {
+                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
                 }
 
-                if($params_json1["model"] =='whisper-1')
-               {
-                $prompt = $description;
-                $output  = $response['text'];
-               }
+                if ($params_json1["model"] == 'whisper-1') {
+                    $prompt = $description;
+                    $output = $response['text'];
+                }
 
-                $response_arr=json_decode($response_bk,true);
-                
+                $response_arr = json_decode($response_bk, true);
+
                 $entry->user_id = $user_id;
                 $entry->openai_id = $post->id;
                 $entry->input = $prompt;
@@ -864,18 +1088,16 @@ class SMAISyncTokenController extends Controller
 
 
                 $message_id = $entry->id;
-                Log::debug('Message_ID of MainCoIn '.$message_id);
+                Log::debug('Message_ID of MainCoIn ' . $message_id);
 
                 // Create UserOpenai Models belong to OpenAIGenerator Models
                 $message = UserOpenai::whereId($message_id)->first();
-                if($params_json1["model"] =='whisper-1')
-                {
+                if ($params_json1["model"] == 'whisper-1') {
                     $message->response = serialize(json_encode($response_arr));
-                    
-                }
-                else{
-                $message->response = $responsedText;
-                
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
                 $message->output = $output;
                 $message->hash = Str::random(256);
@@ -888,58 +1110,69 @@ class SMAISyncTokenController extends Controller
                 } else {
                     Log::debug('Save UserOpenai Log Success ');
                 }
-                
-                if($message_id == $entry->id)
-                 return $message_id;
+
+                if ($message_id == $entry->id)
+                    return $message_id;
 
 
+                //Update remaining  to users section
+                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
+                    $total_used_tokens = $this->total_used_tokens;
 
-                 //Update remaining  to users section
-            if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-            $total_used_tokens = $this->total_used_tokens;
+                //Update new remaining Tokens
+                $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
+                if ($user[0]->remaining_words != -1) {
+                    $user[0]->remaining_words -= $total_used_tokens;
+                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
+                    // $user[0]->save();
+                    $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                }
 
-        //Update new remaining Tokens
-        $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
-        if ($user[0]->remaining_words != -1) {
-            $user[0]->remaining_words -= $total_used_tokens;
-            $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-            // $user[0]->save();
-            $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-        }
+                if ($user[0]->remaining_words < -1) {
+                    $user[0]->remaining_words = 0;
+                    // $user[0]->save();
+                    $new_remaining_words = 0;
+                    $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                }
 
-        if ($user[0]->remaining_words < -1) {
-            $user[0]->remaining_words = 0;
-            // $user[0]->save();
-            $new_remaining_words = 0;
-            $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-        }
+                if ($user_update > 0)
+                    Log::debug('Update remaining at MainCoIn by + add $total_used_tokens to old remaining_words in users table in users Main success');
 
-        if ($user_update > 0)
-            Log::debug('Update remaining at MainCoIn by + add $total_used_tokens to old remaining_words in users table in users Main success');
-
-        //echo 'data: [DONE]';
-        //echo "\n\n";
+                //echo 'data: [DONE]';
+                //echo "\n\n";
 
 
             }
-
-           
 
 
         } else {
             //echo 'data: [Update Failed user not found]';
         }
+      }
 
 
     }
 
 
     //Done
-    public function SMAI_UpdateGPT_SocialPost($user_id, $usage, $response, $params,$from,$main_message_id=NULL)
+    public function SMAI_UpdateGPT_SocialPost($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
     {
 
         $settings = $this->settings;
         $settings_two = $this->settings_two;
+
+        if (is_array($params))
+        $params_json1 = $params;
+    else
+        $params_json1 = json_decode($params, true);
+
+    if (isset($params_json1['gpt_category']))
+        $chatGPT_catgory = $params_json1['gpt_category'];
+    else
+        $chatGPT_catgory = NULL;
+
+if($params_json1['prompt']!='SKIP')
+{
 
         if (isset($user_id)) {
             $responsedText = "";
@@ -948,17 +1181,17 @@ class SMAISyncTokenController extends Controller
 
             Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_SocialPost from SMAIsyncController : ' . $user_id);
 
-            if(is_array($params))
+            if (is_array($params))
                 $params_json1 = $params;
             else
                 $params_json1 = json_decode($params, true);
 
-            if(isset($params_json1['gpt_category']))
+            if (isset($params_json1['gpt_category']))
                 $chatGPT_catgory = $params_json1['gpt_category'];
             else
-                $chatGPT_catgory=NULL;
+                $chatGPT_catgory = NULL;
 
-            $response_bk=$response;
+            $response_bk = $response;
             $response = json_decode($response, true);
             if (Str::contains($chatGPT_catgory, 'Chat_')) {
                 //add Sync GPT chat version here
@@ -970,6 +1203,7 @@ class SMAISyncTokenController extends Controller
                     ['chat_id' => $chat_id],
                     ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
                 );
+
                 /*$chat_new_ins = DB::connection('main_db')->table('sp_user_openai_chat')->updateOrCreate(
                     ['chat_id' => $chat_id],
                     ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
@@ -1010,20 +1244,30 @@ class SMAISyncTokenController extends Controller
                 if (isset($response['choices'][0]['message']['content']))
                     $message_response = $response['choices'][0]['message']['content'];
 
+                    if(isset($params_json1['messages'][1]['content']))
+                    $message_response=$params_json1['messages'][1]['content'];
+                    
+                    if(isset($params_json1['response']))
+                    $message_response=$params_json1['response'];
+
                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
                 $output .= $messageFix;
                 $responsedText .= $message_response;
 
                 $message = UserOpenaiChatMessageSocialPost::whereId($message_id)->first();
+
+                if($chat_id != NULL && $chat_id != '')
                 $chat = UserOpenaiChatSocialPost::where('chat_id', $chat_id)->first();
-                if($params_json1["model"] =='whisper-1')
-                {
-                    $message->response = serialize(json_encode($response_arr));
-                    
-                }
-                else{
-                $message->response = $responsedText;
+                else
+                $chat = UserOpenaiChatSocialPost::where('user_openai_chat_id', $this->chat_main_id)->first();
+
                 
+                if ($params_json1["model"] == 'whisper-1') {
+                    $message->response = serialize(json_encode($response_arr));
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
                 $message->output = $output;
                 $message->hash = Str::random(256);
@@ -1034,7 +1278,7 @@ class SMAISyncTokenController extends Controller
                 //$user = UserSP::where('id',$user_id);
                 $user = DB::connection('main_db')->table('sp_users')->where('id', $user_id)->first();
 
-                $user_email=$user->email;
+                $user_email = $user->email;
                 $old_remaining_words = $user->remaining_words;
 
                 $new_remaining_words = $old_remaining_words - $total_used_tokens;
@@ -1057,41 +1301,65 @@ class SMAISyncTokenController extends Controller
                 $chat->total_credits += $total_used_tokens;
                 $chat->save();
 
-                $chat_openai_id=$chat->id;
-                $save_user_request_chat=array(
+                $chat_openai_id = $chat->id;
+                $save_user_request_chat = array(
 
-                    'chat_id' =>$chat_openai_id,
-                    'response' => $responsedText ,
+                    'chat_id' => $chat_openai_id,
+                    'response' => $responsedText,
                 );
                 //Define CHat Role Universal
-                $n_prompt = count($params_json1["prompt"]);
-                
+                if (is_array($params_json1["prompt"])!=FALSE)
+                {
+                    $n_prompt = count($params_json1["prompt"]);
 
-                if (isset($response['choices'][0]['message']['role']))
-                $this->chat_role= $response['choices'][0]['message']['role'];
-                else
-                $this->chat_role= $params_json1["prompt"][$n_prompt]["role"];
-                
+                    if (isset($response['choices'][0]['message']['role']))
+                        $this->chat_role = $response['choices'][0]['message']['role'];
+                    else
+                        $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
+    
+    
+                    if ($n_prompt > 0) {
+                        $n_prompt -= 1;
+                    }
+    
+                    Log::debug('Count n_prompt' . $n_prompt);
+                    $x = intval($n_prompt);
+    
+                    $description = Arr::last($params_json1["prompt"]);
+                    $description = implode(" ", $description);
+
+            }
+            else{
+
+                $n_prompt = 2;
+
+                $this->chat_role = $params_json1['messages'][1]['role'];
+
+                //Define CHat Role Universal
+
                 if ($n_prompt > 0) {
                     $n_prompt -= 1;
                 }
 
+                Log::debug('Count n_prompt ' . $n_prompt);
+                $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                Log::debug('Which Role is : ' . $this->chat_role);
+                $description = $params_json1['messages'][0]['content'];
 
-                Log::debug('Count n_prompt' . $n_prompt);
-                /* Log::info($params_json1["prompt"][0]["content"]);
-                 Log::info($params_json1["prompt"][1]["content"]);
-                 Log::info($params_json1["prompt"][2]["content"]);*/
-                $x = intval($n_prompt);
 
-                $description = Arr::last($params_json1["prompt"]);
-                $description = implode(" ", $description);
+            }
+
 
                 Log::debug('Desc after convert to string' . $description);
 
-                $save_to_where="SocialPost";
-                $save_user_request_chat["input"]=$description;
-                $save_user_q=NEW SMAIUpdateProfileController();
-                $save_user_q->lowChatSave($save_user_request_chat,$user_id,$save_to_where,$user_email,$from,$this->chat_role);
+                if(!isset($save_user_request_chat["chat_id"]))
+                $save_user_request_chat["chat_id"]=$this->chat_main_id;
+
+                $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
+                $save_to_where = "SocialPost";
+                $save_user_request_chat["input"] = $description;
+                $save_user_q = new SMAIUpdateProfileController();
+                $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
 
 
             } else {
@@ -1189,22 +1457,18 @@ class SMAISyncTokenController extends Controller
                 $entry = new SP_UserOpenai();
                 $entry->title = 'New Workbook';
 
-                if($params_json1["model"] =='whisper-1')
-                {
-                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                }
-                else
-                {
-                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                if ($params_json1["model"] == 'whisper-1') {
+                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                } else {
+                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
                 }
 
-                if($params_json1["model"] =='whisper-1')
-               {
-                $prompt = $description;
-                $output  = $response['text'];
-               }
+                if ($params_json1["model"] == 'whisper-1') {
+                    $prompt = $description;
+                    $output = $response['text'];
+                }
 
-                $response_arr=json_decode($response_bk,true);
+                $response_arr = json_decode($response_bk, true);
 
                 $entry->user_id = $user_id;
                 $entry->openai_id = $post->id;
@@ -1218,18 +1482,16 @@ class SMAISyncTokenController extends Controller
                 $entry->save();
 
                 $message_id = $entry->id;
-                Log::debug('Message_ID of SocialPost '.$message_id);
+                Log::debug('Message_ID of SocialPost ' . $message_id);
 
                 // Create UserOpenai Models belong to OpenAIGenerator Models
                 $message = SP_UserOpenai::whereId($message_id)->first();
-                if($params_json1["model"] =='whisper-1')
-                {
+                if ($params_json1["model"] == 'whisper-1') {
                     $message->response = serialize(json_encode($response_arr));
-                    
-                }
-                else{
-                $message->response = $responsedText;
-                
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
                 $message->output = $output;
                 $message->hash = Str::random(256);
@@ -1246,34 +1508,33 @@ class SMAISyncTokenController extends Controller
                 }
 
                 //Update remaining  to users section
-            if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-            $total_used_tokens = $this->total_used_tokens;
+                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
+                    $total_used_tokens = $this->total_used_tokens;
 
-        Log::debug('before update TOken numbers remaining_words');
-        // Save Users of Digital_Asset
-        //Update new remaining Tokens
-        $user = \DB::connection('main_db')->table('sp_users')->where('id', $user_id)->get();
-        Log::debug('User email test : ' . $user[0]->email);
+                Log::debug('before update TOken numbers remaining_words');
+                // Save Users of Digital_Asset
+                //Update new remaining Tokens
+                $user = \DB::connection('main_db')->table('sp_users')->where('id', $user_id)->get();
+                Log::debug('User email test : ' . $user[0]->email);
 
-        if ($user[0]->remaining_words != -1) {
-            $user[0]->remaining_words -= $total_used_tokens;
-            $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-            // $user[0]->save();
-            $user_update = DB::connection('main_db')->update('update sp_users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-        }
+                if ($user[0]->remaining_words != -1) {
+                    $user[0]->remaining_words -= $total_used_tokens;
+                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
+                    // $user[0]->save();
+                    $user_update = DB::connection('main_db')->update('update sp_users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                }
 
-        if ($user[0]->remaining_words < -1) {
-            $user[0]->remaining_words = 0;
-            // $user[0]->save();
-            $new_remaining_words = 0;
-            $user_update = DB::connection('main_db')->update('update sp_users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-        }
-        if ($user_update > 0)
-            Log::debug('Update remaining at Main Socialpost by + add $total_used_tokens to old remaining_words in table sp_users in success');
+                if ($user[0]->remaining_words < -1) {
+                    $user[0]->remaining_words = 0;
+                    // $user[0]->save();
+                    $new_remaining_words = 0;
+                    $user_update = DB::connection('main_db')->update('update sp_users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                }
+                if ($user_update > 0)
+                    Log::debug('Update remaining at Main Socialpost by + add $total_used_tokens to old remaining_words in table sp_users in success');
 
-        //echo 'data: [DONE]';
-        //echo "\n\n";
-
+                //echo 'data: [DONE]';
+                //echo "\n\n";
 
 
             }
@@ -1285,27 +1546,40 @@ class SMAISyncTokenController extends Controller
                 $caption_table = "sp_captions";
                 $caption_database = "main_db";
                 $this->SMAI_Ins_Eloq_openAI_Caption_Socialpost($description, $responsedText, $user_id, $message_id, $caption_database, $caption_table);
-           
-            
+
+
             }
 
-
-            
 
         } else {
             //echo 'data: [Update Failed user not found]';
         }
+
+}
 
 
     }
 
 
     //Done
-    public function SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $response, $params,$from,$main_message_id=NULL)
+    public function SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
     {
         // Update Token and usage
         $settings = $this->settings;
         $settings_two = $this->settings_two;
+
+        if (is_array($params))
+        $params_json1 = $params;
+    else
+        $params_json1 = json_decode($params, true);
+
+    if (isset($params_json1['gpt_category']))
+        $chatGPT_catgory = $params_json1['gpt_category'];
+    else
+        $chatGPT_catgory = NULL;
+
+if($params_json1['prompt']!='SKIP')
+{
 
 
         if (isset($user_id)) {
@@ -1320,17 +1594,17 @@ class SMAISyncTokenController extends Controller
 
             Log::info(print_r($response, true));
 
-            if(is_array($params))
+            if (is_array($params))
                 $params_json1 = $params;
             else
                 $params_json1 = json_decode($params, true);
 
-            if(isset($params_json1['gpt_category']))
-            $chatGPT_catgory = $params_json1['gpt_category'];
+            if (isset($params_json1['gpt_category']))
+                $chatGPT_catgory = $params_json1['gpt_category'];
             else
-            $chatGPT_catgory=NULL;
+                $chatGPT_catgory = NULL;
 
-            $response_bk=$response;
+            $response_bk = $response;
             $response = json_decode($response, true);
             if (Str::contains($chatGPT_catgory, 'Chat_')) {
                 //add Sync GPT chat version here
@@ -1339,6 +1613,20 @@ class SMAISyncTokenController extends Controller
                 $chat_id = $this->chat_id;
 
                 Log::debug(' Chat ID before create Eloquent UserOpenaiChatDesign' . $chat_id);
+                
+                if( $chat_id==NULL) 
+                {
+                $chat_id_find=UserOpenaiChat::where('id',$this->chat_main_id);
+
+                $chat_id=$chat_id_find->chat_id;
+                $this->chat_id =$chat_id_find->chat_id;
+
+                }
+                
+             
+
+
+
 
                 $chat_new_ins = UserOpenaiChatDesign::updateOrCreate(
                     ['chat_id' => $chat_id],
@@ -1380,21 +1668,31 @@ class SMAISyncTokenController extends Controller
                 if (isset($response['choices'][0]['message']['content']))
                     $message_response = $response['choices'][0]['message']['content'];
 
+                    if(isset($params_json1['messages'][1]['content']))
+                    $message_response=$params_json1['messages'][1]['content'];
+                    
+                    if(isset($params_json1['response']))
+                    $message_response=$params_json1['response'];
 
                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
                 $output .= $messageFix;
                 $responsedText .= $message_response;
 
                 $message = UserOpenaiChatMessageDesign::whereId($message_id)->first();
-                $chat = UserOpenaiChatDesign::where('chat_id', $chat_id)->first();
-                if($params_json1["model"] =='whisper-1')
-                {
-                    $message->response = serialize(json_encode($response_arr));
-                    
-                }
-                else{
-                $message->response = $responsedText;
                 
+                if($chat_id != NULL && $chat_id != '')
+                $chat = UserOpenaiChatDesign::where('chat_id', $this->chat_id)->first();
+                else
+                $chat = UserOpenaiChatDesign::where('user_openai_chat_id', $this->chat_main_id)->first();
+
+                
+                
+                if ($params_json1["model"] == 'whisper-1') {
+                    $message->response = serialize(json_encode($response_arr));
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
                 $message->output = $output;
                 $message->hash = Str::random(256);
@@ -1405,7 +1703,7 @@ class SMAISyncTokenController extends Controller
                 //$user = UserDesign::where('id',$user_id);
                 $user = DB::connection('digitalasset_db')->table('users')->where('id', $user_id)->first();
 
-                $user_email=$user->email;
+                $user_email = $user->email;
                 Log::debug('Debug UderDesign from Eloqunt ');
                 //Log::info($user);
 
@@ -1431,36 +1729,64 @@ class SMAISyncTokenController extends Controller
                 $chat->total_credits += $total_used_tokens;
                 $chat->save();
 
-                $chat_openai_id=$chat->id;
-                $save_user_request_chat=array(
+                $chat_openai_id = $chat->id;
+                $save_user_request_chat = array(
 
-                    'chat_id' =>$chat_openai_id,
-                    'response' => $responsedText ,
+                    'chat_id' => $chat_openai_id,
+                    'response' => $responsedText,
                 );
 
                 //Define CHat Role Universal
-                $n_prompt = count($params_json1["prompt"]);
+                if (is_array($params_json1["prompt"])!=FALSE)
+                {
+                    $n_prompt = count($params_json1["prompt"]);
 
-               if (isset($response['choices'][0]['message']['role']))
-               $this->chat_role= $response['choices'][0]['message']['role'];
-               else
-               $this->chat_role= $params_json1["prompt"][$n_prompt]["role"];
+                    if (isset($response['choices'][0]['message']['role']))
+                        $this->chat_role = $response['choices'][0]['message']['role'];
+                    else
+                        $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
+    
+    
+                    if ($n_prompt > 0) {
+                        $n_prompt -= 1;
+                    }
+    
+                    Log::debug('Count n_prompt' . $n_prompt);
+                    $x = intval($n_prompt);
+    
+                    $description = Arr::last($params_json1["prompt"]);
+                    $description = implode(" ", $description);
 
-               
+            }
+            else{
+
+                $n_prompt = 2;
+
+                $this->chat_role = $params_json1['messages'][1]['role'];
+
+                //Define CHat Role Universal
+
                 if ($n_prompt > 0) {
                     $n_prompt -= 1;
                 }
 
-                Log::debug('Count n_prompt' . $n_prompt);
-                $x = intval($n_prompt);
+                Log::debug('Count n_prompt ' . $n_prompt);
+                $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                Log::debug('Which Role is : ' . $this->chat_role);
+                $description = $params_json1['messages'][0]['content'];
 
-                $description = Arr::last($params_json1["prompt"]);
-                $description = implode(" ", $description);
 
-                $save_to_where="Design";
-                $save_user_request_chat["input"]=$description;
-                $save_user_q=NEW SMAIUpdateProfileController();
-                $save_user_q->lowChatSave($save_user_request_chat,$user_id,$save_to_where,$user_email,$from,$this->chat_role);
+            }
+
+            if(!isset($save_user_request_chat["chat_id"]))
+            $save_user_request_chat["chat_id"]=$this->chat_main_id;
+
+
+            $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
+                $save_to_where = "Design";
+                $save_user_request_chat["input"] = $description;
+                $save_user_q = new SMAIUpdateProfileController();
+                $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
 
 
             } else {
@@ -1570,27 +1896,22 @@ class SMAISyncTokenController extends Controller
                 $entry = new DigitalAsset_UserOpenai();
                 $entry->title = 'New Workbook';
 
-                if($params_json1["model"] =='whisper-1')
-                {
+                if ($params_json1["model"] == 'whisper-1') {
 
-                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                }
-                else
-                {
-                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                } else {
+                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
                 }
                 //$response = json_encode($response);
 
-               Log::debug(' REsponse String');
-               Log::info($response_bk);
-               if($params_json1["model"] =='whisper-1')
-               {
-                $prompt = $description;
-                $output  = $response['text'];
-               }
+                Log::debug(' REsponse String');
+                Log::info($response_bk);
+                if ($params_json1["model"] == 'whisper-1') {
+                    $prompt = $description;
+                    $output = $response['text'];
+                }
 
-               $response_arr=json_decode($response_bk,true);
-               
+                $response_arr = json_decode($response_bk, true);
 
 
                 $entry->user_id = $user_id;
@@ -1605,21 +1926,19 @@ class SMAISyncTokenController extends Controller
                 $entry->save();
 
                 $message_id = $entry->id;
-                Log::debug('Message_ID of DigitalAsset Design '.$message_id);
+                Log::debug('Message_ID of DigitalAsset Design ' . $message_id);
 
                 Log::info(print_r("Inserted new openai to ID " . $message_id, true));
 
                 // Create UserOpenai Models belong to OpenAIGenerator Models
                 $message = DigitalAsset_UserOpenai::whereId($message_id)->first();
 
-                if($params_json1["model"] =='whisper-1')
-                {
+                if ($params_json1["model"] == 'whisper-1') {
                     $message->response = serialize(json_encode($response_arr));
-                    
-                }
-                else{
-                $message->response = $responsedText;
-                
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
 
                 $message->output = $output;
@@ -1636,26 +1955,26 @@ class SMAISyncTokenController extends Controller
 
                 //Update remaining  to users section
                 if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-                $total_used_tokens = $this->total_used_tokens;
+                    $total_used_tokens = $this->total_used_tokens;
 
                 //Update new remaining Tokens
                 $user = \DB::connection('digitalasset_db')->table('users')->where('id', $user_id)->get();
                 if ($user[0]->remaining_words != -1) {
-                $user[0]->remaining_words -= $total_used_tokens;
-                $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-                // $user[0]->save();
-                $user_update = DB::connection('digitalasset_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                    $user[0]->remaining_words -= $total_used_tokens;
+                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
+                    // $user[0]->save();
+                    $user_update = DB::connection('digitalasset_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
                 }
 
                 if ($user[0]->remaining_words < -1) {
-                $user[0]->remaining_words = 0;
-                // $user[0]->save();
-                $new_remaining_words = 0;
-                $user_update = DB::connection('digitalasset_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                    $user[0]->remaining_words = 0;
+                    // $user[0]->save();
+                    $new_remaining_words = 0;
+                    $user_update = DB::connection('digitalasset_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
                 }
 
                 if ($user_update > 0)
-                Log::debug('Update remaining at Design by + add $total_used_tokens to old remaining_words in users table in Design success');
+                    Log::debug('Update remaining at Design by + add $total_used_tokens to old remaining_words in users table in Design success');
 
                 //echo 'data: [DONE]';
                 //echo "\n\n";
@@ -1663,21 +1982,34 @@ class SMAISyncTokenController extends Controller
 
             }
 
-            
-
 
         } else {
             //echo 'data: [Update Failed user not found]';
         }
 
+}
+
 
     }
 
 //Done
-    public function SMAI_UpdateGPT_MobileApp($user_id, $usage, $response, $params,$from,$main_message_id=NULL)
+    public function SMAI_UpdateGPT_MobileApp($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
     {
         $settings = $this->settings;
         $settings_two = $this->settings_two;
+
+        if (is_array($params))
+        $params_json1 = $params;
+    else
+        $params_json1 = json_decode($params, true);
+
+    if (isset($params_json1['gpt_category']))
+        $chatGPT_catgory = $params_json1['gpt_category'];
+    else
+        $chatGPT_catgory = NULL;
+
+if($params_json1['prompt']!='SKIP')
+{
 
         if (isset($user_id)) {
 
@@ -1687,18 +2019,18 @@ class SMAISyncTokenController extends Controller
 
             Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_MobileApp from SMAIsyncController : ' . $user_id);
 
-            if(is_array($params))
+            if (is_array($params))
                 $params_json1 = $params;
             else
-            $params_json1 = json_decode($params, true);
+                $params_json1 = json_decode($params, true);
 
 
-            if(isset($params_json1['gpt_category']))
+            if (isset($params_json1['gpt_category']))
                 $chatGPT_catgory = $params_json1['gpt_category'];
             else
-                $chatGPT_catgory=NULL;
+                $chatGPT_catgory = NULL;
 
-            $response_bk=  $response;
+            $response_bk = $response;
             $response = json_decode($response, true);
             if (Str::contains($chatGPT_catgory, 'Chat_')) {
                 //add Sync GPT chat version here
@@ -1748,20 +2080,30 @@ class SMAISyncTokenController extends Controller
                 if (isset($response['choices'][0]['message']['content']))
                     $message_response = $response['choices'][0]['message']['content'];
 
+                    if(isset($params_json1['messages'][1]['content']))
+                    $message_response=$params_json1['messages'][1]['content'];
+                    
+                    if(isset($params_json1['response']))
+                    $message_response=$params_json1['response'];
+
+
                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
                 $output .= $messageFix;
                 $responsedText .= $message_response;
 
                 $message = UserOpenaiChatMessageMobile::whereId($message_id)->first();
+               
+                if($chat_id != NULL && $chat_id != '')
                 $chat = UserOpenaiChatMobile::where('chat_id', $chat_id)->first();
-                if($params_json1["model"] =='whisper-1')
-                {
-                    $message->response = serialize(json_encode($response_arr));
-                    
-                }
-                else{
-                $message->response = $responsedText;
+                else
+                $chat = UserOpenaiChatMobile::where('id', $this->chat_main_id)->first();
                 
+                if ($params_json1["model"] == 'whisper-1') {
+                    $message->response = serialize(json_encode($response_arr));
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
                 $message->output = $output;
                 $message->hash = Str::random(256);
@@ -1772,7 +2114,7 @@ class SMAISyncTokenController extends Controller
                 $user = DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->first();
                 //$user = UserMain::where('id',$user_id);
 
-                $user_email=$user->email;
+                $user_email = $user->email;
                 $old_remaining_words = $user->remaining_words;
 
                 $new_remaining_words = $old_remaining_words - $total_used_tokens;
@@ -1796,36 +2138,64 @@ class SMAISyncTokenController extends Controller
                 $chat->total_credits += $total_used_tokens;
                 $chat->save();
 
-                $chat_openai_id=$chat->id;
-                $save_user_request_chat=array(
+                $chat_openai_id = $chat->id;
+                $save_user_request_chat = array(
 
-                    'chat_id' =>$chat_openai_id,
-                    'response' => $responsedText ,
+                    'chat_id' => $chat_openai_id,
+                    'response' => $responsedText,
                 );
 
                 //Define CHat Role Universal
-                $n_prompt = count($params_json1["prompt"]);
+                if (is_array($params_json1["prompt"])!=FALSE)
+                {
+                    $n_prompt = count($params_json1["prompt"]);
 
-               if (isset($response['choices'][0]['message']['role']))
-               $this->chat_role= $response['choices'][0]['message']['role'];
-               else
-               $this->chat_role= $params_json1["prompt"][$n_prompt]["role"];
+                    if (isset($response['choices'][0]['message']['role']))
+                        $this->chat_role = $response['choices'][0]['message']['role'];
+                    else
+                        $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
+    
+    
+                    if ($n_prompt > 0) {
+                        $n_prompt -= 1;
+                    }
+    
+                    Log::debug('Count n_prompt' . $n_prompt);
+                    $x = intval($n_prompt);
+    
+                    $description = Arr::last($params_json1["prompt"]);
+                    $description = implode(" ", $description);
 
-               
+            }
+            else{
+
+                $n_prompt = 2;
+
+                $this->chat_role = $params_json1['messages'][1]['role'];
+
+                //Define CHat Role Universal
+
                 if ($n_prompt > 0) {
                     $n_prompt -= 1;
                 }
 
-                Log::debug('Count n_prompt' . $n_prompt);
-                $x = intval($n_prompt);
+                Log::debug('Count n_prompt ' . $n_prompt);
+                $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                Log::debug('Which Role is : ' . $this->chat_role);
+                $description = $params_json1['messages'][0]['content'];
 
-                $description = Arr::last($params_json1["prompt"]);
-                $description = implode(" ", $description);
 
-                $save_to_where="MobileAppV2";
-                $save_user_request_chat["input"]=$description;
-                $save_user_q=NEW SMAIUpdateProfileController();
-                $save_user_q->lowChatSave($save_user_request_chat,$user_id,$save_to_where,$user_email,$from,$this->chat_role);
+            }
+
+            if(!isset($save_user_request_chat["chat_id"]))
+                $save_user_request_chat["chat_id"]=$this->chat_main_id;
+
+
+            $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
+                $save_to_where = "MobileAppV2";
+                $save_user_request_chat["input"] = $description;
+                $save_user_q = new SMAIUpdateProfileController();
+                $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
 
             } else {
 
@@ -1923,24 +2293,20 @@ class SMAISyncTokenController extends Controller
                 $entry = new Mobile_UserOpenai();
                 $entry->title = 'New Workbook';
 
-                if($params_json1["model"] =='whisper-1')
-                {
+                if ($params_json1["model"] == 'whisper-1') {
 
-                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                }
-                else
-                {
-                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                } else {
+                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
                 }
 
-                if($params_json1["model"] =='whisper-1')
-               {
-                $prompt = $description;
-                $output  = $response['text'];
-               }
-                
-                
-                $response_arr=json_decode($response_bk,true);
+                if ($params_json1["model"] == 'whisper-1') {
+                    $prompt = $description;
+                    $output = $response['text'];
+                }
+
+
+                $response_arr = json_decode($response_bk, true);
                 $entry->user_id = $user_id;
                 $entry->openai_id = $post->id;
                 $entry->input = $prompt;
@@ -1953,18 +2319,16 @@ class SMAISyncTokenController extends Controller
                 $entry->save();
 
                 $message_id = $entry->id;
-                Log::debug('Message_ID of MobileAppV2 '.$message_id);
+                Log::debug('Message_ID of MobileAppV2 ' . $message_id);
 
                 // Create UserOpenai Models belong to OpenAIGenerator Models
                 $message = Mobile_UserOpenai::whereId($message_id)->first();
-                if($params_json1["model"] =='whisper-1')
-                {
+                if ($params_json1["model"] == 'whisper-1') {
                     $message->response = serialize(json_encode($response_arr));
-                    
-                }
-                else{
-                $message->response = $responsedText;
-                
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
                 $message->output = $output;
                 $message->hash = Str::random(256);
@@ -1979,49 +2343,62 @@ class SMAISyncTokenController extends Controller
                 }
                 //Update remaining  to users section
 
-            if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-            $total_used_tokens = $this->total_used_tokens;
+                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
+                    $total_used_tokens = $this->total_used_tokens;
 
-        //Update new remaining Tokens
-        $user = \DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->get();
-        if ($user[0]->remaining_words != -1) {
-            $user[0]->remaining_words -= $total_used_tokens;
-            $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-            // $user[0]->save();
-            $user_update = DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                //Update new remaining Tokens
+                $user = \DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->get();
+                if ($user[0]->remaining_words != -1) {
+                    $user[0]->remaining_words -= $total_used_tokens;
+                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
+                    // $user[0]->save();
+                    $user_update = DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
 
-        }
+                }
 
-        if ($user[0]->remaining_words < -1) {
-            $user[0]->remaining_words = 0;
-            // $user[0]->save();
-            $new_remaining_words = 0;
-            $user_update = DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                if ($user[0]->remaining_words < -1) {
+                    $user[0]->remaining_words = 0;
+                    // $user[0]->save();
+                    $new_remaining_words = 0;
+                    $user_update = DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
 
 
-        }
-        if ($user_update > 0)
-            Log::debug('Update remaining at MobileApp by + add $total_used_tokens to old remaining_words in users table in Mobileapp success');
+                }
+                if ($user_update > 0)
+                    Log::debug('Update remaining at MobileApp by + add $total_used_tokens to old remaining_words in users table in Mobileapp success');
 
-        //echo 'data: [DONE]';
-        //echo "\n\n";
+                //echo 'data: [DONE]';
+                //echo "\n\n";
 
             }
-
-
-            
 
 
         } else {
             //echo 'data: [Update Failed user not found]';
         }
 
+  
+    }
 
     }
-    public function SMAI_UpdateGPT_Bio($user_id, $usage, $response, $params,$from,$main_message_id=NULL)
+
+    public function SMAI_UpdateGPT_Bio($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
     {
         $settings = $this->settings;
         $settings_two = $this->settings_two;
+
+        if (is_array($params))
+        $params_json1 = $params;
+    else
+        $params_json1 = json_decode($params, true);
+
+    if (isset($params_json1['gpt_category']))
+        $chatGPT_catgory = $params_json1['gpt_category'];
+    else
+        $chatGPT_catgory = NULL;
+
+if($params_json1['prompt']!='SKIP')
+{
 
         if (isset($user_id)) {
 
@@ -2031,18 +2408,18 @@ class SMAISyncTokenController extends Controller
 
             Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_Bio from SMAIsyncController : ' . $user_id);
 
-            if(is_array($params))
+            if (is_array($params))
                 $params_json1 = $params;
             else
-            $params_json1 = json_decode($params, true);
+                $params_json1 = json_decode($params, true);
 
 
-            if(isset($params_json1['gpt_category']))
+            if (isset($params_json1['gpt_category']))
                 $chatGPT_catgory = $params_json1['gpt_category'];
             else
-                $chatGPT_catgory=NULL;
+                $chatGPT_catgory = NULL;
 
-            $response_bk=  $response;
+            $response_bk = $response;
             $response = json_decode($response, true);
             if (Str::contains($chatGPT_catgory, 'Chat_')) {
                 //add Sync GPT chat version here
@@ -2051,9 +2428,9 @@ class SMAISyncTokenController extends Controller
                 $chat_id = $this->chat_id;
 
 
-                Log::debug('Debug before Insert $this_chat_id'.$this->chat_id);
+                Log::debug('Debug before Insert $this_chat_id' . $this->chat_id);
 
-                Log::debug('THis local Chat ID '.$chat_id);
+                Log::debug('THis local Chat ID ' . $chat_id);
 
                 $chat_new_ins = UserOpenaiChatBio::updateOrCreate(
                     ['chat_id_mobile' => $this->chat_id],
@@ -2078,7 +2455,7 @@ class SMAISyncTokenController extends Controller
                         'user_openai_chat_id' => $user_openai_chat_id_ins,
                         //updated_at' => $time,
                     );
-                    $message_new_ins = DB::connection('bio_db')->table('chats_messages')->insertGetId($data_message,'chat_message_id');
+                    $message_new_ins = DB::connection('bio_db')->table('chats_messages')->insertGetId($data_message, 'chat_message_id');
 
                 } else {
 
@@ -2088,7 +2465,7 @@ class SMAISyncTokenController extends Controller
                         'chat_id_mobile' => $chat_id,
                         //updated_at' => $time,
                     );
-                    $message_new_ins = DB::connection('bio_db')->table('chats_messages')->insertGetId($data_message,'chat_message_id');
+                    $message_new_ins = DB::connection('bio_db')->table('chats_messages')->insertGetId($data_message, 'chat_message_id');
                 }
 
                 $message_id = $message_new_ins;
@@ -2099,23 +2476,34 @@ class SMAISyncTokenController extends Controller
                 if (isset($response['choices'][0]['message']['content']))
                     $message_response = $response['choices'][0]['message']['content'];
 
+                    if(isset($params_json1['messages'][1]['content']))
+                    $message_response=$params_json1['messages'][1]['content'];
+                    
+                    if(isset($params_json1['response']))
+                    $message_response=$params_json1['response'];
+
+
                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
                 $output .= $messageFix;
                 $responsedText .= $message_response;
 
-                $message = UserOpenaiChatMessageBio::where('chat_message_id',$message_id)->first();
+                $message = UserOpenaiChatMessageBio::where('chat_message_id', $message_id)->first();
+                
+                if($chat_id != NULL && $chat_id != '')
                 $chat = UserOpenaiChatBio::where('chat_id_mobile', $chat_id)->first();
-                if($params_json1["model"] =='whisper-1')
-                {
+                else
+                $chat = UserOpenaiChatBio::where('user_openai_chat_id', $this->chat_main_id)->first();
+
+                
+                if ($params_json1["model"] == 'whisper-1') {
                     $message->response = serialize(json_encode($response_arr));
-                    
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
-                else{
-                $message->response = $responsedText;
-                
-                }
-               
-                
+
+
                 $message->output = $output;
                 $message->hash = Str::random(256);
                 $message->credits = $total_used_tokens;
@@ -2125,7 +2513,7 @@ class SMAISyncTokenController extends Controller
                 $user = DB::connection('bio_db')->table('users')->where('user_id', $user_id)->first();
                 //$user = UserMain::where('id',$user_id);
 
-                $user_email=$user->email;
+                $user_email = $user->email;
                 $old_remaining_words = $user->remaining_words;
 
                 $new_remaining_words = $old_remaining_words - $total_used_tokens;
@@ -2146,51 +2534,118 @@ class SMAISyncTokenController extends Controller
                 //$user->save();
 
                 //Define CHat Role Universal
-                $n_prompt = count($params_json1["prompt"]);
+                
 
-               if (isset($response['choices'][0]['message']['role']))
-               $this->chat_role= $response['choices'][0]['message']['role'];
-               else
-               $this->chat_role= $params_json1["prompt"][$n_prompt]["role"];
-                
-                
-                if($n_prompt-1 == 0)
+                if (is_array($params_json1["prompt"])!=FALSE)
                 {
-                    $n_prompt-=1;
-                    $name_chat= $params_json1["prompt"][$n_prompt]["content"];
+                    $n_prompt = count($params_json1["prompt"]);
+
+                if (isset($response['choices'][0]['message']['role']))
+                    $this->chat_role = $response['choices'][0]['message']['role'];
+                else
+                    $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
+
+
+                if ($n_prompt - 1 == 0) {
+                    $n_prompt -= 1;
+
+                    $name_chat = $params_json1["prompt"][$n_prompt]["content"];
+                    $role_chat = $params_json1["prompt"][$n_prompt]["role"];
+
+                    if($chat->name==NULL && $role_chat=='user' )
                     $chat->name = $name_chat;
                 }
 
-                $chat->chat_assistant_id =1;
+            }
+            else{
+
+                $n_prompt = 2;
+
+                $this->chat_role = $params_json1['messages'][1]['role'];
+
+                //Define CHat Role Universal
+
+                if ($n_prompt > 0) {
+                    $n_prompt -= 1;
+
+                    $name_chat = $params_json1["messages"][$n_prompt]["content"];
+                    $role_chat = $params_json1["messages"][$n_prompt]["role"];
+
+                    if($chat->name==NULL && $role_chat=='user' )
+                    $chat->name = $name_chat;
+                }
+
+               
+
+
+            }
+
+
+
+                $chat->chat_assistant_id = 1;
                 $chat->settings = '[]';
                 $chat->used_tokens += $total_used_tokens;
                 $chat->total_credits += $total_used_tokens;
                 $chat->save();
 
-                $chat_openai_id=$chat->chat_id;
-                $save_user_request_chat=array(
+                $chat_openai_id = $chat->chat_id;
+                $save_user_request_chat = array(
 
-                    'chat_id_mobile' =>$chat_openai_id,
-                    'response' => $responsedText ,
+                    'chat_id_mobile' => $chat_openai_id,
+                    'response' => $responsedText,
                 );
 
-                
 
-                $n_prompt = count($params_json1["prompt"]);
+                if (is_array($params_json1["prompt"])!=FALSE)
+                {
+                    $n_prompt = count($params_json1["prompt"]);
+
+                    if (isset($response['choices'][0]['message']['role']))
+                        $this->chat_role = $response['choices'][0]['message']['role'];
+                    else
+                        $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
+    
+    
+                    if ($n_prompt > 0) {
+                        $n_prompt -= 1;
+                    }
+    
+                    Log::debug('Count n_prompt' . $n_prompt);
+                    $x = intval($n_prompt);
+    
+                    $description = Arr::last($params_json1["prompt"]);
+                    $description = implode(" ", $description);
+
+            }
+            else{
+
+                $n_prompt = 2;
+
+                $this->chat_role = $params_json1['messages'][1]['role'];
+
+                //Define CHat Role Universal
+
                 if ($n_prompt > 0) {
                     $n_prompt -= 1;
                 }
 
-                Log::debug('Count n_prompt' . $n_prompt);
-                $x = intval($n_prompt);
+                Log::debug('Count n_prompt ' . $n_prompt);
+                $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                Log::debug('Which Role is : ' . $this->chat_role);
+                $description = $params_json1['messages'][0]['content'];
 
-                $description = Arr::last($params_json1["prompt"]);
-                $description = implode(" ", $description);
 
-                $save_to_where="Bio";
-                $save_user_request_chat["input"]=$description;
-                $save_user_q=NEW SMAIUpdateProfileController();
-                $save_user_q->lowChatSave($save_user_request_chat,$user_id,$save_to_where,$user_email,$from,$this->chat_role);
+            }
+
+            if(!isset($save_user_request_chat["chat_id"]))
+                $save_user_request_chat["chat_id"]=$this->chat_main_id;
+
+
+            $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
+                $save_to_where = "Bio";
+                $save_user_request_chat["input"] = $description;
+                $save_user_q = new SMAIUpdateProfileController();
+                $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
 
             } else {
 
@@ -2288,24 +2743,20 @@ class SMAISyncTokenController extends Controller
                 $entry = new UserBioOpenai();
                 $entry->title = 'New Workbook';
 
-                if($params_json1["model"] =='whisper-1')
-                {
+                if ($params_json1["model"] == 'whisper-1') {
 
-                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                }
-                else
-                {
-                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                } else {
+                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
                 }
 
-                if($params_json1["model"] =='whisper-1')
-               {
-                $prompt = $description;
-                $output  = $response['text'];
-               }
-                
-                
-                $response_arr=json_decode($response_bk,true);
+                if ($params_json1["model"] == 'whisper-1') {
+                    $prompt = $description;
+                    $output = $response['text'];
+                }
+
+
+                $response_arr = json_decode($response_bk, true);
                 $entry->user_id = $user_id;
                 $entry->openai_id = $post->id;
                 $entry->input = $prompt;
@@ -2318,18 +2769,16 @@ class SMAISyncTokenController extends Controller
                 $entry->save();
 
                 $message_id = $entry->id;
-                Log::debug('Message_ID of MobileAppV2 '.$message_id);
+                Log::debug('Message_ID of MobileAppV2 ' . $message_id);
 
                 // Create UserOpenai Models belong to OpenAIGenerator Models
                 $message = UserBioOpenai::whereId($message_id)->first();
-                if($params_json1["model"] =='whisper-1')
-                {
+                if ($params_json1["model"] == 'whisper-1') {
                     $message->response = serialize(json_encode($response_arr));
-                    
-                }
-                else{
-                $message->response = $responsedText;
-                
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
                 $message->output = $output;
                 $message->hash = Str::random(256);
@@ -2344,50 +2793,60 @@ class SMAISyncTokenController extends Controller
                 }
                 //Update remaining  to users section
 
-            if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-            $total_used_tokens = $this->total_used_tokens;
+                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
+                    $total_used_tokens = $this->total_used_tokens;
 
-        //Update new remaining Tokens
-        $user = \DB::connection('bio_db')->table('users')->where('id', $user_id)->get();
-        if ($user[0]->remaining_words != -1) {
-            $user[0]->remaining_words -= $total_used_tokens;
-            $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-            // $user[0]->save();
-            $user_update = DB::connection('bio_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                //Update new remaining Tokens
+                $user = \DB::connection('bio_db')->table('users')->where('id', $user_id)->get();
+                if ($user[0]->remaining_words != -1) {
+                    $user[0]->remaining_words -= $total_used_tokens;
+                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
+                    // $user[0]->save();
+                    $user_update = DB::connection('bio_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
 
-        }
+                }
 
-        if ($user[0]->remaining_words < -1) {
-            $user[0]->remaining_words = 0;
-            // $user[0]->save();
-            $new_remaining_words = 0;
-            $user_update = DB::connection('bio_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                if ($user[0]->remaining_words < -1) {
+                    $user[0]->remaining_words = 0;
+                    // $user[0]->save();
+                    $new_remaining_words = 0;
+                    $user_update = DB::connection('bio_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
 
 
-        }
-        if ($user_update > 0)
-            Log::debug('Update remaining at MobileApp by + add $total_used_tokens to old remaining_words in users table in Mobileapp success');
+                }
+                if ($user_update > 0)
+                    Log::debug('Update remaining at MobileApp by + add $total_used_tokens to old remaining_words in users table in Mobileapp success');
 
-        //echo 'data: [DONE]';
-        //echo "\n\n";
+                //echo 'data: [DONE]';
+                //echo "\n\n";
 
             }
-
-
-            
 
 
         } else {
             //echo 'data: [Update Failed user not found]';
         }
 
-
+      }
     }
 
-    public function SMAI_UpdateGPT_SyncNodeJs($user_id, $usage, $response, $params,$from,$main_message_id=NULL)
+    public function SMAI_UpdateGPT_SyncNodeJs($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
     {
         $settings = $this->settings;
         $settings_two = $this->settings_two;
+        if (is_array($params))
+        $params_json1 = $params;
+    else
+        $params_json1 = json_decode($params, true);
+
+    if (isset($params_json1['gpt_category']))
+        $chatGPT_catgory = $params_json1['gpt_category'];
+    else
+        $chatGPT_catgory = NULL;
+
+if($params_json1['prompt']!='SKIP')
+{
+
 
         if (isset($user_id)) {
 
@@ -2397,18 +2856,18 @@ class SMAISyncTokenController extends Controller
 
             Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_SyncNodeJS from SMAIsyncController : ' . $user_id);
 
-            if(is_array($params))
+            if (is_array($params))
                 $params_json1 = $params;
             else
-            $params_json1 = json_decode($params, true);
+                $params_json1 = json_decode($params, true);
 
 
-            if(isset($params_json1['gpt_category']))
+            if (isset($params_json1['gpt_category']))
                 $chatGPT_catgory = $params_json1['gpt_category'];
             else
-                $chatGPT_catgory=NULL;
+                $chatGPT_catgory = NULL;
 
-            $response_bk=  $response;
+            $response_bk = $response;
             $response = json_decode($response, true);
             if (Str::contains($chatGPT_catgory, 'Chat_')) {
                 //add Sync GPT chat version here
@@ -2458,20 +2917,30 @@ class SMAISyncTokenController extends Controller
                 if (isset($response['choices'][0]['message']['content']))
                     $message_response = $response['choices'][0]['message']['content'];
 
+                    if(isset($params_json1['messages'][1]['content']))
+                    $message_response=$params_json1['messages'][1]['content'];
+                    
+                    if(isset($params_json1['response']))
+                    $message_response=$params_json1['response'];
+
                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
                 $output .= $messageFix;
                 $responsedText .= $message_response;
 
                 $message = UserOpenaiChatMessageSyncNodeJS::whereId($message_id)->first();
-                $chat = UserOpenaiChatSyncNodeJS::where('chat_id', $chat_id)->first();
-                if($params_json1["model"] =='whisper-1')
-                {
-                    $message->response = serialize(json_encode($response_arr));
-                    
-                }
-                else{
-                $message->response = $responsedText;
                 
+                if($chat_id != NULL && $chat_id !='')
+                $chat = UserOpenaiChatSyncNodeJS::where('chat_id', $chat_id)->first();
+                else
+                $chat = UserOpenaiChatSyncNodeJS::where('user_openai_chat_id', $this->chat_main_id)->first();
+
+                
+                if ($params_json1["model"] == 'whisper-1') {
+                    $message->response = serialize(json_encode($response_arr));
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
                 $message->output = $output;
                 $message->hash = Str::random(256);
@@ -2482,7 +2951,7 @@ class SMAISyncTokenController extends Controller
                 $user = DB::connection('sync_db')->table('user')->where('id', $user_id)->first();
                 //$user = UserMain::where('id',$user_id);
 
-                $user_email=$user->email;
+                $user_email = $user->email;
                 $old_remaining_words = $user->remaining_words;
 
                 $new_remaining_words = $old_remaining_words - $total_used_tokens;
@@ -2506,36 +2975,65 @@ class SMAISyncTokenController extends Controller
                 $chat->total_credits += $total_used_tokens;
                 $chat->save();
 
-                $chat_openai_id=$chat->id;
-                $save_user_request_chat=array(
+                $chat_openai_id = $chat->id;
+                $save_user_request_chat = array(
 
-                    'chat_id' =>$chat_openai_id,
-                    'response' => $responsedText ,
+                    'chat_id' => $chat_openai_id,
+                    'response' => $responsedText,
                 );
 
                 //Define CHat Role Universal
-                $n_prompt = count($params_json1["prompt"]);
-
-               if (isset($response['choices'][0]['message']['role']))
-               $this->chat_role= $response['choices'][0]['message']['role'];
-               else
-               $this->chat_role= $params_json1["prompt"][$n_prompt]["role"];
-
                
+                if (is_array($params_json1["prompt"])!=FALSE)
+                {
+                    $n_prompt = count($params_json1["prompt"]);
+
+                    if (isset($response['choices'][0]['message']['role']))
+                        $this->chat_role = $response['choices'][0]['message']['role'];
+                    else
+                        $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
+    
+    
+                    if ($n_prompt > 0) {
+                        $n_prompt -= 1;
+                    }
+    
+                    Log::debug('Count n_prompt' . $n_prompt);
+                    $x = intval($n_prompt);
+    
+                    $description = Arr::last($params_json1["prompt"]);
+                    $description = implode(" ", $description);
+
+            }
+            else{
+
+                $n_prompt = 2;
+
+                $this->chat_role = $params_json1['messages'][1]['role'];
+
+                //Define CHat Role Universal
+
                 if ($n_prompt > 0) {
                     $n_prompt -= 1;
                 }
 
-                Log::debug('Count n_prompt' . $n_prompt);
-                $x = intval($n_prompt);
+                Log::debug('Count n_prompt ' . $n_prompt);
+                $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                Log::debug('Which Role is : ' . $this->chat_role);
+                $description = $params_json1['messages'][0]['content'];
 
-                $description = Arr::last($params_json1["prompt"]);
-                $description = implode(" ", $description);
 
-                $save_to_where="SyncNodeJS";
-                $save_user_request_chat["input"]=$description;
-                $save_user_q=NEW SMAIUpdateProfileController();
-                $save_user_q->lowChatSave($save_user_request_chat,$user_id,$save_to_where,$user_email,$from,$this->chat_role);
+            }
+
+            if(!isset($save_user_request_chat["chat_id"]))
+                $save_user_request_chat["chat_id"]=$this->chat_main_id;
+
+
+            $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
+                $save_to_where = "SyncNodeJS";
+                $save_user_request_chat["input"] = $description;
+                $save_user_q = new SMAIUpdateProfileController();
+                $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
 
             } else {
 
@@ -2633,24 +3131,20 @@ class SMAISyncTokenController extends Controller
                 $entry = new UserSyncNodeJSOpenai();
                 $entry->title = 'New Workbook';
 
-                if($params_json1["model"] =='whisper-1')
-                {
+                if ($params_json1["model"] == 'whisper-1') {
 
-                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                }
-                else
-                {
-                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                } else {
+                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
                 }
 
-                if($params_json1["model"] =='whisper-1')
-               {
-                $prompt = $description;
-                $output  = $response['text'];
-               }
-                
-                
-                $response_arr=json_decode($response_bk,true);
+                if ($params_json1["model"] == 'whisper-1') {
+                    $prompt = $description;
+                    $output = $response['text'];
+                }
+
+
+                $response_arr = json_decode($response_bk, true);
                 $entry->user_id = $user_id;
                 $entry->openai_id = $post->id;
                 $entry->input = $prompt;
@@ -2663,18 +3157,16 @@ class SMAISyncTokenController extends Controller
                 $entry->save();
 
                 $message_id = $entry->id;
-                Log::debug('Message_ID of MobileAppV2 '.$message_id);
+                Log::debug('Message_ID of MobileAppV2 ' . $message_id);
 
                 // Create UserOpenai Models belong to OpenAIGenerator Models
                 $message = UserSyncNodeJSOpenai::whereId($message_id)->first();
-                if($params_json1["model"] =='whisper-1')
-                {
+                if ($params_json1["model"] == 'whisper-1') {
                     $message->response = serialize(json_encode($response_arr));
-                    
-                }
-                else{
-                $message->response = $responsedText;
-                
+
+                } else {
+                    $message->response = $responsedText;
+
                 }
                 $message->output = $output;
                 $message->hash = Str::random(256);
@@ -2689,42 +3181,41 @@ class SMAISyncTokenController extends Controller
                 }
                 //Update remaining  to users section
 
-            if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-            $total_used_tokens = $this->total_used_tokens;
+                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
+                    $total_used_tokens = $this->total_used_tokens;
 
-        //Update new remaining Tokens
-        $user = \DB::connection('sync_db')->table('users')->where('id', $user_id)->get();
-        if ($user[0]->remaining_words != -1) {
-            $user[0]->remaining_words -= $total_used_tokens;
-            $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-            // $user[0]->save();
-            $user_update = DB::connection('sync_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                //Update new remaining Tokens
+                $user = \DB::connection('sync_db')->table('users')->where('id', $user_id)->get();
+                if ($user[0]->remaining_words != -1) {
+                    $user[0]->remaining_words -= $total_used_tokens;
+                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
+                    // $user[0]->save();
+                    $user_update = DB::connection('sync_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
 
-        }
+                }
 
-        if ($user[0]->remaining_words < -1) {
-            $user[0]->remaining_words = 0;
-            // $user[0]->save();
-            $new_remaining_words = 0;
-            $user_update = DB::connection('sync_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
+                if ($user[0]->remaining_words < -1) {
+                    $user[0]->remaining_words = 0;
+                    // $user[0]->save();
+                    $new_remaining_words = 0;
+                    $user_update = DB::connection('sync_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
 
 
-        }
-        if ($user_update > 0)
-            Log::debug('Update remaining at MobileApp by + add $total_used_tokens to old remaining_words in users table in Mobileapp success');
+                }
+                if ($user_update > 0)
+                    Log::debug('Update remaining at MobileApp by + add $total_used_tokens to old remaining_words in users table in Mobileapp success');
 
-        //echo 'data: [DONE]';
-        //echo "\n\n";
+                //echo 'data: [DONE]';
+                //echo "\n\n";
 
             }
-
-
-            
 
 
         } else {
             //echo 'data: [Update Failed user not found]';
         }
+
+    }
 
 
     }
@@ -2822,22 +3313,18 @@ class SMAISyncTokenController extends Controller
         $entry = new Mobile_UserOpenai();
         $entry->title = 'New Workbook';
 
-        if($params_json1["model"] =='whisper-1')
-                {
-                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                }
-                else
-                {
-                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
-                }
+        if ($params_json1["model"] == 'whisper-1') {
+            $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+        } else {
+            $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+        }
 
-        if($params_json1["model"] =='whisper-1')
-                {
-                    $prompt = $description;
-                 $output  = $response['text'];
-                }        
-          
-        $response_arr=json_decode($response_bk,true);       
+        if ($params_json1["model"] == 'whisper-1') {
+            $prompt = $description;
+            $output = $response['text'];
+        }
+
+        $response_arr = json_decode($response_bk, true);
         $entry->user_id = $user_id;
         $entry->openai_id = $post->id;
         $entry->input = $prompt;
@@ -2850,7 +3337,7 @@ class SMAISyncTokenController extends Controller
         $entry->save();
 
         $message_id = $entry->id;
-        Log::debug('Message_ID of working '.$message_id);
+        Log::debug('Message_ID of working ' . $message_id);
 
 
     }
@@ -2899,53 +3386,51 @@ class SMAISyncTokenController extends Controller
 
     }
 
-    public function update_token_centralize($user_id,$email,$token_array)
+    public function update_token_centralize($user_id, $email, $token_array)
     {
-
 
 
     }
 
 
-    public function imageOutput_save_main_coin($user_id,$usage,$response,$params, $size=NULL, $post=NULL,  $style=NULL, $lighting=NULL, $mood=NULL, $number_of_images=1, $image_generator='DE', $negative_prompt=NULL)
+    public function imageOutput_save_main_coin($user_id, $usage, $response, $params, $size = NULL, $post = NULL, $style = NULL, $lighting = NULL, $mood = NULL, $number_of_images = 1, $image_generator = 'DE', $negative_prompt = NULL)
     {
-        $image_arr=array(
+        $image_arr = array(
             'style' => $style,
-             'artist' => 'Leonardo da Vinci',
-             'lighting' => $lighting,
-             'mood' => $mood,
+            'artist' => 'Leonardo da Vinci',
+            'lighting' => $lighting,
+            'mood' => $mood,
         );
 
-        
 
-        $path_array=array();
+        $path_array = array();
         $image_storage = "s3";
-        Log::debug('Usage in imageOutput_save '.$usage);
-        Log::debug('user_id in imageOutput_save '.$user_id);
-        Log::debug('response in imageOutput_save '.$response);
+        Log::debug('Usage in imageOutput_save ' . $usage);
+        Log::debug('user_id in imageOutput_save ' . $user_id);
+        Log::debug('response in imageOutput_save ' . $response);
         Log::info($response);
         Log::debug('params in imageOutput_save ');
         Log::info($params);
-        
+
         //$params_json = json_decode($params, true);
-        if(is_array($params))
-        $params_json =$params;
+        if (is_array($params))
+            $params_json = $params;
         else
-        $params_json = json_decode($params, true);
+            $params_json = json_decode($params, true);
 
-        $prompt=$params_json['prompt'];
+        $prompt = $params_json['prompt'];
         $prompt = preg_replace('/[^A-Za-z0-9 ]/', '', $prompt);
-        $size=$params_json['size'];
-        $number_of_images=$params_json['n'];
-        $chatGPT_catgory=$params_json['gpt_category'];
+        $size = $params_json['size'];
+        $number_of_images = $params_json['n'];
+        $chatGPT_catgory = $params_json['gpt_category'];
 
-        $image_arr['size']=$size;
-        $file_ImageSize=$params_json['file_size'];
-        
+        $image_arr['size'] = $size;
+        $file_ImageSize = $params_json['file_size'];
 
-        $user=UserMain::where('id',$user_id)->first();
+
+        $user = UserMain::where('id', $user_id)->first();
         //save generated image datas
-        $entries=[];
+        $entries = [];
 
         if ($user->remaining_images <= 0) {
             $data = array(
@@ -2961,81 +3446,73 @@ class SMAISyncTokenController extends Controller
         if ($mood != null)
             $prompt .= ' ' . $mood . ' mood.';
 
-        $this->settings_two  =  SettingTwo::first();
+        $this->settings_two = SettingTwo::first();
         $image_storage = $this->settings_two->ai_image_storage;
 
-        Log::debug('Current Storage setting'.$image_storage);
-
-
+        Log::debug('Current Storage setting' . $image_storage);
 
 
         for ($i = 0; $i < $number_of_images; $i++) {
 
             //use this for openAI Images
-            if($image_generator != self::STABLEDIFFUSION) {
+            if ($image_generator != self::STABLEDIFFUSION) {
 
-                if( isset($params_json['nameOfImage']))
-                {
+                if (isset($params_json['nameOfImage'])) {
 
-                     $contents= $params_json['contents'];
-                     $nameOfImage= $params_json['nameOfImage'];
-                }
-                else{
-                    
-                //send prompt to openai
-                if($prompt == null) return response()->json(["status" => "error", "message" => "You must provide a prompt"]);
-                
-                $response=json_decode($response,true);
-                if($chatGPT_catgory=='Images_Design')
-                $image_url = $response['data'][0]['url'];
-                else
-                $image_url = $response['data'][0]['b64_json'];
+                    $contents = $params_json['contents'];
+                    $nameOfImage = $params_json['nameOfImage'];
+                } else {
 
-               //$contents = base64_decode($image_url);
-                $contents=$image_url;
-                $nameOfImage = Str::random(12) . '-DALL-E-' . Str::slug($prompt) . '.png';
+                    //send prompt to openai
+                    if ($prompt == null) return response()->json(["status" => "error", "message" => "You must provide a prompt"]);
+
+                    $response = json_decode($response, true);
+                    if ($chatGPT_catgory == 'Images_Design')
+                        $image_url = $response['data'][0]['url'];
+                    else
+                        $image_url = $response['data'][0]['b64_json'];
+
+                    //$contents = base64_decode($image_url);
+                    $contents = $image_url;
+                    $nameOfImage = Str::random(12) . '-DALL-E-' . Str::slug($prompt) . '.png';
 
                 }
 
                 //save file on local storage or aws s3
-                
-               
-            
+
+
             } else {
 
-               
-                if( isset($params_json['nameOfImage']))
-                {
 
-                     $contents= $params_json['contents'];
-                     $nameOfImage= $params_json['nameOfImage'];
+                if (isset($params_json['nameOfImage'])) {
+
+                    $contents = $params_json['contents'];
+                    $nameOfImage = $params_json['nameOfImage'];
+                } else {
+                    //send prompt to stablediffusion
+                    $settings = SettingTwo::first();
+                    /* $width = explode('x', $size)[0];
+                    $height = explode('x', $size)[1]; */
+
+                    //SMAI response data start
+                    $body = $response->getBody();
+                    if ($response->getStatusCode() == 200) {
+
+                        $nameOfImage = Str::random(12) . '-' . Str::slug($prompt) . '.png';
+
+                        $contents = base64_decode(json_decode($body)->artifacts[0]->base64);
+                    } else {
+                        $message = '';
+                        if ($body->status == "error")
+                            $message = $body->message;
+                        else
+                            $message = "Failed, Try Again";
+                        return response()->json(["status" => "error", "message" => $message]);
+                    }
+
                 }
-                else{
-                //send prompt to stablediffusion
-                $settings = SettingTwo::first();
-                /* $width = explode('x', $size)[0];
-                $height = explode('x', $size)[1]; */
 
-                //SMAI response data start
-                $body = $response->getBody();
-                if ($response->getStatusCode() == 200){
 
-                    $nameOfImage = Str::random(12) . '-' . Str::slug($prompt) . '.png';
-                    
-                    $contents = base64_decode(json_decode($body)->artifacts[0]->base64);
-                }
-                else {
-                    $message = '';
-                    if ($body->status == "error")
-                        $message = $body->message;
-                    else
-                        $message = "Failed, Try Again";
-                    return response()->json(["status" => "error", "message" => $message]);
-                }
-
-            }
-                
-                
             }
 
 
@@ -3046,10 +3523,9 @@ class SMAISyncTokenController extends Controller
             $aws_path = Storage::disk('s3')->put('', $uploadedFile);
             unlink($path_s3);
             $path = Storage::disk('s3')->url($aws_path);
-            if($path)
-            {
-                    Log::debug('success path of upload');
-                    Log::info($path);
+            if ($path) {
+                Log::debug('success path of upload');
+                Log::info($path);
             }
 
 
@@ -3058,9 +3534,7 @@ class SMAISyncTokenController extends Controller
             //$users = DB::connection('second_db')->table('users')->get();
 
 
-
-            
-            $post_type='ai_image_generator';
+            $post_type = 'ai_image_generator';
             $post = OpenAIGenerator::where('slug', $post_type)->first();
             $entry = new UserOpenai();
             $entry->title = 'New Image';
@@ -3073,8 +3547,8 @@ class SMAISyncTokenController extends Controller
             $entry->hash = Str::random(256);
             $entry->credits = 1;
             $entry->words = 0;
-            $entry->storage = UserOpenai::STORAGE_AWS ;
-            $entry->file_size=$file_ImageSize;
+            $entry->storage = UserOpenai::STORAGE_AWS;
+            $entry->file_size = $file_ImageSize;
             $entry->save();
 
             //push each generated image to an array
@@ -3107,43 +3581,43 @@ class SMAISyncTokenController extends Controller
                 //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
             }
 
-            array_push($path_array,$path);
+            array_push($path_array, $path);
         }
 
-         $image_arr['file_size']=$file_ImageSize;
-         $return_arr=array(
-            'path_array' => $path_array ,
+        $image_arr['file_size'] = $file_ImageSize;
+        $return_arr = array(
+            'path_array' => $path_array,
             'image_array' => $image_arr,
 
-         );
+        );
 
-          return $return_arr;
+        return $return_arr;
 
-       // return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+        // return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
     }
 
 
-    public function imageOutput_save_SocialPost_self($user_id,$size,$path,$img_width,$img_height,$image_arr,$prompt)
+    public function imageOutput_save_SocialPost_self($user_id, $size, $path, $img_width, $img_height, $image_arr, $prompt)
     {
 
         //update openai_usage_tokens
         //update_team_data("openai_usage_tokens", get_team_data("openai_usage_tokens", 0) + $usage);
-  
-        $team_data=SPTeam::where('owner',$user_id)->first();
-        $team_id=$team_data->id;
+
+        $team_data = SPTeam::where('owner', $user_id)->first();
+        $team_id = $team_data->id;
 
         $tmp_file = "";
-        $file_path=$path;
-        $folder=0;
+        $file_path = $path;
+        $folder = 0;
 
         $fileSize = $image_arr['file_size'];
 
-        $data_image=array(
+        $data_image = array(
             "ids" => $this->ids(),
             "team_id" => $team_id,
             "is_folder" => 0,
             "pid" => $folder,
-            "name" => str_replace( "https://smartcontent-ai-image.s3.amazonaws.com/", "", $file_path),
+            "name" => str_replace("https://smartcontent-ai-image.s3.amazonaws.com/", "", $file_path),
             "file" => $file_path,
             "type" => "image/jpeg",
             "extension" => "jpg",
@@ -3159,25 +3633,25 @@ class SMAISyncTokenController extends Controller
         Log::debug('Insert new image to self_SocialPost result');
         Log::info($image_sp_new_ins);
 
-    
+
     }
- 
-    public function imageOutput_save_Bio_self($user_id,$size,$path,$img_width,$img_height,$image_arr,$prompt)
+
+    public function imageOutput_save_Bio_self($user_id, $size, $path, $img_width, $img_height, $image_arr, $prompt)
     {
 
 
-        $user_bio=UserBio::where('user_id',$user_id)->first();
-        $plan_settings=$user_bio->plan_settings;
-        $plan_settings_json=json_decode($plan_settings,true);
+        $user_bio = UserBio::where('user_id', $user_id)->first();
+        $plan_settings = $user_bio->plan_settings;
+        $plan_settings_json = json_decode($plan_settings, true);
         //api from plan_setting
-        $images_api=$plan_settings_json['images_api'];
+        $images_api = $plan_settings_json['images_api'];
 
-        $settings_arr=array(
+        $settings_arr = array(
             "variants" => 1,
         );
-        $settings=json_encode($settings_arr);
-        $project_id=NULL;
-        $name=str_replace( "https://smartcontent-ai-image.s3.amazonaws.com/", "", $path);
+        $settings = json_encode($settings_arr);
+        $project_id = NULL;
+        $name = str_replace("https://smartcontent-ai-image.s3.amazonaws.com/", "", $path);
         /* Prepare the statement and execute query */
         $data_image = array(
             'user_id' => $user_id,
@@ -3213,27 +3687,27 @@ class SMAISyncTokenController extends Controller
             'api_response_time' => 9999,
             'datetime' => date("Y-m-d H:i:s"),
         ]);
-        
+
         $image_bio_new_ins->save(); //returns true
 
-       // $image_bio_new_ins = ImagesBio::create($data_image);
+        // $image_bio_new_ins = ImagesBio::create($data_image);
         Log::debug('Insert new image to self_Bio result');
         Log::info($image_bio_new_ins);
     }
 
-    public function imageOutput_save_Bio($user_id,$prompt, $number_of_images,$path_array,$image_array)
+    public function imageOutput_save_Bio($user_id, $prompt, $number_of_images, $path_array, $image_array)
     {
 
 
-        $image_generator='DE';
-        $entries=[];
-        $user=UserBio::where('user_id',$user_id)->first();
+        $image_generator = 'DE';
+        $entries = [];
+        $user = UserBio::where('user_id', $user_id)->first();
 
         for ($i = 0; $i < count($path_array); $i++) {
-        
-            $post_type='ai_image_generator';
-            $image_storage="s3";
-            $path=$path_array[$i];
+
+            $post_type = 'ai_image_generator';
+            $image_storage = "s3";
+            $path = $path_array[$i];
 
             $post = OpenAIGenerator::where('slug', $post_type)->first();
             $entry = new UserBioOpenai();
@@ -3247,7 +3721,7 @@ class SMAISyncTokenController extends Controller
             $entry->hash = Str::random(256);
             $entry->credits = 1;
             $entry->words = 0;
-            $entry->storage = UserOpenai::STORAGE_AWS ;
+            $entry->storage = UserOpenai::STORAGE_AWS;
             $entry->save();
 
             //push each generated image to an array
@@ -3280,31 +3754,31 @@ class SMAISyncTokenController extends Controller
                 //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
             }
 
-            $size=$image_array['size'];
-            $size_arr=explode("x",$size);
-            $img_width=$size_arr[0];
-            $img_height=$size_arr[1];
-            $this->imageOutput_save_Bio_self($user_id,$size,$path,$img_width,$img_height,$image_array,$prompt);
-        
+            $size = $image_array['size'];
+            $size_arr = explode("x", $size);
+            $img_width = $size_arr[0];
+            $img_height = $size_arr[1];
+            $this->imageOutput_save_Bio_self($user_id, $size, $path, $img_width, $img_height, $image_array, $prompt);
+
         }
         //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
 
-       Log::debug('imageOutput_save_Bio');
-       Log::debug(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+        Log::debug('imageOutput_save_Bio');
+        Log::debug(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
 
     }
 
-    public function imageOutput_save_SocialPost($user_id,$prompt, $number_of_images,$path_array,$image_array)
+    public function imageOutput_save_SocialPost($user_id, $prompt, $number_of_images, $path_array, $image_array)
     {
-        $image_generator='DE';
-        $entries=[];
-        $user=UserSP::where('id',$user_id)->first();
+        $image_generator = 'DE';
+        $entries = [];
+        $user = UserSP::where('id', $user_id)->first();
 
         for ($i = 0; $i < count($path_array); $i++) {
-        
-            $post_type='ai_image_generator';
-            $image_storage="s3";
-            $path=$path_array[$i];
+
+            $post_type = 'ai_image_generator';
+            $image_storage = "s3";
+            $path = $path_array[$i];
 
             $post = OpenAIGenerator::where('slug', $post_type)->first();
             $entry = new SP_UserOpenai();
@@ -3318,7 +3792,7 @@ class SMAISyncTokenController extends Controller
             $entry->hash = Str::random(256);
             $entry->credits = 1;
             $entry->words = 0;
-            $entry->storage = UserOpenai::STORAGE_AWS ;
+            $entry->storage = UserOpenai::STORAGE_AWS;
             $entry->save();
 
             //push each generated image to an array
@@ -3351,32 +3825,32 @@ class SMAISyncTokenController extends Controller
                 //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
             }
 
-            $size=$image_array['size'];
-            $size_arr=explode("x",$size);
-            $img_width=$size_arr[0];
-            $img_height=$size_arr[1];
-            $this->imageOutput_save_SocialPost_self($user_id,$size,$path,$img_width,$img_height,$image_array,$prompt);
+            $size = $image_array['size'];
+            $size_arr = explode("x", $size);
+            $img_width = $size_arr[0];
+            $img_height = $size_arr[1];
+            $this->imageOutput_save_SocialPost_self($user_id, $size, $path, $img_width, $img_height, $image_array, $prompt);
         }
         //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
 
-       Log::debug('imageOutput_save_SocialPost ');
-       Log::debug(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+        Log::debug('imageOutput_save_SocialPost ');
+        Log::debug(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
 
 
     }
 
-    public function imageOutput_save_Design($user_id,$prompt, $number_of_images,$path_array)
+    public function imageOutput_save_Design($user_id, $prompt, $number_of_images, $path_array)
     {
 
-        $image_generator='DE';
-        $entries=[];
-        $user=UserDesign::where('id',$user_id)->first();
+        $image_generator = 'DE';
+        $entries = [];
+        $user = UserDesign::where('id', $user_id)->first();
 
         for ($i = 0; $i < count($path_array); $i++) {
-        
-            $post_type='ai_image_generator';
-            $image_storage="s3";
-            $path=$path_array[$i];
+
+            $post_type = 'ai_image_generator';
+            $image_storage = "s3";
+            $path = $path_array[$i];
 
             $post = OpenAIGenerator::where('slug', $post_type)->first();
             $entry = new DigitalAsset_UserOpenai();
@@ -3390,7 +3864,7 @@ class SMAISyncTokenController extends Controller
             $entry->hash = Str::random(256);
             $entry->credits = 1;
             $entry->words = 0;
-            $entry->storage = UserOpenai::STORAGE_AWS ;
+            $entry->storage = UserOpenai::STORAGE_AWS;
             $entry->save();
 
             //push each generated image to an array
@@ -3426,24 +3900,23 @@ class SMAISyncTokenController extends Controller
         //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
         Log::debug('imageOutput_save_Design ');
         Log::debug(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
- 
 
 
     }
 
 
-    public function imageOutput_save_Sync($user_id,$prompt, $number_of_images,$path_array)
+    public function imageOutput_save_Sync($user_id, $prompt, $number_of_images, $path_array)
     {
 
-        $image_generator='DE';
-        $entries=[];
-        $user=UserSyncNodeJS::where('id',$user_id)->first();
+        $image_generator = 'DE';
+        $entries = [];
+        $user = UserSyncNodeJS::where('id', $user_id)->first();
 
         for ($i = 0; $i < count($path_array); $i++) {
-        
-            $post_type='ai_image_generator';
-            $image_storage="s3";
-            $path=$path_array[$i];
+
+            $post_type = 'ai_image_generator';
+            $image_storage = "s3";
+            $path = $path_array[$i];
 
             $post = OpenAIGenerator::where('slug', $post_type)->first();
             $entry = new UserSyncNodeJSOpenai();
@@ -3457,7 +3930,7 @@ class SMAISyncTokenController extends Controller
             $entry->hash = Str::random(256);
             $entry->credits = 1;
             $entry->words = 0;
-            $entry->storage = UserOpenai::STORAGE_AWS ;
+            $entry->storage = UserOpenai::STORAGE_AWS;
             $entry->save();
 
             //push each generated image to an array
@@ -3496,22 +3969,21 @@ class SMAISyncTokenController extends Controller
         Log::debug(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
 
 
-
     }
 
 
-    public function imageOutput_save_MobileAppV2($user_id,$prompt, $number_of_images,$path_array)
+    public function imageOutput_save_MobileAppV2($user_id, $prompt, $number_of_images, $path_array)
     {
 
-        $image_generator='DE';
-        $entries=[];
-        $user=UserMobile::where('id',$user_id)->first();
+        $image_generator = 'DE';
+        $entries = [];
+        $user = UserMobile::where('id', $user_id)->first();
 
         for ($i = 0; $i < count($path_array); $i++) {
-        
-            $post_type='ai_image_generator';
-            $image_storage="s3";
-            $path=$path_array[$i];
+
+            $post_type = 'ai_image_generator';
+            $image_storage = "s3";
+            $path = $path_array[$i];
 
             $post = OpenAIGenerator::where('slug', $post_type)->first();
             $entry = new Mobile_UserOpenai();
@@ -3525,7 +3997,7 @@ class SMAISyncTokenController extends Controller
             $entry->hash = Str::random(256);
             $entry->credits = 1;
             $entry->words = 0;
-            $entry->storage = UserOpenai::STORAGE_AWS ;
+            $entry->storage = UserOpenai::STORAGE_AWS;
             $entry->save();
 
             //push each generated image to an array
@@ -3565,48 +4037,45 @@ class SMAISyncTokenController extends Controller
         Log::debug(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
 
 
-
     }
 
-    public function lowGenerateSaveAll($usage,$response,$main_message_id)
+    public function lowGenerateSaveAll($usage, $response, $main_message_id)
     {
         //$response = $request->response;
         $total_user_tokens = $usage;
 
-        Log::debug('Main Message ID in lowGenerateSaveAll'.$main_message_id);
+        Log::debug('Main Message ID in lowGenerateSaveAll' . $main_message_id);
 
 
-        for($i=0;$i<3;$i++)
-        {
-            if($i==0)
-            $entry = DigitalAsset_UserOpenai::where('main_user_openai_id', $main_message_id)->first();
-            
-            if($i==1)
-            $entry = SP_UserOpenai::where('main_user_openai_id', $main_message_id)->first();
+        for ($i = 0; $i < 3; $i++) {
+            if ($i == 0)
+                $entry = DigitalAsset_UserOpenai::where('main_user_openai_id', $main_message_id)->first();
 
-            if($i==2)
-            $entry = Mobile_UserOpenai::where('main_user_openai_id', $main_message_id)->first();
+            if ($i == 1)
+                $entry = SP_UserOpenai::where('main_user_openai_id', $main_message_id)->first();
 
-            if($i==3)
-            $entry = UserBioOpenai::where('main_user_openai_id',$main_message_id)->first();
+            if ($i == 2)
+                $entry = Mobile_UserOpenai::where('main_user_openai_id', $main_message_id)->first();
 
-            if($i==4)
-            $entry = UserSyncNodeJSOpenai::where('main_user_openai_id', $main_message_id)->first();
-            
+            if ($i == 3)
+                $entry = UserBioOpenai::where('main_user_openai_id', $main_message_id)->first();
+
+            if ($i == 4)
+                $entry = UserSyncNodeJSOpenai::where('main_user_openai_id', $main_message_id)->first();
+
             Log::debug('Debug User Open AI ');
             Log::info($entry);
 
-            if(isset($entry))
-            {
-            $entry->credits = $total_user_tokens;
-            $entry->words = $total_user_tokens;
-            $entry->response = $response;
-            $entry->output = $response;
-            $entry->save();
+            if (isset($entry)) {
+                $entry->credits = $total_user_tokens;
+                $entry->words = $total_user_tokens;
+                $entry->response = $response;
+                $entry->output = $response;
+                $entry->save();
             }
         }
 
-       //back to Update Tokens remaining_words in APIsController
+        //back to Update Tokens remaining_words in APIsController
 
     }
 
@@ -3636,10 +4105,289 @@ class SMAISyncTokenController extends Controller
         $user->save();
     }
 
+    //if $params->'model' => 'SKIP', 'prompt' => 'SKIP', then  $this->new_chat_all_platforms()
+    // and if !isset($chat->total_credits)  then $this->new_chat_all_platforms()
+    //$this->chat_id  and $this->chat_name  should be completed
+    public function new_chat_all_platforms($chat_name,$chat_id,$user_id,$main_chat_id=NULL)
+    {
+
+        Log::debug('ChatID case Bio start '.$chat_id);
+
+        if($chat_name != NULL && $chat_id != NULL )
+
+        {
+        
+        //Main
+        /* if($this->check_exsist_chat('main_db','user_openai_chat',$chat_name,$chat_id) < 1)
+        $chat_new_ins_main = UserOpenaiChat::Create(
+            ['chat_id' => $chat_id],
+            ['user_id' => $user_id,
+            'title' => $chat_name,
+            'openai_chat_category_id' => 1,]
+        ); */
+
+        
+    //Main
+
+    if($this->check_exsist_chat('main_db','user_openai_chat',$chat_name,$chat_id) < 1)
+    {
+        $data = [
+
+            "chat_id" => $chat_id,
+            "openai_chat_category_id" => 1,
+            "user_id" => $user_id,
+            "title" => $chat_name,
+            
+        ];
+
+        $chat_new_ins_main_add_id =  DB::connection('main_db')->table('user_openai_chat')->insertGetId($data);
+        
+       
+
+        if(isset($chat_new_ins_main_add_id ))
+        Log::debug('Sucess add new chat to UserOpenaiChatMain CoIN '.$chat_new_ins_main_add_id );
+
+    }
+    if(isset($chat_new_ins_main_add_id ))
+    $chat_ins_main=$chat_new_ins_main_add_id ;
+    else
+    $chat_ins_main=$main_chat_id;
+
+      
+        //Main.marketing
+         if($this->check_exsist_chat('main_db','conversation_list',$chat_name,$chat_id) < 1)
+        $chat_new_ins_mar = UserOpenaiChatMainMarketing::Create(
+            ['chat_id' => $chat_id],
+            ['user_id' => $user_id,
+            'title' => $chat_name,
+            'user_openai_chat_id' =>$chat_ins_main,
+            'openai_chat_category_id' => 1,]
+        );
+
+        if(isset($chat_new_ins_mar->id))
+        Log::debug('Sucess add new chat to UserOpenaiChatMainMarketing '.$chat_new_ins_mar->id);
+
+
+        //Design
+        if($this->check_exsist_chat('digitalasset_db','user_openai_chat',$chat_name,$chat_id) < 1)
+        $chat_new_ins_design = UserOpenaiChatDesign::Create(
+            ['chat_id' => $chat_id],
+            ['user_id' => $user_id,
+            'title' => $chat_name,
+            'user_openai_chat_id' =>$chat_ins_main,
+            'openai_chat_category_id' => 1,]
+        );
+
+
+        if(isset($chat_new_ins_design->id))
+        Log::debug('Sucess add new chat to UserOpenaiChatDesign '.$chat_new_ins_design->id);
+
+
+        //SocialPost
+        if($this->check_exsist_chat('main_db','sp_user_openai_chat',$chat_name,$chat_id) < 1)
+        $chat_new_ins_social = UserOpenaiChatSocialPost::Create(
+            ['chat_id' => $chat_id],
+            ['user_id' => $user_id,
+            'title' => $chat_name,
+            'user_openai_chat_id' =>$chat_ins_main,
+            'openai_chat_category_id' => 1,]
+        );
+
+
+        if(isset($chat_new_ins_social->id))
+        Log::debug('Sucess add new chat to UserOpenaiChatSocialPost '.$chat_new_ins_social->id);
+
+
+
+        //MobileAppV2
+        if($this->check_exsist_chat('mobileapp_db','user_openai_chat',$chat_name,$chat_id) < 1)
+        $chat_new_ins_mobile = UserOpenaiChatMobile::Create(
+            ['chat_id' => $chat_id],
+            ['user_id' => $user_id,
+            'title' => $chat_name,
+            'user_openai_chat_id' =>$chat_ins_main,
+            'openai_chat_category_id' => 1,]
+        );
+
+
+        if(isset($chat_new_ins_mobile->id))
+        Log::debug('Sucess add new chat to UserOpenaiChatMessageMobile '.$chat_new_ins_mobile->id);
 
 
 
 
+        //SyncNodeJS
+        if($this->check_exsist_chat('sync_db','user_openai_chat',$chat_name,$chat_id) < 1)
+        $chat_new_ins_sync = UserOpenaiChatSyncNodeJS::Create(
+            ['chat_id' => $chat_id],
+            ['user_id' => $user_id,
+            'title' => $chat_name,
+            'user_openai_chat_id' =>$chat_ins_main,
+            'openai_chat_category_id' => 1,]
+        );
+
+
+        if(isset($chat_new_ins_sync->id))
+        Log::debug('Sucess add new chat to UserOpenaiChatSyncNodeJS '.$chat_new_ins_sync->id);
+
+
+
+
+
+        //Bio
+        if($this->check_exsist_chat('bio_db','chats',$chat_name,$chat_id) < 1)
+       {
+       
+        $data = [
+
+            "chat_id_mobile" => $chat_id,
+            "openai_chat_category_id" => 1,
+            "user_id" => $user_id,
+
+            "title" => $chat_name,
+            "name" => $chat_name,
+            "chat_assistant_id" => 1,
+            "settings" => '[]',
+            
+        ];
+
+        $chat_new_ins_bio_add_id =  DB::connection('bio_db')->table('chats')->insertGetId($data);
+ 
+
+    }
+        if(isset($chat_new_ins_bio_add_id))
+        Log::debug('Sucess add new chat to UserOpenaiChatBio '.$chat_new_ins_bio_add_id);
+
+
+        return $chat_ins_main;
+    }
+    else
+    {
+        return 0;
+    }
+
+    }
+
+    public function check_exsist_chat($db,$table,$chat_name,$chat_id)
+    {
+        if($chat_id!=NULL)
+       {
+
+        if($db=='bio_db')
+        $check_chat = DB::connection($db)->table($table)->where('chat_id_mobile',$chat_id)->where('name',$chat_name)->get();
+        else
+        $check_chat = DB::connection($db)->table($table)->where('chat_id',$chat_id)->where('title',$chat_name)->get();
+
+
+
+        $found_chat = $check_chat->count();
+        return $found_chat;
+       }
+       else
+       {
+        return 0;
+       }
+
+    }
+
+    public function find_chat_id($from)
+    {
+
+
+
+                if($from=='bio')
+                   {
+
+                   Log::debug('!!!!!! Debug fine Bio old ChatID in Function !!!!!' );
+                   // $chat_id_find=UserOpenaiChatBio::where('chat_id',$this->chat_main_id)->first();
+                     $db='bio_db';
+                     $table='chats';
+                     $column='chat_id';
+
+                   }
+
+                   if($from=='main_coin')
+                   {
+
+                   Log::debug('!!!!!! Debug fine MainCoIN old ChatID in Function !!!!!' );
+                   // $chat_id_find=UserOpenaiChatBio::where('chat_id',$this->chat_main_id)->first();
+                     $db='main_db';
+                     $table='user_openai_chat';
+                     $column='id';
+
+                   }
+
+                   $chat_id_find=DB::connection($db)->table($table)->where($column,$this->chat_main_id)->first();
+                 
+                  
+                   if($from=='bio')
+                   $new_chat_id=$chat_id_find->chat_id_mobile;
+                   else
+                   $new_chat_id=$chat_id_find->chat_id;
+
+
+                   $this->chat_id = $new_chat_id;
+
+                           if($this->chat_id==NULL)
+                           {
+                                   $chat_mobile_id= "chat_";
+                                   $chat_mobile_id.= strval(time());
+                                   $ran = rand(100, 999);
+                                   $chat_mobile_id.= $ran;
+
+                                   $new_chat_id=array(
+                                       'chat_id_mobile' => $chat_mobile_id,
+                                   );
+
+                                $chatData = DB::connection('bio_db')->table('chats')
+                                ->where('chat_id',$this->chat_main_id)
+                                ->update($new_chat_id);
+
+                                 //$chat_id_find->update($new_chat_id);
+                                   
+
+                                   $this->chat_id =$chat_mobile_id;
+
+
+
+                           }
+
+                           return  $this->chat_id;
+                   
+
+
+         }
+
+
+         public function fix_user_openai_chat_ID($db,$table,$chat_id)
+
+         {
+
+            if($db=='bio_db')
+            $column='chat_id_mobile';
+            else
+            $column='chat_id';
+
+
+            $chat_main_id_find=DB::connection($db)->table($table)->where($column,$chat_id)->first();
+                 
+                  
+            if(isset($chat_main_id_find->id) || isset($chat_main_id_find->chat_id))
+            {
+                return $chat_main_id_find->id;
+
+            }
+            else
+            {
+                return 0;
+            }
+
+
+         }
+
+      
+
+    
 
 
 }

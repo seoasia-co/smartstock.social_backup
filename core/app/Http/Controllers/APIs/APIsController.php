@@ -2404,6 +2404,11 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         else
             $chatGPT_catgory = NULL;
 
+        if (isset($params['chat_name']))
+            $chat_name = $params['chat_name'];
+        else
+            $chat_name = NULL;
+
 
         if (isset($params['platform']))
             $from = $params['platform'];
@@ -2445,7 +2450,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         
 
         //update UserOpenAI entry
-        $new_update_main_lower_save = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id);
+        $new_update_main_lower_save = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id,NULL,$chat_name,$params,$user_id);
         $new_update_main_lower_save->lowGenerateSaveAll($usage,$response,$main_message_id);
 
 
@@ -2492,7 +2497,9 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         
 
         //$params = json_decode($request->params_input, true);
-        
+
+        Log::debug('DEbug $request->params_input from Start  Sync Token : '.$request->params_input);
+        Log::debug('DEbug $request[params_input] from Start  Sync Token : '.$request['params_input']);
         if(isset($request->params_input))
         $params =$request->params_input;
         else if(isset($request['params_input']))
@@ -2500,36 +2507,94 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         else 
         $params = json_decode($request->params_input, true);
 
+        if(is_array($params)==FALSE)
+        $params = json_decode($params, true);
 
 
-        if (isset($params['gpt_category']))
+        Log::debug('!!!!! Final Debug Params : ');
+        Log::info($params);
+
+        //Log::info($params['platform']);
+        if (isset($params->gpt_category))
+        $chatGPT_catgory =$params->gpt_category;
+        else if (isset($params['gpt_category']))
             $chatGPT_catgory = $params['gpt_category'];
         else
             $chatGPT_catgory = NULL;
 
 
-        if (isset($params['platform']))
+            if (isset($params->chat_name))
+            $chat_name =$params->chat_name;
+            if (isset($params['chat_name']))
+            $chat_name = $params['chat_name'];
+            else
+            $chat_name = NULL;
+
+
+        if (isset($params->platform))
+              $from =$params->platform;
+        else if (isset($params['platform']))
             $from = $params['platform'];
         else
-            $from = '';
+            $from = NULL;
 
 
-        if (isset($params['chat_id']))
+
+
+        if (isset($params->chat_id))
+           $chat_id =$params->chat_id;
+        else if (isset($params['chat_id']))
             $chat_id = $params['chat_id'];
         else
-            $chat_id = '';
+            $chat_id = NULL;
 
+
+            if (isset($params->chat_main_id))
+            $chat_main_id =$params->chat_main_id;
+         else if (isset($params['chat_main_id']))
+             $chat_main_id = $params['chat_main_id'];
+         else
+             $chat_main_id = NULL; 
+            
+             
+
+            if (isset($params->model))
+            $model_gpt =$params->model;
+            else if (isset($params['model']))
+            $model_gpt = $params['model'];
+            else
+            $model_gpt = NULL;
+
+
+           if (isset($params->prompt))
+           $prompt =$params->prompt;
+           else if (isset($params['prompt']))
+           $prompt = $params['prompt'];
+           else
+           $prompt = NULL;
+
+
+
+        Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!! ');   
+        Log::debug('From Platform !!!!!!! '.$from);   
+        Log::debug(' cAtgory !!!!!!!!!!!!!!!!!!!!!!!!!!!! '.$chatGPT_catgory);   
         Log::debug('$data  that from response smaisync_tokens from APIsController : ' . info(print_r($data, true)));
         Log::debug('$params smaisync_tokens from APIsController : ' . info(print_r($params, true)));
         Log::info(print_r($params, true));
         Log::debug('User ID log in smaisync_tokens in Main APIsController from Digital_Asset : ' . $user_id);
 
+
+        /*  if($prompt=='SKIP' && $model_gpt=='SKIP')
+        {
+            Log::debug('!!!!!! Start add new chat from contructore !!!!');
+            $add_new_chat=NEW SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id,$chat_main_id,$chat_name,$params,$user_id);
+        }  */
      
         if(Str::contains($chatGPT_catgory,'Images_'))
         {
 
             // $user_id,$usage,$data_image,$image_params
-            $new_update_main_image = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id=NULL);
+            $new_update_main_image = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id=NULL,NULL,NULL,$params,$user_id);
             $return_arr = $new_update_main_image->imageOutput_save_main_coin($user_id, $usage, $data, $params,$size=NULL, $post=NULL,  $style=NULL, $lighting=NULL, $mood=NULL, $number_of_images=1, $image_generator='DE', $negative_prompt=NULL);
 
             Log::debug('Return array from new_update_main_image ');
@@ -2566,7 +2631,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         else
         {
 
-        $new_update_digitalasset = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id);
+        $new_update_digitalasset = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id,$chat_main_id,$chat_name,$params,$user_id);
         
           
         // if not called from SocialPost add extra update to MainCoIn table
@@ -2576,19 +2641,29 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         }
         else
         {
-            if(isset($request->main_useropenai_message_id))
-             $main_message_id = $request->main_useropenai_message_id;
-             else
+            if(isset($params->main_useropenai_message_id))
+             $main_message_id =  $params->main_useropenai_message_id;
+         
+             if(isset($params['main_useropenai_message_id']))
              $main_message_id = $params['main_useropenai_message_id'];
 
         
         
         }
+
+        if(isset($main_message_id))
+        {
         Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+
+        
         Log::debug(' Check main_message_id Before next Step '.$main_message_id );
+       
         Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+        
+        
         //update DEsign
         $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data, $params,$from,$main_message_id);
+
 
 
         // if not called from SocialPost add extra update to MobileApp table
@@ -2620,6 +2695,8 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         return response()->json($response, 201); */
 
         //$data_json = json_decode($data ,true);
+
+      }
 
 
     }
@@ -3010,15 +3087,6 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
                 }
 
             }
-
-
-                    
-
-
-
-
-
-       
 
 
 

@@ -16,6 +16,7 @@ class UserOpenaiChatDesign extends Model
         'user_id',
 	    'openai_chat_category_id', 
         'chat_id',
+        'user_openai_chat_id',
     ];
     
 

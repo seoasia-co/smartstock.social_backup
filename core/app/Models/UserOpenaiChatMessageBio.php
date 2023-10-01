@@ -18,7 +18,7 @@ class UserOpenaiChatMessageBio extends Model
         
     ];
 
-    public function chat(){
+    /* public function chat(){
         return $this->belongsTo(UserOpenaiChatBio::class, 'chat_id', 'chat_id');
-    }
+    } */
 }

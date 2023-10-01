@@ -19,6 +19,11 @@ class UserOpenaiChatBio extends Model
         "text",
         "openai_chat_category_id",
         'chat_id_mobile',
+        'title',
+        'chat_assistant_id',
+        'name',
+        'settings',
+        'user_openai_chat_id',
     ];
 
     public function messages(){
