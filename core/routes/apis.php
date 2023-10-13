@@ -41,6 +41,9 @@ Route::post('/smaisync/tokens', 'APIsController@smaisync_tokens');
 Route::post('/smaicheck/column', 'APIsController@smaicheck_column');
 Route::post('/smaiupdate/column', 'APIsController@smaiupdate_column');
 Route::post('/smaisync/maintokens', 'APIsController@smaisync_main_tokens');
+Route::post('/smaisync/translate', 'APIsController@smai_translation');
+Route::post('/smaisync/textgen', 'APIsController@smai_text_gen');
+
 
 
 // update profile     

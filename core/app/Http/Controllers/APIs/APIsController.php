@@ -35,6 +35,8 @@ use Str;
 use App\Http\Controllers\Auth\SMAISessionAuthController;
 use App\Models\UserMain;
 
+use App\Http\Controllers\AIController;
+
 
 class APIsController extends Controller
 {
@@ -2422,39 +2424,41 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
             $chat_id = '';
            
         if (isset($params['response']))
+        {
             $response = $params['response'];
+            $response_text =$response;
+
+        }
+        else{
+            $response_text=NULL;
+        }
 
         Log::debug('$data  MainCoIn that from response smaisync_tokens from APIsController : ' . info(print_r($data, true)));
         Log::debug('$params  MainCoIn smaisync_tokens from APIsController : ' . info(print_r($params, true)));
         Log::info(print_r($params, true));
         Log::debug('User ID  MainCoIn log in smaisync_tokens in Main APIsController from Digital_Asset : ' . $user_id);
-
         Log::debug('With Response!!!!!!!!!!! '.$response);
-
-        /* if(isset($request->data,))
-        {
-        $res_data =$request->data;
-        $response=$res_data->response;
-        }
-        else if(isset($request['data']))
-        {
-        $res_data =$request['data'];
-        $response=$res_data['response'];
-        }
-        else 
-        {
-        $res_data = json_decode($request->params_input, true);
-        $response=$res_data->response;
-        } */
 
         
 
-        //update UserOpenAI entry
-        $new_update_main_lower_save = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id,NULL,$chat_name,$params,$user_id);
+        Log::debug('check main inAPIs main_useropenai_message_id before send '.$main_message_id);
+        //update UserOpenAI entry CHAT
+        $new_update_main_lower_save = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id,NULL,$chat_name,$params,$user_id,$response_text,$main_message_id);
         $new_update_main_lower_save->lowGenerateSaveAll($usage,$response,$main_message_id);
 
+/*        //continue... From update UserOpenAI entry Zone Fix Documents or UserOpenAI Table
+       $update_fix_Bio_Doc=0;
+       if (( Str::contains($chatGPT_catgory, 'DocText')==true) && ( Str::contains($chatGPT_catgory, 'SmartBio')==false) && (Str::contains($chatGPT_catgory,"Bio")==false))
+       $update_fix_Bio_Doc=1;
+       if( $user_id > 0 &&  $from != 'bio' && $update_fix_Bio_Doc==1 &&  Str::length($response) > 2 && (Str::contains($response,"null")==false) )
+       {
+          $new_update_main_lower_save->Save_Bio_Documents($params,$output=NULL, $response=NULL ,$user_id,$usage,$main_message_id);
+       }
+       // Eof Zone Fix Documents or UserOpenAI Table */
 
-        //this below should be token centralize
+       
+       
+       //this below should be token centralize
         $user_data_db=UserMain::where('id',$user_id)->first();
         $remaining_images=$user_data_db->remaining_images;
         $remaining_words=$user_data_db->remaining_words;
@@ -2483,23 +2487,49 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array,$usage,$from,$old_reamaining_word,$old_reamaining_image,$chatGPT_catgory,$token_update_type);
 
     }
+
+
+    public function smai_translation(Request $request)
+    {
+
+        $new_translation=NEW AIController();
+        $text_translated=$new_translation->buildOutput($request);
+         //Log::debug('Debug response translated '.$text_translated);
+         //Log::info($text_translated);
+        return  $text_translated;
+
+
+    }
+
+    public function smai_text_gen(Request $request)
+    {
+
+        $new_text_gen=NEW AIController();
+        $text_gen=$new_text_gen->buildOutput($request);
+        // Log::debug('Debug response translated '.$text_translated);
+         Log::info($text_gen);
+        return  $text_gen;
+
+
+    }
+
     public function smaisync_tokens(Request $request)
     {
         $user_id = $request->user_id;
         $usage = $request->usage;
-        $data = $request->data;
+        $data_req = $request->data;
 
 
 
-        Log::debug('DEbug Data from Start  Sync Token : '.$data);
+        Log::debug('DEbug Data from Start  Sync Token : '.$data_req);
         Log::debug('DEbug REquest from Start   Sync Token : '.$request);
         Log::debug('DEbug Usage from Start  Sync Token : '.$usage);
         
 
         //$params = json_decode($request->params_input, true);
 
-        Log::debug('DEbug $request->params_input from Start  Sync Token : '.$request->params_input);
-        Log::debug('DEbug $request[params_input] from Start  Sync Token : '.$request['params_input']);
+       // Log::debug('DEbug $request->params_input from Start  Sync Token : '.$request->params_input);
+       // Log::debug('DEbug $request[params_input] from Start  Sync Token : '.$request['params_input']);
         if(isset($request->params_input))
         $params =$request->params_input;
         else if(isset($request['params_input']))
@@ -2578,7 +2608,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!! ');   
         Log::debug('From Platform !!!!!!! '.$from);   
         Log::debug(' cAtgory !!!!!!!!!!!!!!!!!!!!!!!!!!!! '.$chatGPT_catgory);   
-        Log::debug('$data  that from response smaisync_tokens from APIsController : ' . info(print_r($data, true)));
+        Log::debug('$data_req  that from response smaisync_tokens from APIsController : ' . info(print_r($data_req, true)));
         Log::debug('$params smaisync_tokens from APIsController : ' . info(print_r($params, true)));
         Log::info(print_r($params, true));
         Log::debug('User ID log in smaisync_tokens in Main APIsController from Digital_Asset : ' . $user_id);
@@ -2587,15 +2617,15 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         /*  if($prompt=='SKIP' && $model_gpt=='SKIP')
         {
             Log::debug('!!!!!! Start add new chat from contructore !!!!');
-            $add_new_chat=NEW SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id,$chat_main_id,$chat_name,$params,$user_id);
+            $add_new_chat=NEW SMAISyncTokenController($data_req, $usage, $chatGPT_catgory, $chat_id,$chat_main_id,$chat_name,$params,$user_id);
         }  */
      
         if(Str::contains($chatGPT_catgory,'Images_'))
         {
 
             // $user_id,$usage,$data_image,$image_params
-            $new_update_main_image = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id=NULL,NULL,NULL,$params,$user_id);
-            $return_arr = $new_update_main_image->imageOutput_save_main_coin($user_id, $usage, $data, $params,$size=NULL, $post=NULL,  $style=NULL, $lighting=NULL, $mood=NULL, $number_of_images=1, $image_generator='DE', $negative_prompt=NULL);
+            $new_update_main_image = new SMAISyncTokenController($data_req, $usage, $chatGPT_catgory, $chat_id=NULL,NULL,NULL,$params,$user_id);
+            $return_arr = $new_update_main_image->imageOutput_save_main_coin($user_id, $usage, $data_req, $params,$size=NULL, $post=NULL,  $style=NULL, $lighting=NULL, $mood=NULL, $number_of_images=1, $image_generator='DE', $negative_prompt=NULL);
 
             Log::debug('Return array from new_update_main_image ');
             Log::info($return_arr);
@@ -2631,13 +2661,13 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         else
         {
 
-        $new_update_digitalasset = new SMAISyncTokenController($data, $usage, $chatGPT_catgory, $chat_id,$chat_main_id,$chat_name,$params,$user_id);
+        $new_update_digitalasset = new SMAISyncTokenController($data_req, $usage, $chatGPT_catgory, $chat_id,$chat_main_id,$chat_name,$params,$user_id);
         
           
         // if not called from SocialPost add extra update to MainCoIn table
         if ($from != 'main_coin')
         {
-        $main_message_id = $new_update_digitalasset->SMAI_UpdateGPT_MainCoIn($user_id, $usage, $data, $params,$from,NULL);
+        $main_message_id = $new_update_digitalasset->SMAI_UpdateGPT_MainCoIn($user_id, $usage, $data_req, $params,$from,NULL);
         }
         else
         {
@@ -2662,30 +2692,45 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         
         
         //update DEsign
-        $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data, $params,$from,$main_message_id);
+        $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data_req, $params,$from,$main_message_id);
 
 
 
         // if not called from SocialPost add extra update to MobileApp table
 
         if ($from != 'MobileAppV2')
-            $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id, $usage, $data, $params,$from,$main_message_id);
+            $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id, $usage, $data_req, $params,$from,$main_message_id);
 
 
         // if not called from SocialPost add extra update to SocialPost SP table
-        $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id, $usage, $data, $params,$from,$main_message_id);
+        $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id, $usage, $data_req, $params,$from,$main_message_id);
 
-        if ($from != 'bio')
-        $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data, $params,$from,$main_message_id);
+        if ($from != 'bio' )
+        { 
+            if((Str::contains($chatGPT_catgory,'OtherSocialText_SmartBio')==false) && (Str::contains($chatGPT_catgory,'DocText')==false))
+            { 
+              $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_id);
+            }
+            else if(Str::contains($chatGPT_catgory,'DocText_SmartContentCoIn')==true)
+            {
+
+              $new_update_digitalasset->Save_Bio_Documents($params, NULL,NULL,$user_id,$usage,$main_message_id);
+
+            }
+            else{
+
+            }
       
+        }
+
 
         if ($from != 'SyncNodeJS')
-        $new_update_digitalasset->SMAI_UpdateGPT_SyncNodeJS($user_id, $usage, $data, $params,$from,$main_message_id);
+        $new_update_digitalasset->SMAI_UpdateGPT_SyncNodeJS($user_id, $usage, $data_req, $params,$from,$main_message_id);
 
        
             if ($from != 'main_marketing')
         {
-            // $new_update_digitalasset->SMAI_UpdateGPT_MainMarketing($user_id, $usage, $data, $params,$from);
+            // $new_update_digitalasset->SMAI_UpdateGPT_MainMarketing($user_id, $usage, $data_req, $params,$from);
 
         }
         /* $response = [
@@ -2694,7 +2739,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         ];
         return response()->json($response, 201); */
 
-        //$data_json = json_decode($data ,true);
+        //$data_json = json_decode($data_req ,true);
 
       }
 
@@ -2763,6 +2808,9 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
     public function smaicheck_column(Request $request)
     {
 
+        Log::debug('Debug this in check Column APIsController ');
+        Log::debug('and info request ');
+        Log::info($request);
         //read user_id , key (column name), database
         $user_id = $request->user_id;
         $key = $request->key;
@@ -2776,6 +2824,9 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
     public function smaiupdate_column(Request $request)
     {
+        Log::debug('Debug this in update Column APIsController '.$platform);
+        Log::debug('and info request ');
+        Log::info($request);
 
         //read user_id , key (column name), database
         $user_id = $request->user_id;
@@ -2882,6 +2933,10 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $platform = $request->platform;
         $database = $request->database;
         $user_id = $request->user_id;
+
+        Log::debug('Debug this in check Plan APIsController '.$platform);
+        Log::debug('and info request ');
+        Log::info($request);
 
         $check_plans_user = new SMAISyncPlanController();
 

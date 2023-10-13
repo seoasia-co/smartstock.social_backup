@@ -25,6 +25,7 @@ use Log;
 use Session;
 use Cookie;
 use Carbon\Carbon;
+use stdClass;
 
 
 use App\Models\SubscriptionMobile;
@@ -77,7 +78,13 @@ use App\Models\UserOpenaiChatMessageBio;
 use App\Models\UserOpenaiChatSyncNodeJS;
 use App\Models\UserOpenaiChatMessageSyncNodeJS;
 
+use App\Models\UserDesignSubscriptions;
 use App\Models\OpenaiGeneratorChatCategory;
+use App\Models\UserBioOpenaiTemplate;
+
+use App\Models\OpenaiGeneratorFilter;
+
+
 
 use Illuminate\Support\Arr;
 use App\Http\Controllers\Auth\SMAISessionAuthController;
@@ -93,6 +100,7 @@ class SMAIUpdateProfileController extends Controller
     protected $upFromWhere = NULL;
     protected $plus_new_images_token;
     protected $plus_new_words_token;
+    protected $bio_template_id;
 
     // request as an attribute of the controllers
 
@@ -156,6 +164,163 @@ class SMAIUpdateProfileController extends Controller
 
 
         if (isset($whatup) && $whatup != NULL) {
+
+            //incase of update AI Document Template from Admin
+            if (in_array("ai_template", $whatup)) {
+             
+                if (in_array("ai_docs", $whatup))
+                {
+                    if(is_array($request)==true)
+                    $request_json=$request;
+                    else
+                    $request_json=json_decode($request,true);
+
+
+
+
+                    if (isset($request_json['template_id'])) {
+
+                        $this->bio_template_id=$request_json['template_id'];
+                    }
+
+                    Log::debug('Case Update AI Docs Template ID '.$this->bio_template_id );
+                    Log::debug('Case Update AI Docs Template from '.$this->upFromWhere);
+
+                    // if added this protected $primaryKey = 'template_id';  in Models then can use id not template_id
+                    //$bio_ai_docs_text= UserBioOpenaiTemplate::where('id',$this->bio_template_id);
+                    $bio_ai_docs_text=DB::connection('bio_db')->table('templates')->where('template_id',$this->bio_template_id)->first();
+
+            
+                if ( $bio_ai_docs_text->template_id > 0)
+                { 
+                                            //insert thise Template from Bio to MainCoin,MobileV2 and Mobile old
+                         
+                        //value from params
+                        // $request_json['template_category_id'];
+                        // $request_json['prompt'];
+                        // $request_json['settings'];
+                        // $request_json['order'];
+                        // $request_json['is_enabled'] ;
+                        // $request_json['last_datetime'];
+
+
+                        //1. str_replace &#34;{name}&#34; and {description}
+                        //2.
+                        $description_openai=$request_json['prompt'];
+
+                        if(Str::contains($description_openai, '&#34;{name}&#34;'))
+                        $description_openai=str_replace('&#34;{name}&#34;','',$description_openai);
+
+                        if(Str::contains($description_openai, '{description}'))
+                        $description_openai=str_replace('{description}','',$description_openai);
+
+
+                        $description_openai=trim($description_openai);
+                        if(Str::contains($description_openai, 'with the following description:'))
+                        $description_openai=str_replace('with the following description:','',$description_openai);
+
+                        $description_openai.='.';
+
+
+                        if(Str::length($description_openai) < 250)
+                        $type_openai_input='text';
+                        else
+                        $type_openai_input='textarea';
+
+
+                        //find svg online image match to $request_json['icon']
+                        //for example 
+                       /* fa fa-align-left ==  <svg xmlns="http://www.w3.org/2000/svg" height="48" viewBox="0 96 960 960" width="48"><path d="M160 666v-60h389v60H160Zm0-120v-60h640v60H160Z"/></svg> */
+
+                       $filters_openai_input='blog';
+
+                       if(Str::contains($filters_openai_input, 'blog'))
+                       $color_openai='#A3D6C2';
+                       else
+                       $color_openai='#A3D6C2';
+
+                       if($request_json['icon']=='fa fa-align-left')
+                       $image_icon='<svg xmlns="http://www.w3.org/2000/svg" height="48" viewBox="0 96 960 960" width="48"><path d="M160 666v-60h389v60H160Zm0-120v-60h640v60H160Z"/></svg>';
+                       else
+                       $image_icon='<svg xmlns="http://www.w3.org/2000/svg" height="48" viewBox="0 96 960 960" width="48"><path d="M160 666v-60h389v60H160Zm0-120v-60h640v60H160Z"/></svg>';
+
+
+
+                    if($bio_ai_docs_text->openai_id==NULL)
+                    {
+ 
+
+                         $ins_main_ai_docs_text_arr=array(
+
+                            'title' => $request_json['name'],
+                            'description' => $description_openai,
+                            'image' => $image_icon ,
+                            'color' => $color_openai,
+                            'prompt' => NULL,
+                            'filters' => 'blog',
+                            'premium' => 0,
+                            'input_name' => $request_json['name'].' description', 
+                            'input_description' => 'describe your '.$request_json['name'],
+                            'input_type' => $type_openai_input,
+                            'bio_template_id' => $this->bio_template_id,
+                            'template_id' => NULL,
+
+
+                         );
+
+                         //case add new
+                        // $request_en=json_encode($ins_main_ai_docs_text_arr);
+                         $openai_ins_id = $this->openAICustomAddOrUpdateSave($ins_main_ai_docs_text_arr);
+
+                         $bio_ai_docs_model=UserBioOpenaiTemplate::where('template_id',$this->bio_template_id)->first();
+                         $bio_ai_docs_model->openai_id=$openai_ins_id;
+                         $bio_ai_docs_model->save();
+
+
+                    }
+                    else
+                    {
+                         //Maybe update id to sync all table 
+                         //incase of $bio_ai_docs_text->openai_id is not NULL then Update it
+                         //สิ่งนี้คือ สิ่งสำคัญ ที่ทำให้  $prompt ของบริษัทไหน แพล็ตฟอร์มไหน โดดเด่นและหลากหลายกว่า
+                         //และดึงดูด users ได้มากกว่า
+                         
+                         $ins_main_ai_docs_text_arr=array(
+
+                            'title' => $request_json['name'],
+                            'description' => $description_openai,
+                            'image' => $image_icon,
+                            'color' => $color_openai,
+                            'prompt' => NULL,
+                            'filters' => 'blog',
+                            'premium' => 0,
+                            'input_name' => $request_json['name'].' description', 
+                            'input_description' => 'describe your '.$request_json['name'],
+                            'input_type' => $type_openai_input,
+                            'bio_template_id' => $this->bio_template_id,
+                            'template_id' => $bio_ai_docs_text->openai_id,
+                             
+
+
+                         );
+                         //case send to update existing 
+                         //$request_en=json_encode($ins_main_ai_docs_text_arr);
+                         $this->openAICustomAddOrUpdateSave($ins_main_ai_docs_text_arr);
+
+                    }
+
+                    Log::debug('Debug prompt from DB ');
+                    Log::info($bio_ai_docs_text->prompt);
+                    Log::debug('Debug name from DB ');
+                    Log::info($bio_ai_docs_text->name);
+
+                }
+
+
+                }
+
+            }
+
             if (in_array("profile", $whatup)) {
 
                 //basic_profile universal
@@ -405,7 +570,13 @@ class SMAIUpdateProfileController extends Controller
 
             }
 
-            if (in_array("delete", $whatup)) {
+            //Start Swith case of Profile update
+            if (in_array("ai_template", $whatup) && $this->upFromWhere == 'bio') {
+                 
+                Log::debug('Start What to do in case Bio update Ai Docs Template');
+
+            }
+            else if (in_array("delete", $whatup)) {
                 //DEl all users Platform
                 $this->del_user_all_platforms($user_id, $user_email, $this->upFromWhere);
             } else if (in_array("password", $whatup) && $this->skip_update_pss != 1) {
@@ -464,9 +635,10 @@ class SMAIUpdateProfileController extends Controller
 
                 //send to medthod update bio profile to all platforms
                 $this->up_plan_bio($userdata, $user_id, $user_email);
+                //plans_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL);
 
 
-            } else if (in_array("plan", $whatup) && Str::contains($this->upFromWhere, 'MainCoIn')) {
+            } else if (in_array("plan", $whatup) && (Str::contains($this->upFromWhere, 'MainCoIn') || Str::contains($this->upFromWhere, 'main_coin') )) {
                 // #ep3
 
                 //send to medthod update bio profile to all platforms
@@ -912,8 +1084,8 @@ class SMAIUpdateProfileController extends Controller
     //DOne
     public function up_plan_bio($userdata, $user_id, $user_email)
     {
-        Log::debug("Start update Bio Profile to all Platforms in up_plan_bio ");
 
+        Log::debug("Start update Bio Profile to all Platforms in up_plan_bio ");
 
         //1.update plan to all platforms
         if (isset($userdata['plan'])) {
@@ -929,9 +1101,22 @@ class SMAIUpdateProfileController extends Controller
             $each_plan = PlanBio::where('plan_id', $userdata['plan'])->orderBy('plan_id', 'asc')->first();
 
             $socialpost_plan = $each_plan->socialpost_id;
+            $design_plan_id=  $each_plan->design_id;
             $userdata_plan['plan'] = $socialpost_plan;
+            $package_type_bio=$each_plan->package_type;
+            //Update Bio Plan change will effect SocialPost when It's is bundle 
+            if($package_type_bio=='bundle')
+            {
+            
+                if($socialpost_plan==0)
+                {
+                  $socialpost_plan=1;
+                }
 
+            $this->socialpost_permission_update_user($user_id,$socialpost_plan);
             $this->update_column_all($userdata_plan, $user_id, $user_email, 'main_db', 'sp_users');
+
+            }
 
             $main_coin_plan = $each_plan->main_plan_id;
             if ($main_coin_plan == 8) {
@@ -940,12 +1125,12 @@ class SMAIUpdateProfileController extends Controller
                 $main_marketing_id = $main_coin_plan;
             }
 
+            if($package_type_bio=='bundle')
+            {
+
             $userdata_plan['plan'] = $main_coin_plan;
 
-
             $this->update_column_all($userdata_plan, $user_id, $user_email, 'main_db', 'users');
-
-
             $design_plan = $each_plan->design_id;
             $userdata_plan['plan'] = $design_plan;
             $this->update_column_all($userdata_plan, $user_id, $user_email, 'digitalasset_db', 'users');
@@ -963,6 +1148,8 @@ class SMAIUpdateProfileController extends Controller
             // prepare for next update
             $userdata['package_id'] = $main_marketing_id;
 
+            }
+
         }
 
 
@@ -970,7 +1157,7 @@ class SMAIUpdateProfileController extends Controller
         $user_old_data = UserMain::where('id', $user_id)->orderBy('id', 'asc')->first();
 
 
-        //defind remaining_words
+        //defind remaining_words should come from Main data because Bio has reset it to 0 when change Plan
         $userdata['remaining_words'] = $user_old_data->remaining_words;
         $userdata['remaining_images'] = $user_old_data->remaining_images;
         $user_bio_old_data = UserBio::where('user_id', $user_id)->orderBy('user_id', 'asc')->first();
@@ -983,17 +1170,58 @@ class SMAIUpdateProfileController extends Controller
         $userdata['plan_expire_date'] = $user_bio_old_data->expired_date;
         $userdata['expired_date'] = $user_bio_old_data->expired_date;
 
+        $expired =$userdata['expiration_date'];
+
         $userdata['available_words'] = $user_old_data->available_words;
         $userdata['available_images'] = $user_old_data->available_images;
 
         if (isset($userdata['remaining_words'])) {
 
             $check_main_plan = PlanBio::where('plan_id', $userdata['plan'])->orderBy('plan_id', 'asc')->first();
-            $main_plan_id = $check_main_plan->main_plan_id;
+            $main_plan_id = $check_main_plan->plan_id;
             $check_plus_remaining = Plan::where('id', $main_plan_id)->orderBy('id', 'asc')->first();
 
+
+            //backup Plan in user Main as the core value 
+            $use_update_core_users_plans_backup=1;
+
+            $sp_cur_plan=$check_main_plan->socialpost_id;
+            $design_cur_plan=$check_main_plan->design_id;
+            $mobile_cur_plan=$check_main_plan->mobile_id;
+            $sync_cur_plan=$check_main_plan->sync_id;
+
+            if($use_update_core_users_plans_backup==1)
+            {
+
+            $user_main_plans_id=array(
+                'sp_plan' => $sp_cur_plan,
+                'design_plan' => $design_cur_plan,
+                'mobile_plan' => $mobile_cur_plan,
+                'sync_plan' => $sync_cur_plan,
+                'bio_plan' => $userdata['plan'],
+
+
+            );
+
+            $this->update_column_all($user_main_plans_id, $user_id, $user_email, 'main_db', 'users');
+           
+            }
+
+
+            // if main Plan have extra Token to Plus +
+            //Step 1. Plus from Main CoIn
             $plus_remaining_images = $check_plus_remaining->total_images;
             $plus_remaining_words = $check_plus_remaining->total_words;
+
+            //Step2 Plus from SmartBIo for example +6500 words and 250 images
+            // because the build in Plans in SmartBIo will set to 6500 and 250 
+            // and then Centallize Token will add Old Token from Main and New from main
+            // and then we will lose 6500 and 250 from Bio
+
+            $plus_bio_remaining_images = $check_main_plan->total_images;
+            $plus_bio_remaining_words = $check_main_plan->total_words;
+
+
 
 
             //case reset to freetrial no need to add token
@@ -1013,12 +1241,27 @@ class SMAIUpdateProfileController extends Controller
             }
 
             //update new data after plus new Plan
-            $userdata['remaining_words'] += $plus_remaining_words;
-            $userdata['remaining_images'] += $plus_remaining_images;
-            $userdata['available_words'] += $plus_remaining_words;
-            $userdata['available_images'] += $plus_remaining_images;
-            $userdata['total_words'] += $plus_remaining_words;
-            $userdata['total_images'] += $plus_remaining_images;
+            $userdata['remaining_words'] += $plus_remaining_words+$plus_bio_remaining_words;
+            $userdata['remaining_images'] += $plus_remaining_images+$plus_bio_remaining_images;
+            $userdata['available_words'] += $plus_remaining_words+$plus_bio_remaining_words;
+            $userdata['available_images'] += $plus_remaining_images+$plus_bio_remaining_images;
+            $userdata['total_words'] += $plus_remaining_words+$plus_bio_remaining_words;
+            $userdata['total_images'] += $plus_remaining_images+$plus_bio_remaining_images;
+
+
+            //to centralize Token
+            $old_reamaining_word = $user_old_data->remaining_words ;
+            $old_reamaining_image = $user_old_data->remaining_images ;
+            $token_array= array(
+                'remaining_words' => $userdata['remaining_words'],
+                'remaining_images' => $userdata['remaining_images'],
+            );
+            $token_plus_array = array(
+                'plus_remaining_images' => $plus_remaining_images,
+                'plus_remaining_words' =>  $plus_remaining_words,
+                'plus_bio_remaining_images' => $plus_bio_remaining_images,
+                'plus_bio_remaining_words' =>  $plus_bio_remaining_words,
+            );
 
 
             //To Bio ,Main, Socialpost, Design,Mobile2 Sync
@@ -1027,16 +1270,17 @@ class SMAIUpdateProfileController extends Controller
                 'remaining_images' => $userdata['remaining_images'],
             );
 
-            $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'main_db', 'users');
+            //move this to centralize Token
+
+            /* $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'main_db', 'users');
 
             $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'main_db', 'sp_users');
 
-            //$this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'bio_db','users');
+            $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'bio_db','users');
 
             $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'digitalasset_db', 'users');
 
             $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'mobileapp_db', 'users');
-
 
             $userdata_remaining_words['gpt_words_limit'] = $userdata['remaining_words'];
             $userdata_remaining_words['dalle_limit'] = $userdata['remaining_images'];
@@ -1044,15 +1288,16 @@ class SMAIUpdateProfileController extends Controller
             $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'sync_db', 'user');
 
             unset($userdata_remaining_words['gpt_words_limit']);
-            unset($userdata_remaining_words['dalle_limit']);
+            unset($userdata_remaining_words['dalle_limit']); */
 
+            //move this to centralize Token
 
         }
 
         //Separate all of these for each platform
 
         //plan main marketing && mobile old
-        if (isset($userdata['package_id'])) {
+        if ( isset($userdata['package_id']) &&  ($package_type_bio=='bundle')) {
 
 
             //To Main marketing co.in, Mobile old,
@@ -1073,7 +1318,11 @@ class SMAIUpdateProfileController extends Controller
 
             );
 
+            // comment to move to  plans_token_centralize(); 
+            // but not sure about plan expired
+
             $this->update_column_all($userdata_main_plan_array, $user_id, $user_email, 'main_db', 'users');
+
 
 
             //Socialpost Expired date
@@ -1100,6 +1349,7 @@ class SMAIUpdateProfileController extends Controller
             $this->update_column_all($expire_dateSync_arr, $user_id, $user_email, 'sync_db', 'user');
 
 
+        
         }
 
         //plan mobile_old
@@ -1160,7 +1410,9 @@ class SMAIUpdateProfileController extends Controller
                 'image_left' => $userdata['image_left'],
 
             );
-            $this->update_column_all($userdata_mobile_plan_array, $user_id, $user_email, 'mobileapp_db', 'users');
+            
+            // comment to move to  plans_token_centralize();
+            //$this->update_column_all($userdata_mobile_plan_array, $user_id, $user_email, 'mobileapp_db', 'users');
 
         }
 
@@ -1191,16 +1443,37 @@ class SMAIUpdateProfileController extends Controller
         }
 
 
+        if (isset($userdata['remaining_words'])) {
+         //defind exactly Token that will be update then update centralize
+        $this->plans_token_centralize($user_id, $user_email, $token_array, $usage = 0, $from = 'bio', $old_reamaining_word , $old_reamaining_image , $chatGPT_catgory = "PlanUpgrade_from_SmartBio", $token_update_type = 'both',$expired,$design_plan_id,$token_plus_array);
+        }
+
     }
 
     //Done
     public function up_plan_main_coin($userdata, $user_id, $user_email)
     {
-        Log::debug("Start update Bio Profile to all Platforms in up_plan_bio ");
+        $golden_tokens=0;
+        $userdata_plan=array();
+        Log::debug("Start update Bio Profile to all Platforms in up_plan_main_coin ");
 
 
         //1.update plan to all platforms
+        if(isset($userdata['plan']) && ($this->upFromWhere=='main_coin' || Str::contains($this->upFromWhere,'MainCoIn_') )) 
+        {
+            if($userdata['plan']==7 || $userdata['plan']==4)
+            {
+                $golden_tokens=1;
+
+            }
+
+        }
+
+
+        
         if (isset($userdata['plan'])) {
+
+            Log::debug('Yes userdata_plan has been set');
             $userdata_plan = array(
                 'plan' => $userdata['plan'],
             );
@@ -1209,40 +1482,73 @@ class SMAIUpdateProfileController extends Controller
             // not working because each plan value not the same
             //$this->update_column_all($userdata_name,$user_id,$user_email);
 
-
+            if(isset($userdata['plan']))
             $each_plan = Plan::where('id', $userdata['plan'])->orderBy('id', 'asc')->first();
+            else
+            Log::debug('Error _userdata_plan not set');
 
-            $socialpost_plan = $each_plan->socialpost_id;
-            $userdata_plan['plan'] = $socialpost_plan;
+            //Update social post
 
+            if(isset($each_plan))
+            {
+               
+
+                $design_plan_id=  $each_plan->design_id;
+                Log::debug('Case isset $each_plan from Main  true');
+                $socialpost_plan = $each_plan->socialpost_id;
+                Log::debug('FOund Social Plan '.$socialpost_plan);
+               
+                $userdata_plan['plan'] = $socialpost_plan;
+                Log::debug('success set userdata_plan '.$userdata_plan['plan']);
+
+                $package_type_main=$each_plan->package_type;
+
+                Log::debug('and Package Type '.$package_type_main);
+            }
+
+            if($socialpost_plan==0)
+            $socialpost_plan=1;
+
+            $this->socialpost_permission_update_user($user_id,$socialpost_plan);
             $this->update_column_all($userdata_plan, $user_id, $user_email, 'main_db', 'sp_users');
 
-            $main_coin_plan = $each_plan->main_plan_id;
+            Log::debug('Success passed socialpost_permission_update_user');
+            
+            
+            $main_coin_plan = $userdata['plan'];
             if ($main_coin_plan == 8) {
                 $main_marketing_id = 1;
             } else {
                 $main_marketing_id = $main_coin_plan;
             }
 
+           
+
             //call from main_coin need not to update itself
             /* $userdata_plan['plan']=$main_coin_plan;
             $this->update_column_all( $userdata_plan,$user_id,$user_email,'main_db','users');
      */
 
+           if($package_type_main=='bundle')
+           {
+            $this->bio_plan_settings_update_user($user_id,$plan_id);
             $bio_plan = $each_plan->bio_id;
             $userdata_plan['plan'] = $bio_plan;
             $this->update_column_all($userdata_plan, $user_id, $user_email, 'bio_db', 'users');
+           }
 
-
+             //mostly it depend on MainCoIn
             $design_plan = $each_plan->design_id;
+
             $userdata_plan['plan'] = $design_plan;
             $this->update_column_all($userdata_plan, $user_id, $user_email, 'digitalasset_db', 'users');
 
-
+            //mostly it depend on MainCoIn
             $mobile_plan = $each_plan->mobile_id;
             $userdata_plan['plan'] = $mobile_plan;
             $this->update_column_all($userdata_plan, $user_id, $user_email, 'mobileapp_db', 'users');
-
+            
+            //mostly it depend on MainCoIn
             $sync_plan = $each_plan->sync_id;
             $userdata_plan['plan'] = $sync_plan;
             $this->update_column_all($userdata_plan, $user_id, $user_email, 'sync_db', 'user');
@@ -1276,12 +1582,79 @@ class SMAIUpdateProfileController extends Controller
 
         if (isset($userdata['remaining_words'])) {
 
-            $check_main_plan = PlanBio::where('plan_id', $userdata['plan'])->orderBy('plan_id', 'asc')->first();
-            $main_plan_id = $check_main_plan->main_plan_id;
-            $check_plus_remaining = Plan::where('id', $main_plan_id)->orderBy('id', 'asc')->first();
+            
+
+            $check_main_plan = Plan::where('id', $userdata['plan'])->orderBy('id', 'asc')->first();
+            $main_plan_id = $check_main_plan->id;
+            $check_plus_remaining = PlanBio::where('plan_id', $main_plan_id)->orderBy('plan_id', 'asc')->first();
 
             $plus_remaining_images = $check_plus_remaining->total_images;
             $plus_remaining_words = $check_plus_remaining->total_words;
+            
+            //check if Tokens from package is Golden Tokens
+            if($golden_tokens==1 )
+            {
+                //add tokens to  main Golden Tokens
+                //2. should add? golden_freeze_date , golden_expired_date
+                $golden_tokens_save=array(
+
+                    'golden_tokens' => $plus_remaining_images+$plus_remaining_words,
+                );
+
+                $this->update_column_all($golden_tokens_save, $user_id, $user_email, 'main_db', 'users');
+            }
+
+
+            //backup Plan in user Main as the core value 
+            $use_update_core_users_plans_backup=1;
+
+            $sp_cur_plan=$check_main_plan->socialpost_id;
+            $design_cur_plan=$check_main_plan->design_id;
+            $mobile_cur_plan=$check_main_plan->mobile_id;
+            $sync_cur_plan=$check_main_plan->sync_id;
+
+            if($use_update_core_users_plans_backup==1)
+            {
+                  if($package_type_main=='bundle')
+                  {
+                    $user_main_plans_id=array(
+                        'sp_plan' => $sp_cur_plan,
+                        'design_plan' => $design_cur_plan,
+                        'mobile_plan' => $mobile_cur_plan,
+                        'sync_plan' => $sync_cur_plan,
+                        'bio_plan' => $userdata['plan'],
+                    );
+
+                   }
+                    else
+                    {
+                        $user_main_plans_id=array(
+                            'sp_plan' => $sp_cur_plan,
+                            'design_plan' => $design_cur_plan,
+                            'mobile_plan' => $mobile_cur_plan,
+                            'sync_plan' => $sync_cur_plan,
+                          
+                        );
+
+
+                    }
+            
+            $this->update_column_all($user_main_plans_id, $user_id, $user_email, 'main_db', 'users');
+           
+            }
+
+            // if main Plan have extra Token to Plus +
+            //Step 1. Plus from Main CoIn
+            $plus_bio_remaining_images = $check_plus_remaining->total_images;
+            $plus_bio_remaining_words = $check_plus_remaining->total_words;
+
+            //Step2 Plus from SmartBIo for example +6500 words and 250 images
+            // because the build in Plans in SmartBIo will set to 6500 and 250 
+            // and then Centallize Token will add Old Token from Main and New from main
+            // and then we will lose 6500 and 250 from Bio
+
+            $plus_remaining_images = $check_main_plan->total_images;
+            $plus_remaining_words = $check_main_plan->total_words;
 
 
             //case reset to freetrial no need to add token
@@ -1296,18 +1669,31 @@ class SMAIUpdateProfileController extends Controller
                 $this->plus_new_words_token = $userdata['remaining_words_plus'];
 
             } else {
-                $this->plus_new_images_token = $plus_remaining_images;
-                $this->plus_new_words_token = $plus_remaining_words;
+                $this->plus_new_images_token = $plus_remaining_images+$plus_bio_remaining_images;
+                $this->plus_new_words_token = $plus_remaining_words+$plus_bio_remaining_words;
             }
 
             //update new data after plus new Plan
-            $userdata['remaining_words'] += $plus_remaining_words;
-            $userdata['remaining_images'] += $plus_remaining_images;
-            $userdata['available_words'] += $plus_remaining_words;
-            $userdata['available_images'] += $plus_remaining_images;
-            $userdata['total_words'] += $plus_remaining_words;
-            $userdata['total_images'] += $plus_remaining_images;
+            $userdata['remaining_words'] += $plus_remaining_words+$plus_bio_remaining_words;
+            $userdata['remaining_images'] += $plus_remaining_images+$plus_bio_remaining_images;
+            $userdata['available_words'] += $plus_remaining_words+$plus_bio_remaining_words;
+            $userdata['available_images'] += $plus_remaining_images+$plus_bio_remaining_images;
+            $userdata['total_words'] += $plus_remaining_words+$plus_bio_remaining_words;
+            $userdata['total_images'] += $plus_remaining_images+$plus_bio_remaining_images;
 
+            //to centralize Token
+            $old_reamaining_word = $user_old_data->remaining_words ;
+            $old_reamaining_image = $user_old_data->remaining_images ;
+            $token_array= array(
+                'remaining_words' => $userdata['remaining_words'],
+                'remaining_images' => $userdata['remaining_images'],
+            );
+            $token_plus_array = array(
+                'plus_remaining_images' => $plus_remaining_images,
+                'plus_remaining_words' =>  $plus_remaining_words,
+                'plus_bio_remaining_images' => $plus_bio_remaining_images,
+                'plus_bio_remaining_words' =>  $plus_bio_remaining_words,
+            );
 
             //To Bio ,Main, Socialpost, Design,Mobile2 Sync
             $userdata_remaining_words = array(
@@ -1315,11 +1701,12 @@ class SMAIUpdateProfileController extends Controller
                 'remaining_images' => $userdata['remaining_images'],
             );
 
-            $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'main_db', 'users');
+            //move this to centralize Token
+            /* $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'main_db', 'users');
 
             $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'main_db', 'sp_users');
 
-            //$this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'bio_db','users');
+            $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'bio_db','users');
 
             $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'digitalasset_db', 'users');
 
@@ -1332,7 +1719,9 @@ class SMAIUpdateProfileController extends Controller
             $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'sync_db', 'user');
 
             unset($userdata_remaining_words['gpt_words_limit']);
-            unset($userdata_remaining_words['dalle_limit']);
+            unset($userdata_remaining_words['dalle_limit']); */
+
+            //move this to centralize Token
 
 
         }
@@ -1474,9 +1863,18 @@ class SMAIUpdateProfileController extends Controller
 
         //plan bio
         //because call from bio Do nothing
-        if (isset($userdata['plan_expiration_date'])) {
+        if (isset($userdata['plan_expiration_date'])) 
+            $expired=$userdata['plan_expiration_date'];
+        else if (isset($userdata['expiration_date']))
+            $expired =$userdata['expiration_date'];
+        else
+            $expired =NULL;
+           
 
-        }
+        if (isset($userdata['remaining_words'])) {
+            //defind exactly Token that will be update then update centralize
+           $this->plans_token_centralize($user_id, $user_email, $token_array, $usage = 0, $from = 'main_coin', $old_reamaining_word , $old_reamaining_image , $chatGPT_catgory = "PlanUpgrade_from_MainCoIn", $token_update_type = 'both',$expired,$design_plan_id,$token_plus_array);
+           }
 
 
     }
@@ -1864,7 +2262,7 @@ class SMAIUpdateProfileController extends Controller
     }
 
     //Done
-    public function update_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL)
+    public function update_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL,$token_plus_array=NULL)
     {
 
 
@@ -1880,6 +2278,17 @@ class SMAIUpdateProfileController extends Controller
              'phone' => $phone,
              'mobile' => $phone,
          ); */
+
+        $main_user=UserMain::where('id',$user_id)->first();
+        $main_goldens_token=$main_user->golden_tokens;
+        
+        if( ($main_goldens_token > 0) && ($main_goldens_token > $token_array['remaining_images'] + $token_array['remaining_words']))
+        {
+            $main_user->golden_tokens=$token_array['remaining_images'] + $token_array['remaining_words'];
+            $main_user->golden_tokens_mode =1;
+            $main_user->save();
+            //$token_array['golden_tokens']=$token_array['remaining_images'] + $token_array['remaining_words'];
+        }
 
         $db = "main_db";
         $table = "users";
@@ -1983,7 +2392,9 @@ class SMAIUpdateProfileController extends Controller
             if ($token_update_type == 'both') {
                 $token_before_text = $old_reamaining_word;
                 $token_before_image = $old_reamaining_image;
-                $chatGPT_catgory = "AdminManualUpdate";
+
+                if($chatGPT_catgory == NULL)
+                 $chatGPT_catgory = "AdminManualUpdate";
 
 
             }
@@ -1995,33 +2406,161 @@ class SMAIUpdateProfileController extends Controller
         $token_after = $token_array['remaining_words'] + $token_array['remaining_images'];
         $openai_record = NULL;
 
+        
+
         if ($sync_token >= 0) {
-            $log_data = array(
+            
 
-                'user_openai_id' => NULL,
-                'user_openai_chat_id' => NULL,
-                'amount' => $usage,
-                'platform' => $from,
-                'token_before' => $token_before,
-                'token_after' => $token_after,
-                'user_id' => $user_id,
-                'type' => $chatGPT_catgory,
-                'token_text_before' => $token_before_text,
-                'token_text_after' => $token_array['remaining_words'],
-                'token_image_before' => $token_before_image,
-                'token_image_after' => $token_array['remaining_images'],
+            if($token_plus_array!= NULL)
+            {
+                $amount_main=$token_plus_array['plus_remaining_images']+$token_plus_array['plus_remaining_words'];
+
+                $token_after_1 = $token_before + $amount_main;
 
 
-            );
+                //if($chatGPT_catgory==)
+              
+                
 
-            $log_token = TokenLogs::create($log_data);
+                $log_data_plus = array(
+
+                    'user_openai_id' => NULL,
+                    'user_openai_chat_id' => NULL,
+                    'amount' => $token_plus_array['plus_remaining_images']+$token_plus_array['plus_remaining_words'] ,
+                    'platform' => $from,
+                    'token_before' => $token_before,
+                    'token_after' => $token_after_1 ,
+                    'user_id' => $user_id,
+                    'type' => 'PlanUpgrade_Main',
+                    'token_text_before' => $token_before_text,
+                    'token_text_after' => $token_array['remaining_words'] - $token_plus_array['plus_bio_remaining_words'],
+                    'token_image_before' => $token_before_image,
+                    'token_image_after' => $token_array['remaining_images'] - $token_plus_array['plus_bio_remaining_images'],
+    
+    
+                );
+
+
+                $log_token_plus = TokenLogs::create($log_data_plus);
+
+
+                $amount_bio=$token_plus_array['plus_bio_remaining_images']+$token_plus_array['plus_bio_remaining_words'];
+                $log_data_plus2 = array(
+
+                    'user_openai_id' => NULL,
+                    'user_openai_chat_id' => NULL,
+                    'amount' => $token_plus_array['plus_bio_remaining_images']+$token_plus_array['plus_bio_remaining_words'] ,
+                    'platform' => $from,
+                    'token_before' => $token_before+$amount_main,
+                    'token_after' => $token_after,
+                    'user_id' => $user_id,
+                    'type' => 'PlanUpgrade_Bio',
+                    'token_text_before' => $token_before_text+$token_plus_array['plus_remaining_words'],
+                    'token_text_after' => $token_array['remaining_words'],
+                    'token_image_before' => $token_before_image+$token_plus_array['plus_remaining_images'],
+                    'token_image_after' => $token_array['remaining_images'],
+    
+    
+                );
+
+
+                $log_token_plus2 = TokenLogs::create($log_data_plus2);
+            }
+
+            else{
+
+
+                $log_data = array(
+
+                    'user_openai_id' => NULL,
+                    'user_openai_chat_id' => NULL,
+                    'amount' => $usage,
+                    'platform' => $from,
+                    'token_before' => $token_before,
+                    'token_after' => $token_after,
+                    'user_id' => $user_id,
+                    'type' => $chatGPT_catgory,
+                    'token_text_before' => $token_before_text,
+                    'token_text_after' => $token_array['remaining_words'],
+                    'token_image_before' => $token_before_image,
+                    'token_image_after' => $token_array['remaining_images'],
+    
+    
+                );
+    
+                $log_token = TokenLogs::create($log_data);
+
+
+
+
+
+            }
+           
 
         }
 
 
     }
 
+    public function plans_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL,$expired=NULL,$design_plan_id,$token_plus_array)
+    {
 
+        //check Token changed after upgrade/downgrade Plan
+        //1. when change plan still not yet insert token_logs
+        // 1.1 Check How Many tokens must be add ?
+        // 1.2 that token in 1.1 from where?  and which Plan ID
+        // 2. then call $this->update_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL)
+
+
+        $this->update_token_centralize($user_id, $user_email, $token_array, $usage , $from , $old_reamaining_word , $old_reamaining_image , $chatGPT_catgory , $token_update_type,$token_plus_array);
+
+        // จัดโครงสร้าง token_logs ให้ละเอียดและชัดเจนมากขึ้น ว่า token เพิ่มหรือลด จากไหน หรือใช้จากไหน และใช้ไปกับอะไร
+        //add Function add user_subscriptions table record of user to Desing user that level reach
+        //plan =2 and access_level = 5
+
+
+       if($design_plan_id>=2) 
+       {
+
+        // need plan SocialPost ID to check and Plan End date
+        $DesignUser=UserDesign::where('id',$user_id)->first();
+        $email_Desing_user=$DesignUser->email;
+        $DesignUser->access_level=5;
+        $DesignUser->save();
+
+
+        $DesignUser_ExampleSub=UserDesignSubscriptions::latest('usp_id')->first();
+        
+        //clone existing 
+        $newDesignUser = $DesignUser_ExampleSub->replicate();
+
+        $newDesignUser->usp_id=$DesignUser_ExampleSub->usp_id+1;
+        $newDesignUser->user_id=$user_id;
+        $newDesignUser->plan_period_start=Carbon::now();
+
+        /* if($expired!=NULL)
+        $newDesignUser->plan_period_end=$expired;
+        else */
+        $newDesignUser->plan_period_end=Carbon::now()->addDays(31);
+
+
+
+        $newDesignUser->payer_email=$email_Desing_user;
+
+        $newDesignUser->created= Carbon::now();
+        $newDesignUser->created_at = Carbon::now();
+        $newDesignUser->save();
+
+       }
+
+
+        
+
+
+
+    }
+
+    //Done wait for upgrade
     public function update_language_centralize($user_id, $user_email, $lang)
     {
         //MainCoIn   language
@@ -2091,8 +2630,8 @@ class SMAIUpdateProfileController extends Controller
 
     }
 
-    //Update SocialPost Team Setting
-
+    //Update SocialPost Team Setting  Plan Sync
+    // *************** Important Plan Upgrade / Downgrade *************** 
     public function update_team_permissions($key, $value, $team_id = 0, $owner = 0)
     {
 
@@ -2133,7 +2672,8 @@ class SMAIUpdateProfileController extends Controller
     }
 
 
-    //Update Bio plan_settings
+    //Update Bio plan_settings Plan Sync
+    // ************************* Important for Pland Upgrade / Downgrade ***************
 
     public function update_bio_users_plan_settings($key, $value, $user_id = 0)
     {
@@ -3005,6 +3545,168 @@ class SMAIUpdateProfileController extends Controller
 
         }
 
+
+    }
+
+    public function socialpost_permission_update_user($user_id,$plan_id)
+    {
+        if($plan_id==0)
+        $plan_id=1;
+
+        Log::debug('Success fix Plan ID bug'.$plan_id);
+
+        $plan_item = DB::connection('main_db')->table('sp_plans')
+        ->select('*')
+        ->where('id', '=', $plan_id)
+        ->limit(1)
+        ->get();
+
+
+            if(!empty($plan_item)){
+                $plan = $plan_item[0]->id;
+                $permissions = $plan_item[0]->permissions;
+                if($plan_item[0]->trial_day != -1){
+                    $expiration_date = time() + $plan_item[0]->trial_day*86400;
+                }
+            }
+                    
+            $save_team = [
+              
+                "permissions" => $permissions
+            ];
+          
+         
+           $team_id =  DB::connection('main_db')->table('sp_team')
+           ->where('owner',$user_id)
+            ->update($save_team);
+
+            return $team_id ;
+    
+
+
+    }
+
+
+
+    public function bio_plan_settings_update_user($user_id,$plan_id)
+    {
+
+        /* $user_bio_plan_arr=SettingBio::where('key','plan_free')->orderBy('id','asc')->first();
+        $user_bio_plan_arr = json_decode($user_bio_plan_arr, true);
+        Log::debug('this is Setting Bio info from DB : ');
+        Log::info($user_bio_plan_arr);
+        Log::debug('this is Value Setting Bio info from DB : ');
+        Log::info($free_plan);
+        $user_bio_plan_array_con = json_decode($free_plan,true);
+        Log::debug('this is Setting dECODE  FROM Main  array : ');
+        Log::info($user_bio_plan_array_con);
+        $free_plan_setting=$user_bio_plan_array_con['settings']; */
+
+        $user_bio_plan_arr=PlanBio::where('plan_id',$plan_id)->orderBy('plan_id','asc')->first();
+        $free_plan_setting=$user_bio_plan_arr->settings;
+
+
+        $userdata = [
+        'plan_settings' => json_encode($free_plan_setting),
+
+         ];
+
+
+         $update_id  = DB::connection('bio_db')->table('users')
+         ->where('user_id',$user_id)
+         ->update($userdata);
+
+         return $update_id ;
+
+
+    }
+
+
+// Function to convert array into 
+// stdClass object
+public function ToObject($Array) {
+     
+    // Create new stdClass object
+    $object = new stdClass();
+     
+    // Use loop to convert array into
+    // stdClass object
+    foreach ($Array as $key => $value) {
+        if (is_array($value)) {
+            $value = ToObject($value);
+        }
+        $object->$key = $value;
+    }
+    return $object;
+}
+
+    public function openAICustomAddOrUpdateSave($request_arr)
+    {
+        $request=$this->ToObject($request_arr);
+
+        Log::debug('After convert to Object ');
+        //Log::info($request);
+
+        if ($request->template_id != NULL){
+            $template = OpenAIGenerator::where('id', $request->template_id)->firstOrFail();
+        }else{
+            $template = new OpenAIGenerator();
+        }
+
+        $template->title = $request->title;
+        $template->description = $request->description;
+        $template->image = $request->image;
+        $template->color = $request->color;
+        $template->prompt = $request->prompt;
+
+        $inputNames = explode( ',', $request->input_name);
+        $inputDescriptions = explode( ',', $request->input_description);
+        $inputTypes = explode( ',', $request->input_type);
+
+        $i = 0;
+        $prompt_name='write a text about';
+        $array = [];
+        foreach ($inputNames as $inputName){
+            $array[$i]['name'] = Str::slug($inputName);
+            $array[$i]['type'] = $inputTypes[$i];
+            $array[$i]['question'] = $inputName;
+            $array[$i]['description'] = $inputDescriptions[$i];
+
+            if($i>0)
+            {
+             $prompt_name.='and';
+            }
+
+            $prompt_name.=' ';
+            $prompt_name.='**'.$inputName.'**';
+
+            $i++;
+        }
+
+        //write a text about   description**  and  **description-second**
+
+        $questions = json_encode($array,JSON_UNESCAPED_SLASHES);
+        $template->active = 1;
+        $template->slug = Str::slug($request->title).'-'.Str::random(6);
+        $template->questions = $questions;
+        $template->type = 'text';
+        $template->custom_template = 1;
+        $template->prompt =$prompt_name;
+        $template->filters = $request->filters;
+        foreach (explode( ',', $request->filters) as $filter){
+            if (OpenaiGeneratorFilter::where('name', $filter)->first() == null){
+                $newFilter = new OpenaiGeneratorFilter();
+                $newFilter->name = $filter;
+                $newFilter->save();
+            }
+        }
+        $template->premium = $request->premium;
+        $template->bio_template_id = $this->bio_template_id;
+
+        $template->save();
+
+        $ins_openai_id=$template->id;
+        return $ins_openai_id;
 
     }
 
