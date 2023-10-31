@@ -3,7 +3,9 @@
 namespace Modules\CourseSetting\Entities;
 
 use App\Models\LmsBadge;
-use App\User;
+//use App\User;
+use App\Models\UserCourse;
+
 use Carbon\Carbon;
 use App\LessonComplete;
 use App\Traits\Tenantable;
@@ -40,6 +42,34 @@ class Course extends Model
 
     use HasSlug;
     use Tenantable;
+    protected $connection='course_db';
+    protected $table = 'courses';
+
+    protected $fillable = [
+        'title' ,
+                                                 'slug' ,
+                                                'duration' ,
+                                                'publish' ,
+                                                'level',
+                                                'trailer_link' ,
+                                                'host',
+                                                'about' ,
+                                                'status' ,
+                                                'category_id' ,
+                                                'subcategory_id' ,
+                                                'user_id',
+                                                'price' ,
+                                                'discount_price' ,
+                                                'lang_id',
+                                                'reveiw',
+                                                'total_enrolled',
+                                                'reveune',
+                                                'image' ,
+                                                'thumbnail' 
+
+                                                 
+
+    ];
 
     protected $guarded = [];
 
@@ -56,18 +86,18 @@ class Course extends Model
 
     public function enrollUsers()
     {
-        return $this->belongsToMany(User::class, 'course_enrolleds', 'course_id', 'user_id');
+        return $this->belongsToMany(UserCourse::class, 'course_enrolleds', 'course_id', 'user_id');
     }
 
 
     public function cartUsers()
     {
-        return $this->belongsToMany(User::class, 'carts', 'course_id', 'user_id');
+        return $this->belongsToMany(UserCourse::class, 'carts', 'course_id', 'user_id');
     }
 
     public function BookmarkUsers()
     {
-        return $this->belongsToMany(User::class, 'bookmark_courses', 'course_id', 'user_id');
+        return $this->belongsToMany(UserCourse::class, 'bookmark_courses', 'course_id', 'user_id');
     }
 
     public function quiz()
@@ -96,7 +126,7 @@ class Course extends Model
     public function user()
     {
 
-        return $this->belongsTo(User::class, 'user_id', 'id')->withDefault([
+        return $this->belongsTo(UserCourse::class, 'user_id', 'id')->withDefault([
             'name' => ' '
         ]);
     }

@@ -19,6 +19,7 @@ use OpenAI;
 use OpenAI\Laravel\Facades\OpenAI as FacadesOpenAI;
 
 use App\Models\UserMain;
+use App\Http\Controllers\APIs\SMAISyncTokenController;
 
 //use App\Http\Controllers\APIs\APIsController;
 
@@ -47,13 +48,25 @@ class AIController extends Controller
     return Storage::disk('s3')->size($file_path);
 }
 
-    public function buildOutput(Request $request)
+    public function buildOutput($request)
     {
+
+        //$obj = json_decode($request);
+        $obj = $request;
+
+        $newObj = new stdClass();
+        foreach ($obj as $key => $value) {
+            $newObj->$key = $value;
+        }
+
+        $request= $newObj;
 
         //Log::debug('request inside function buildOutput '.$request);
 
-        if($request->user_id > 0)
+        if(isset($request->user_id) && $request->user_id > 0)
         $user_id=$request->user_id;
+        /* else if(isset($request['user_id']) && $request['user_id'] > 0)
+        $user_id=$request['user_id']; */
         else
         $user_id=1;
 
@@ -76,8 +89,8 @@ class AIController extends Controller
 
         //POST TITLE GENERATOR
         if ($post_type == 'post_title_generator') {
-            $your_description = $request->your_description;
-            $prompt = "Post title about $your_description in language $language .Generate $number_of_results post titles. Tone $tone_of_voice.";
+            $description = $request->description;
+            $prompt = "Post title about $description in language $language .Generate $number_of_results post titles. Tone $tone_of_voice.";
         }
 
         //ARTICLE GENERATOR
@@ -252,7 +265,7 @@ class AIController extends Controller
             $description = $request->description;
             $keywords = $request->keywords;
 
-            $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords. Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice";
+            $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords. Maximum $maximum_length words. Creativity is $creativity Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice";
         }
 
         //Pros & Cons
@@ -312,7 +325,7 @@ class AIController extends Controller
         }
 
         // TL;DR summarization
-        if ($post_type == 'tldr_summarization') {
+        if ($post_type ==  'tldr_summarization') {
             $description = $request->description;
 
             $prompt = "$description. Tl;dr Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different tl;dr. Tone of voice must be $tone_of_voice";
@@ -362,7 +375,11 @@ class AIController extends Controller
         }
 
         if ($post->type == 'text') {
-            return $this->textOutput($prompt, $post, $creativity, $maximum_length, $number_of_results, $user,$user_id);
+            
+            if($post_type == 'language_translation')
+            return $this->textOutput($prompt, $post, $creativity, $maximum_length, $number_of_results, $user,$user_id,$post_type);
+            else
+            return $this->textOutput($prompt, $post, $creativity, $maximum_length, $number_of_results, $user,$user_id,$post_type);
         }
 
         if ($post->type == 'code') {
@@ -370,7 +387,7 @@ class AIController extends Controller
         }
 
         if ($post->type == 'image') {
-            return $this->imageOutput($prompt, $size, $post, $user, $style, $lighting, $mood, $number_of_images, $image_generator, $negative_prompt,$user_id);
+            return $this->imageOutput($prompt, $size, $post, $user, $style, $lighting, $mood, $number_of_images, $image_generator, $negative_prompt,$user_id,$request);
         }
 
         if ($post->type == 'audio') {
@@ -464,7 +481,7 @@ class AIController extends Controller
                         // echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
                        // ob_flush();
                        // flush();
-                        usleep(500);
+                        //usleep(500);
                     }
                 } else {
                     if (isset($response->choices[0]->text)) {
@@ -504,7 +521,7 @@ class AIController extends Controller
                         // echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
                        // ob_flush();
                        // flush();
-                        usleep(500);
+                        //usleep(500);
                     }
                 }
 
@@ -627,12 +644,13 @@ class AIController extends Controller
         $message_id = $entry->id;
         $workbook = $entry;
         $inputPrompt = $prompt;
-        $html = view('panel.user.openai.documents_workbook_textarea', compact('workbook'))->render();
-        return response()->json(compact('message_id', 'html', 'creativity', 'maximum_length', 'number_of_results', 'inputPrompt'));
+        //$html = view('panel.user.openai.documents_workbook_textarea', compact('workbook'))->render();
+        //return response()->json(compact('message_id', 'html', 'creativity', 'maximum_length', 'number_of_results', 'inputPrompt'));
+
        
     }
 
-    public function textOutput($prompt, $post, $creativity, $maximum_length, $number_of_results, $user,$user_id=NULL)
+    public function textOutput($prompt, $post, $creativity, $maximum_length, $number_of_results, $user,$user_id=NULL,$post_type=NULL)
     {
         if($user_id ==NULL)
         $user_id=1;
@@ -689,8 +707,8 @@ class AIController extends Controller
 
 
                     // echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-                    //ob_flush();
-                    //flush();
+                    if (ob_get_level() > 0) {ob_flush();}
+                    flush();
                     usleep(500);
                 }
 
@@ -727,8 +745,8 @@ class AIController extends Controller
 
 
                     // echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-                   // ob_flush();
-                   // flush();
+                    if (ob_get_level() > 0) {ob_flush();}
+                    flush();
                     usleep(500);
                 }
 
@@ -772,18 +790,11 @@ class AIController extends Controller
 
 
                     // echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-                    //ob_flush();
-                   //flush();
+                    if (ob_get_level() > 0) {ob_flush();}
+                   flush();
                     usleep(500);
                 }
             }
-
-
-
-
-           
-
-
 
             if (connection_aborted()) {
                 break;
@@ -822,7 +833,7 @@ class AIController extends Controller
             // SMAI text-davinci-003 start sync  token usage
 
             $send_smai=0;
-                    $smai_params_input=array(
+            $smai_params_input=array(
 
                         'model' => 'text-davinci-003',
                         'prompt' => $prompt,
@@ -831,7 +842,7 @@ class AIController extends Controller
                         'n' => (int)$number_of_results,
                         'main_useropenai_message_id' => $message_id,
 
-                    );
+            );
             if( $send_smai==1)
             {
                 $smai_params_input['platform'] = 'main_coin';
@@ -841,13 +852,25 @@ class AIController extends Controller
                 $usage= 0;
 
                 $data_api=  null;
-                //  SMAITokenSyncController::synctoken_digitalasset($user_id,$usage,$data_api,$smai_params_input);    
+            //  SMAITokenSyncController::synctoken_digitalasset($user_id,$usage,$data_api,$smai_params_input);    
 
             }
-                //eof SMAI text-davinci-003 start sync  token usage
+            //eof SMAI text-davinci-003 start sync  token usage
 
+           if($post_type == 'post_title_generator' || $post_type == 'article_generator' )
+           $return_html=$output;
+           else
+           $return_html=$responsedText;
 
-        return trim( $responsedText);
+        $return_array=array(
+            'message_id' => $message_id,
+            'html' => $return_html,
+            'creativity' => $creativity,
+            'maximum_length' => $maximum_length,
+            'number_of_results' => $number_of_results,
+            'inputPrompt' => $inputPrompt,
+        );
+        return $return_array;
 
         //return response()->json(compact('message_id', 'html', 'creativity', 'maximum_length', 'number_of_results', 'inputPrompt'));
     }
@@ -925,7 +948,7 @@ class AIController extends Controller
     }
 
     //SMAI Synced
-    public function imageOutput($prompt, $size, $post, $user, $style, $lighting, $mood, $number_of_images, $image_generator, $negative_prompt,$user_id=NULL)
+    public function imageOutput($prompt, $size, $post, $user, $style, $lighting, $mood, $number_of_images, $image_generator, $negative_prompt,$user_id=NULL,$request=NULL)
     {
         //save generated image datas
         $entries=[];
@@ -962,9 +985,11 @@ class AIController extends Controller
                 $nameOfImage = Str::random(12) . '-DALL-E-' . Str::slug($prompt) . '.png';
 
                 //save file on local storage or aws s3
-                Storage::disk('public')->put($nameOfImage, $contents);
-                $path = 'uploads/' . $nameOfImage;
-
+                Storage::disk('topics')->put($nameOfImage, $contents);
+               
+                //Storage::disk('topics')->put($nameOfImage, file_get_contents($contents));
+                $path = 'https://smartstock.social/uploads/topics/' . $nameOfImage;
+                //$path = 'uploads/' . $nameOfImage; 
 
                 //SMAI sync
                 $data_api=  json_encode($response);
@@ -1045,65 +1070,13 @@ class AIController extends Controller
                 //$file_size = Storage::size('https://smartcontent.co.in/'.$path);
             }
 
-            if($image_storage == self::STORAGE_S3) {
-                try {
-                    $uploadedFile = new File($path);
-                    $aws_path = Storage::disk('s3')->put('', $uploadedFile);
-                    unlink($path);
-                    $path = Storage::disk('s3')->url($aws_path);
-                } catch (\Exception $e) {
-                    return response()->json(["status" => "error", "message" => "AWS Error - ".$e->getMessage()]);
-                }
-            }
-            
-            $entry = new UserOpenai();
-            $entry->title = 'New Image';
-            $entry->slug = Str::random(7) . Str::slug($user->fullName()) . '-workbsook';
-            $entry->user_id = $user->id;
-            $entry->openai_id = $post->id;
-            $entry->input = $prompt;
-            $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
-            $entry->output = $image_storage == self::STORAGE_S3 ? $path : '/' . $path;
-            $entry->hash = Str::random(256);
-            $entry->credits = 1;
-            $entry->words = 0;
-            $entry->storage = $image_storage == self::STORAGE_S3 ? UserOpenai::STORAGE_AWS : UserOpenai::STORAGE_LOCAL;
-            $entry->save();
 
-            //push each generated image to an array
-            array_push($entries, $entry);
-
-            if ($user->remaining_images - 1 == -1) {
-                $user->remaining_images = 0;
-                $user->save();
-                $userOpenai = UserOpenai::where('user_id', Auth::id())->where('openai_id', $post->id)->orderBy('created_at', 'desc')->get();
-                $openai = OpenAIGenerator::where('id', $post->id)->first();
-                return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
-            }
-
-            if ($user->remaining_images == 1) {
-                $user->remaining_images = 0;
-                $user->save();
-            }
-
-            if ($user->remaining_images != -1 and $user->remaining_images != 1 and $user->remaining_images != 0) {
-                $user->remaining_images -= 1;
-                $user->save();
-            }
-
-            if ($user->remaining_images < -1) {
-                $user->remaining_images = 0;
-                $user->save();
-            }
-
-            if ($user->remaining_images == 0) {
-                return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
-            }
-
-           
-                //SMAI start sync  token usage
+             //SMAI start sync  token usage
                 $file_size=0;
-                $user_id=$user->id;
+                //$user_id=$user->id;
+                if($user_id ==NULL)
+                $user_id=1;
+
                 $usage=1;
                 $params =  json_encode(array( 
                             'prompt' => $prompt,
@@ -1113,7 +1086,7 @@ class AIController extends Controller
                             'platform' => 'main_coin',
                             'gpt_category' => 'Images_SmartContentCoIn',
                             'image_generator' => 'DE',
-                            'contents' =>$path,
+                            'contents' => $path,
                             'nameOfImage' => $nameOfImage,
                             'n' => 1,
                             'file_size' => $file_size,
@@ -1124,16 +1097,63 @@ class AIController extends Controller
                     $params['image_generator']='stablediffusion';
                 }
     
-            $data_api='';
-            //  SMAITokenSyncController::synctoken_digitalasset($user_id,$usage,$data_api,$params);
-            //eof SMAI start sync  token usage
+             $data_api='';
+             //  SMAITokenSyncController::synctoken_digitalasset($user_id,$usage,$data_api,$params);
+
+             // $user_id,$usage,$data_image,$image_params
+             $chatGPT_catgory='Images_SmartContentCoIn';
+             $data_req= json_encode($request);
+             $new_update_main_image = new SMAISyncTokenController($data_req, $usage, $chatGPT_catgory, $chat_id=NULL,NULL,NULL,$params,$user_id);
+             $return_arr = $new_update_main_image->imageOutput_save_main_coin($user_id, $usage, $data_req, $params,$size=NULL, $post=NULL,  $style=NULL, $lighting=NULL, $mood=NULL, $number_of_images=1, $image_generator='DE', $negative_prompt=NULL,NULL);
+ 
+             Log::debug('Return array from new_update_main_image ');
+             Log::info($return_arr);
+ 
+             $path_array =$return_arr['path_array'];
+             $image_array =$return_arr['image_array'];
+
+             Log::debug('path_array from new_update_main_image ');
+                Log::info($path_array);
+                Log::debug('image_array from new_update_main_image ');
+                Log::info($image_array);
+ 
+             //save image to BIo OpenAI
+             $number_of_images=1;
+             $prompt=$prompt;
+
+             $image_array=json_decode(json_encode($image_array), true);
+             $main_image_id=$image_array['main_image_id'];
+             
+             //$image_array['img_width']
+             //$image_array['img_height']
+
+             //$image_array=json_encode($image_array);
+             //$image_array['size']=$size;
+
+             $new_update_main_image->imageOutput_save_Bio($user_id,$prompt, $number_of_images,$path_array,$image_array,$main_image_id);
+            
+
+             //save image to SocialPost OpenAI
+             $new_update_main_image->imageOutput_save_SocialPost($user_id,$prompt, $number_of_images,$path_array,$image_array,$main_image_id);
+
+ 
+             //save image to Design OpenAI
+             $new_update_main_image->imageOutput_save_Design($user_id,$prompt, $number_of_images,$path_array,$main_image_id);
+ 
+             //save image to Sync OpenAI
+             $new_update_main_image->imageOutput_save_Sync($user_id,$prompt, $number_of_images,$path_array,$main_image_id);
+ 
+             //save image to MobielApp OpenAI
+             $new_update_main_image->imageOutput_save_MobileAppV2($user_id,$prompt, $number_of_images,$path_array,$main_image_id);
+ 
         
         
         }
 
 
-
-        return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+       return $path_array;
+       // return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+    
     }
 
     //SMAI Synced

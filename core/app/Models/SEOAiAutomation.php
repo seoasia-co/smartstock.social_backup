@@ -21,6 +21,8 @@ class SEOAiAutomation extends Model
         'daily_crons',
         'main',
         'backlinks',
+        'post_today',
+        'post_today_count',
      
     ];
 

@@ -545,22 +545,49 @@ class SMAIUpdateProfileController extends Controller
                 $login_session_bio = new SMAISessionAuthController();
 
                 //add user to users table if not exist
-                $start_add_user = 0;
+                $start_add_user = 1;
                 $login_session_bio->freetrial_user_api($request_update, $user_id, $raw_password);
-                if ($user_id == 1 && $start_add_user == 4) {
+                if ($user_id ==1  && $start_add_user == 1) {
+                    
+                    if($this->check_old_user_id('main_db', 'sp_users', $user_id) < 1)
                     $login_session_bio->freetrial_socialpost($request_update, $user_id, $raw_password);
+                    
+                    /* if($this->check_old_user_id('mobileapp_db', 'users', $user_id))
                     $login_session_bio->freetrial_mobileApp($request_update, $user_id, $raw_password);
+                     */
+                    
+                    if($this->check_old_user_id('main_db', 'users', $user_id) < 1)
                     $login_session_bio->freetrial_main_co_in($request_update, $user_id, $raw_password);
+                    
+                    /* if($this->check_old_user_id('main_db', 'users', $user_id))
                     $login_session_bio->freetrial_main_marketing($request_update, $user_id, $raw_password);
+                     */
+                    
+                    if($this->check_old_user_id('digitalasset_db', 'users', $user_id) < 1)
                     $login_session_bio->freetrial_design($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('mobileapp_db', 'users', $user_id) < 1)
                     $login_session_bio->freetrial_mobileAppV2($request_update, $user_id, $raw_password);
 
+                    if($this->check_old_user_id('bio_blog_db', 'users', $user_id) < 1)
                     $login_session_bio->freetrial_bio_blog($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('sync_db', 'user', $user_id) < 1)
                     $login_session_bio->freetrial_sync_node($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('crm_db', 'tblleads', $user_id) < 1)
                     $login_session_bio->freetrial_crm($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('bio_db', 'users', $user_id) < 1)
                     $login_session_bio->freetrial_bio($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('course_db', 'users', $user_id) < 1)
                     $login_session_bio->freetrial_course($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('liveshop_db', 'users', $user_id) < 1)
                     $login_session_bio->freetrial_liveshop($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('seo_db', 'users', $user_id) < 1)
                     $login_session_bio->freetrial_seo($request_update, $user_id, $raw_password);
 
                 }
@@ -579,7 +606,13 @@ class SMAIUpdateProfileController extends Controller
             else if (in_array("delete", $whatup)) {
                 //DEl all users Platform
                 $this->del_user_all_platforms($user_id, $user_email, $this->upFromWhere);
-            } else if (in_array("password", $whatup) && $this->skip_update_pss != 1) {
+            } 
+            else if (in_array("BioReset", $whatup)) {
+                //DEl all users Platform
+                $result_return=$this->reset_user_Bio($user_id, $user_email, $this->upFromWhere);
+                return $result_return;
+            } 
+            else if (in_array("password", $whatup) && $this->skip_update_pss != 1) {
                 Log::debug('Update Profile case Password ');
 
                 if ($this->upFromWhere == 'bio' || $this->upFromWhere == 'main_coin') {
@@ -948,7 +981,7 @@ class SMAIUpdateProfileController extends Controller
     public function up_profile_design($request, $main_id)
     {
 
-        Log::debug('before update new Design Name :' . $request->name);
+        Log::debug('before update new Design Email :' . $request->name);
         Log::debug('before insert new Design Name :' . $request->email);
         if (!empty($request->name) && !empty($request->email)) {
             $where = array('email' => ($request->email));
@@ -1105,13 +1138,20 @@ class SMAIUpdateProfileController extends Controller
             $userdata_plan['plan'] = $socialpost_plan;
             $package_type_bio=$each_plan->package_type;
             //Update Bio Plan change will effect SocialPost when It's is bundle 
+
+            $plan_before=UserMain::where('id',$user_id)->first();
+            $plan_before_id=$plan_before->bio_plan;
+
+
+            if($plan_before_id==4 && $userdata_plan['plan']==0 && $userdata_plan['plan_id']==0)
+            $package_type_bio=='bundle';
+
             if($package_type_bio=='bundle')
             {
             
                 if($socialpost_plan==0)
-                {
-                  $socialpost_plan=1;
-                }
+                $socialpost_plan=1;
+
 
             $this->socialpost_permission_update_user($user_id,$socialpost_plan);
             $this->update_column_all($userdata_plan, $user_id, $user_email, 'main_db', 'sp_users');
@@ -1124,6 +1164,16 @@ class SMAIUpdateProfileController extends Controller
             } else {
                 $main_marketing_id = $main_coin_plan;
             }
+
+            $plan_before=UserMain::where('id',$user_id)->first();
+            $plan_before_id=$plan_before->main_plan;
+
+            $plan_before_type= Plan::where('id', $plan_before_id)->orderBy('id', 'asc')->first();
+
+
+            //Downgrade in case of reset to Freetrial Plan
+            if($plan_before_type->package_type =='bundle' && $userdata_plan['plan']==0 && $userdata_plan['plan_id']==0)
+            $package_type_bio=='bundle';
 
             if($package_type_bio=='bundle')
             {
@@ -2168,6 +2218,21 @@ class SMAIUpdateProfileController extends Controller
     {
 
         $user_old = DB::connection($db)->table($table)->where('email', $email)->orderBy('id', 'asc')->get();
+
+        $found_user = $user_old->count();
+        return $found_user;
+
+    }
+
+    public function check_old_user_id($db, $table, $user_id)
+    {
+        if($db=='bio_db')
+        $column='user_id';
+        else
+        $column='id';
+
+
+        $user_old = DB::connection($db)->table($table)->where($column, $user_id)->orderBy($column, 'asc')->get();
 
         $found_user = $user_old->count();
         return $found_user;
@@ -3433,12 +3498,144 @@ class SMAIUpdateProfileController extends Controller
         return response()->json([]);
     }
 
+    public function reset_user_Bio($user_id, $user_email, $upFromWhere)
+    {
+        if ($upFromWhere == 'main_coin') {
+
+            if($user_id==1)
+            {
+                //Reset all users
+                $updated_i=0;
+                Log::debug('Debug FOund Reset Bio user from Main ID before find Email ' . $user_id);
+                $userbio_data = UserBio::where('user_id', '!=', $user_id);
+
+                foreach($userbio_data as $userbio)
+                {
+                    //find old Bio setting value
+                    $userbio_plan=json_decode($userbio->plan_settings,true);
+
+                    $old_transcriptions_per_month_limit=$userbio_plan['transcriptions_per_month_limit'];
+                    $old_images_per_month_limit=$userbio_plan['images_per_month_limit'];
+                    $old_words_per_month_limit=$userbio_plan['words_per_month_limit'];
+                    $old_documents_per_month_limit=$userbio_plan['documents_per_month_limit'];
+                    $old_chats_per_month_limit=$userbio_plan['chats_per_month_limit'];
+
+                    //find user plan id
+                    $userbio_plan_id=$userbio->plan_id;
+
+                    if($userbio_plan_id=='free')
+                    $userbio_plan_id=0;
+                    else
+                    $userbio_plan_id=intval($userbio_plan_id)+100;
+
+                    $new_plan=PlanBio::where('plan_id',$userbio_plan_id)->first();
+                    $new_plan_settings=json_decode($new_plan->settings,true);
+
+                    //update new plan setting
+                    $new_plan_settings['transcriptions_per_month_limit']=$old_transcriptions_per_month_limit;
+                
+                    //$userbio->plan_settings->images_per_month_limit=$old_images_per_month_limit;
+                    //$userbio->plan_settings->words_per_month_limit=$old_words_per_month_limit;
+                
+                    $new_plan_settings['documents_per_month_limit']=$old_documents_per_month_limit;
+                    $new_plan_settings['chats_per_month_limit']=$old_chats_per_month_limit;
+
+                    //case use BackUp data from Main
+                    $usermain_data = UserMain::where('id', '=', $userbio->user_id)->first();
+                    $new_plan_settings['words_per_month_limit']=$usermain_data->remaining_words;
+                    $new_plan_settings['images_per_month_limit']=$usermain_data->remaining_images;
+
+                    $userbio->plan_settings= json_encode($new_plan_settings);
+                    $userbio->save();
+
+                    if($userbio->id>0)
+                    $updated_i ++;
+
+                        
+                 }
+
+                        
+                        if($updated_i>0)
+                        return 1;
+                        else
+                        return 0;  
+
+
+               
+
+            }
+            else{
+
+            Log::debug('Debug FOund Reset Bio user from Main ID before find Email ' . $user_id);
+            $userbio_data = UserBio::where('user_id', '=', $user_id)->first();
+            
+            //find old Bio setting value
+            $userbio_plan=json_decode($userbio_data->plan_settings,true);
+
+            $old_transcriptions_per_month_limit=$userbio_plan['transcriptions_per_month_limit'];
+            $old_images_per_month_limit=$userbio_plan['images_per_month_limit'];
+            $old_words_per_month_limit=$userbio_plan['words_per_month_limit'];
+            $old_documents_per_month_limit=$userbio_plan['documents_per_month_limit'];
+            $old_chats_per_month_limit=$userbio_plan['chats_per_month_limit'];
+
+            //find user plan id
+            $userbio_plan_id=$userbio_data->plan_id;
+
+            if($userbio_plan_id=='free')
+            $userbio_plan_id=0;
+            else
+            $userbio_plan_id=intval($userbio_plan_id)+100;
+
+            $new_plan=PlanBio::where('plan_id',$userbio_plan_id)->first();
+            $new_plan_settings=json_decode($new_plan->settings,true);
+
+            //update new plan setting
+            
+            $new_plan_settings['transcriptions_per_month_limit']=$old_transcriptions_per_month_limit;
+           
+            //$userbio_data->plan_settings->images_per_month_limit=$old_images_per_month_limit;
+            //$userbio_data->plan_settings->words_per_month_limit=$old_words_per_month_limit;
+           
+            $new_plan_settings['documents_per_month_limit']=$old_documents_per_month_limit;
+            $new_plan_settings['chats_per_month_limit']=$old_chats_per_month_limit;
+
+            //case use BackUp data from Main
+            $usermain_data = UserMain::where('id', '=', $user_id)->first();
+            $new_plan_settings['words_per_month_limit']=$usermain_data->remaining_words;
+            $new_plan_settings['images_per_month_limit']=$usermain_data->remaining_images;
+
+
+
+            $userbio_data->plan_settings= json_encode($new_plan_settings);
+
+            $userbio_data->save();
+
+            if($userbio_data->id>0)
+            return 1;
+            else
+            return 0;
+            
+
+           
+        
+        }
+
+
+
+        }
+
+    }
+
     public function del_user_all_platforms($user_id, $user_email, $upFromWhere)
     {
         if ($upFromWhere == 'bio') {
             Log::debug('Debug FOund Bio user ID before find Email ' . $user_id);
             $userbio_data = UserBio::where('user_id', '=', $user_id);
+            
+            if(isset($userbio_data->email))
             $user_email = $userbio_data->email;
+            else
+            $user_email=NULL;
         }
 
         if ($user_email != 'seoasia.co@gmail.com' && $user_id > 1) {

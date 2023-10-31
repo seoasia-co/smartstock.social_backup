@@ -36,7 +36,20 @@ use App\Http\Controllers\Auth\SMAISessionAuthController;
 use App\Models\UserMain;
 
 use App\Http\Controllers\AIController;
+use App\Models\OpenAIGenerator;
+use App\Models\UserOpenAI;
+use App\Http\Controllers\SMAI_SEO_PUNBOTController;
 
+use App\Models\PostPunbotSEO;
+use App\Models\PostSEO;
+use App\Models\PostCourse;
+use Carbon\Carbon;
+use App\Models\BlogMeta;
+use App\Models\SEOWebOption;
+
+use App\Models\SEOAiAutomation;
+
+use Modules\CourseSetting\Entities\Course;
 
 class APIsController extends Controller
 {
@@ -2513,6 +2526,18 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
     }
 
+    public function smai_text_gen_inside($request)
+    {
+
+        $new_text_gen=NEW AIController();
+        $text_gen=$new_text_gen->buildOutput($request);
+        // Log::debug('Debug response translated '.$text_translated);
+         Log::info($text_gen);
+        return  $text_gen;
+
+
+    }
+
     public function smaisync_tokens(Request $request)
     {
         $user_id = $request->user_id;
@@ -2520,10 +2545,16 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $data_req = $request->data;
 
 
-
+        if(is_array($data_req)==false)
+        {
         Log::debug('DEbug Data from Start  Sync Token : '.$data_req);
         Log::debug('DEbug REquest from Start   Sync Token : '.$request);
         Log::debug('DEbug Usage from Start  Sync Token : '.$usage);
+        }
+        else{
+            Log::info($data_req);
+
+        }
         
 
         //$params = json_decode($request->params_input, true);
@@ -2625,7 +2656,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
             // $user_id,$usage,$data_image,$image_params
             $new_update_main_image = new SMAISyncTokenController($data_req, $usage, $chatGPT_catgory, $chat_id=NULL,NULL,NULL,$params,$user_id);
-            $return_arr = $new_update_main_image->imageOutput_save_main_coin($user_id, $usage, $data_req, $params,$size=NULL, $post=NULL,  $style=NULL, $lighting=NULL, $mood=NULL, $number_of_images=1, $image_generator='DE', $negative_prompt=NULL);
+            $return_arr = $new_update_main_image->imageOutput_save_main_coin($user_id, $usage, $data_req, $params,$size=NULL, $post=NULL,  $style=NULL, $lighting=NULL, $mood=NULL, $number_of_images=1, $image_generator='DE', $negative_prompt=NULL,NULL);
 
             Log::debug('Return array from new_update_main_image ');
             Log::info($return_arr);
@@ -2637,25 +2668,26 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
             $number_of_images=$params['n'];
             $prompt=$params['prompt'];
             $image_array['size']=$params['size'];
+            $main_image_id=$image_array['main_image_id'];
             //$image_array['img_width']
             //$image_array['img_height']
-            $new_update_main_image->imageOutput_save_Bio($user_id,$prompt, $number_of_images,$path_array,$image_array);
+            $new_update_main_image->imageOutput_save_Bio($user_id,$prompt, $number_of_images,$path_array,$image_array,$main_image_id);
            
 
 
             //save image to SocialPost OpenAI
-            $new_update_main_image->imageOutput_save_SocialPost($user_id,$prompt, $number_of_images,$path_array,$image_array);
+            $new_update_main_image->imageOutput_save_SocialPost($user_id,$prompt, $number_of_images,$path_array,$image_array,$main_image_id);
             
 
 
             //save image to Design OpenAI
-            $new_update_main_image->imageOutput_save_Design($user_id,$prompt, $number_of_images,$path_array);
+            $new_update_main_image->imageOutput_save_Design($user_id,$prompt, $number_of_images,$path_array,$main_image_id);
 
             //save image to Sync OpenAI
-            $new_update_main_image->imageOutput_save_Sync($user_id,$prompt, $number_of_images,$path_array);
+            $new_update_main_image->imageOutput_save_Sync($user_id,$prompt, $number_of_images,$path_array,$main_image_id);
 
             //save image to MobielApp OpenAI
-            $new_update_main_image->imageOutput_save_MobileAppV2($user_id,$prompt, $number_of_images,$path_array);
+            $new_update_main_image->imageOutput_save_MobileAppV2($user_id,$prompt, $number_of_images,$path_array,$main_image_id);
 
         }
         else
@@ -2998,6 +3030,12 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
         $update_profile_user = new SMAIUpdateProfileController($request, $user_id, $user_email, $whatup, $upFromWhere);
 
+        if (in_array("BioReset", $whatup))
+        {
+            return response()->json($update_profile_user);
+
+        }
+
 
     }
 
@@ -3016,26 +3054,57 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
     public function smai_seo_user_create_cron_posts(Request $request)
     {
-        
+        if(isset($request->siteid))
+        $website_id=$request->siteid;
+
+        if(isset($request->Keyword))
         $keywords = $request->Keyword;
+
+        if(isset($request->Keyword_en))
+        $keywords_en = $request->Keyword_en;
+
+        if(isset($request->post_category))
+        $post_category=$request->post_category;
+
+        if(isset($request->user_id))
         $user_id = $request->user_id;
+
+
         $description = $keywords ;
         $creativity = 1;
         $number_of_results = 1;
         $tone_of_voice = 0;
         $maximum_length = 2000;
+
+        if(isset($request->Keyword_Lang))
+        $language = $request->Keyword_Lang;
+        else
         $language = "en";
-        $post_type = 'paragraph_generator';
+
+
+        if(isset($request->Keyword_en))
+        $keywords_en = $request->Keyword_en;
+        else
+        $keywords_en = $keywords;
+        
+
+        
+        
+        
         $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
     Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
     ";
 
-        $post = OpenAIGenerator::where('slug', $post_type)->first();
+       // $post = OpenAIGenerator::where('slug', $post_type)->first();
 
-        Log::debug('All Qry strign form Cron Sync.Smartcontent Node.js  SEO');
-        Log::info($request);
+      // Log::debug('All Qry strign form Cron Sync.Smartcontent Node.js  SEO');
+       //Log::info($request);
 
         $user_id=$request->user_id;
+
+        if($user_id<0 || $user_id==NULL || $user_id=='')
+        $user_id=1;
+
         $user = UserMain::where('id',$user_id)->first();
         if ($user->remaining_words <= 0  and $user->remaining_words != -1) {
             $data = array(
@@ -3043,107 +3112,377 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
             );
             return response()->json($data, 419);
         }
-        $entry = new UserOpenai();
-        $entry->title = 'New Workbook';
-        $entry->slug = str()->random(7) . str($user->fullName())->slug() . '-workbook';
-        $entry->user_id = Auth::id();
-        $entry->openai_id = $post->id;
-        $entry->input = $prompt;
-        $entry->response = null;
-        $entry->output = null;
-        $entry->hash = str()->random(256);
-        $entry->credits = 0;
-        $entry->words = 0;
-        $entry->save();
-
-        $message_id = $entry->id;
-        //send this $message_id to all Platforms as reference $main_useropenai id
-
-        $workbook = $entry;
-        $inputPrompt = $prompt;
-
-        $post='';
 
 
-        $stream = FacadesOpenAI::completions()->createStreamed([
-            'model' => 'text-davinci-003',
-            'prompt' => $prompt,
-            'temperature' => (int)$creativity,
-            'max_tokens' => (int)$maximum_length,
-            'n' => (int)$number_of_results
-        ]);
+            if(isset($request->n_posts))
+            $total_topics=$request->n_posts;
+            else
+            $total_topics=1;
+
+            if(isset($request->post_type))
+            $post_type=$request->post_type;
+            else
+            $post_type = 'paragraph_generator';
+
+               //post title for real post
+                $title_request=array(
+
+                    'image_generator' => NULL,
+                    'post_type' => 'post_title_generator',
+                    //SETTINGS
+                    'number_of_results' => $total_topics,
+                    'maximum_length' => 2000,
+                    'creativity' => 1,
+                    'language' => $language,
+                    'negative_prompt' => 0,
+                    'tone_of_voice' => 0,
+                    'description'=> $keywords,
+                
+                );
+
+                $post_title_array=$this->smai_text_gen_inside($title_request);
+                $post_titles=$post_title_array['html'];
+
+                if(Str::contains($post_titles,'<br>')==true)
+                $post_titles=str_replace('<br>','',$post_titles);
+
+                if(Str::contains($post_titles,'<br/>')==true)
+                $post_titles=str_replace('<br/>','',$post_titles);
+
+                $post_title=trim($post_titles);
+
+                 //post title for image AI
+                 $title_en_request=array(
+
+                    'image_generator' => NULL,
+                    'post_type' => 'post_title_generator',
+                    //SETTINGS
+                    'number_of_results' => $total_topics,
+                    'maximum_length' => 2000,
+                    'creativity' => 1,
+                    'language' => 'en',
+                    'negative_prompt' => 0,
+                    'tone_of_voice' => 0,
+                    'description'=> $keywords,
+                
+                );
+
+                $post_title_en_array=$this->smai_text_gen_inside($title_en_request);
+                $post_titles_en=$post_title_en_array['html'];
+
+                if(Str::contains($post_titles_en,'<br>')==true)
+                $post_titles_en=str_replace('<br>','',$post_titles_en);
+
+                if(Str::contains($post_titles_en,'<br/>')==true)
+                $post_titles_en=str_replace('<br/>','',$post_titles_en);
+                
+                $post_titles_en=trim($post_titles_en);
+                    
+                
+                
+                /* foreach ($post_title_array as $post_title) 
+                    { */
+                        
+                        
+                        //if want to reaponse
+                        //return response()->json($response, 200);
+                        
+                        //shortcut to create new content
+                        $body_request=array(
+
+                            'image_generator' => NULL,
+                            'post_type' => $post_type,
+                            //SETTINGS
+                            'number_of_results' => 1,
+                            'maximum_length' => 3800,
+                            'creativity' => 1,
+                            'language' => $language,
+                            'negative_prompt' => 0,
+                            'tone_of_voice' => 0,
+                            'description'=> $keywords,
+                            'keywords' => $keywords,
+                            'article_title' => $post_title,
+                            'focus_keywords' => $keywords,
+                        
+                        );
+
+                        $responsedText_array= $this->smai_text_gen_inside($body_request);
+                        $responsedText=trim($responsedText_array['html']);
+                        $responsedText = str_replace('between 0 and 1','',$responsedText);
+                        $responsedText = str_replace('or negative.','',$responsedText);
+                        $responsedText = str_replace('between -2 and 2 (neutral).','',$responsedText);
+                        $responsedText = str_replace('between -1 and 1','',$responsedText);
+                        $responsedText = str_replace('between 1 and 0.','',$responsedText);
+                        
+                        $message_id=$responsedText_array['message_id'];
+
+                        $post_title=Str::replace('"', '', $post_title);
+                        $post_title= str_replace('"','',$post_title);
+
+                       
+                        //find keyword URL for add to keyword href
+                        $new_smai_seo_fnc=NEW SMAI_SEO_PUNBOTController(); 
+                        $keywords_url = $new_smai_seo_fnc->get_cur_keywordlink($website_id,$keywords,NULL);
+                        
+                        if(isset($request->post_target))
+                        $post_target=$request->post_target;
+                        else
+                        $post_target='punbot_seo';
+                        
+                        switch ($post_target) {
+                            case 'punbot_seo':
+                                {
+                                    //Or Add Post to SEO by Models
+                                    $keywords_url = $new_smai_seo_fnc->get_cur_keywordlink($website_id,$keywords,NULL);
+                                    
+                                    $posttime = Carbon::now();
+                                    $new_post=PostPunbotSEO::create([
+                                        
+                                        'post_title' => $post_title,
+                                        'post_description' => $responsedText,
+                                        'post_category' => $post_category,
+                                        'post_image' => 'default.png',
+                                        'post_status' => 1,
+                                        'post_date_created' => $posttime,
+                                        'post_version' => 'v2-th',
+                                        'big_post_id' => $message_id ,
+                                        'note' => 'content from chatGPT',
+                                        'keyword' => $keywords,
+                                        'website_id' => $website_id,   
+                                        'keyword_url' => $keywords,
+                                        'keyword_en' => $keywords_en,
+                                    
+                                    ]);
+
+                                    $postid = $new_post->id;
+                                    Log::debug('Post ID from PostPunbotSEO '.$postid);
+                                    Log::debug('Post Title from PostPunbotSEO '.$post_title);
+                        
+                            }
+                                break;
+
+                                case 'seo_db':
+                                    {
+                                        
+                                        $image_request=array(
+
+                                            'image_generator' => 'DE',
+                                            'post_type' => 'image',
+                                            //SETTINGS
+                                            'number_of_results' => 1,
+                                            'maximum_length' => 2000,
+                                            'creativity' => 1,
+                                            'language' => 'en',
+                                            'negative_prompt' => 'ugly, tiling, poorly drawn hands, poorly drawn, poorly drawn face, out of frame, extra limbs, disfigured, deformed, body out of frame, blurry, bad anatomy, blurred, watermark, grainy, signature, cut off, draft, duplicate, coppy, multi, two faces, disfigured, kitsch, oversaturated, grain, low-res, mutation, mutated, extra limb, missing limb, floating limbs, disconnected limbs, malformed hands, blur, out of focus, long neck, long body, disgusting, childish, mutilated, mangled, old, heterochromia, dots, bad quality, weapons, NSFW, draft',
+                                            'tone_of_voice' => 0,
+                                            'description'=> $post_titles_en ,
+                                            'keywords' => $keywords_en,
+                                            'image_number_of_images'  => 1,
+                                            'image_mood' =>  'happy',
+                                            'image_lighting' => 'bright ',
+                                            'image_style' => NULL,
+                                            'size' => '1024x1024',
+                                            'post_type' => 'ai_image_generator',
+                                        
+                                        );
+                                        
+                                        $seo_image=$this->smai_text_gen_inside($image_request);
+                                        $responsedText = $new_smai_seo_fnc->link_dec_seo($responsedText,$keywords,$website_id,NULL);
+                                        
+                                        //add image at the top of central post
+                                        $content_image = '<img src="'.$seo_image[0].'" alt="'.$keywords.'" style="width:100%;height:auto;">';
+                                        $responsedText = $content_image.$responsedText;
+
+                                        if (!preg_match('/[^A-Za-z0-9]/', $post_title))
+                                        $slug=Str::slug($post_title, '-');
+                                        else
+                                        $slug=$new_smai_seo_fnc->slugify($post_title);
+                                       
+                                        /*  <figure>
+                                           <img src="images/tokyo-street.jpg" alt="A motion blurred street with an in-focus taxi." />
+                                        </figure> */
+
+                                        
+                                        $posttime = Carbon::now();
+                                        // echo $posttime->toDateTimeString();
+                                        
+                                        $new_post=PostSEO::create([
+                                            
+                                            'user_id' => $user_id,
+                                            'title' => $post_title,
+                                            'slug' => $slug,
+                                            'content' => $responsedText,
+                                            'comment' =>  0,
+                                            'status' =>  1,
+                                            'post_type' => 'blog',
+                                            'visibility' => 'Pu',
+                                            'publish_on' => $posttime,
+                                            'created_at' => $posttime,
+                                        
+                                        ]);
+                                        $postid = $new_post->id;
+                                        Log::debug('Post ID from PostSEO '.$postid);
+                                        Log::debug('Post Title from PostSEO '.$post_title);
+                                        
+                                        if($postid>0)
+                                        {
+                                                //Blog meta data
+                                                $new_blog_meta=BlogMeta::create([
+                                                    'blog_id' => $postid,
+                                                    'title' => 'ximage',
+                                                    'value' =>  $seo_image[0]
+                                                ]);
+
+                                                //add stat record script below
+                                                $web_automation=SEOAiAutomation::where('website_id',$website_id)->first();
+                                                $web_automation->post_today_count=$web_automation->post_today_count+1;
+                                                $web_automation->save();
+                                        }
+
+                                    }
+                                    break;
 
 
-        //$request =  response()->json(compact('message_id', 'creativity', 'maximum_length', 'number_of_results', 'inputPrompt'));
+                                    case 'course_db':
+                                        {
 
-        foreach ($stream as $response) {
-            if ($settings->openai_default_model == 'gpt-3.5-turbo') {
-                if (isset($response['choices'][0]['delta']['content'])) {
-                    $message = $response['choices'][0]['delta']['content'];
-                    $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                    $output .= $messageFix;
-                    $responsedText .= $message;
-                    $total_used_tokens += Str::of($messageFix)->wordCount();
+                                           
+                                            $image_thumb_request=array(
 
-                    $string_length = Str::length($messageFix);
-                    $needChars = 6000 - $string_length;
-                    $random_text = Str::random($needChars);
+                                                'image_generator' => 'DE',
+                                                'post_type' => 'image',
+                                                //SETTINGS
+                                                'number_of_results' => 1,
+                                                'maximum_length' => 2000,
+                                                'creativity' => 1,
+                                                'language' => 'en',
+                                                'negative_prompt' => 'ugly, tiling, poorly drawn hands, poorly drawn, poorly drawn face, out of frame, extra limbs, disfigured, deformed, body out of frame, blurry, bad anatomy, blurred, watermark, grainy, signature, cut off, draft, duplicate, coppy, multi, two faces, disfigured, kitsch, oversaturated, grain, low-res, mutation, mutated, extra limb, missing limb, floating limbs, disconnected limbs, malformed hands, blur, out of focus, long neck, long body, disgusting, childish, mutilated, mangled, old, heterochromia, dots, bad quality, weapons, NSFW, draft',
+                                                'tone_of_voice' => 0,
+                                                'description'=> 'studio photography set of high detail of '.$keywords_en.', perfect composition, cinematic light photo studio, beige color scheme, indirect lighting, 8k, elegant and luxury style',
+                                                'keywords' => $keywords_en,
+                                                'image_number_of_images'  => 1,
+                                                'image_mood' =>  'happy',
+                                                'image_lighting' => 'bright ',
+                                                'image_style' => 'minimalist',
+                                                'size' => '256x256',
+                                                'post_type' => 'ai_image_generator',
+                                            
+                                            );
+
+                                            $image_request=array(
+
+                                                'image_generator' => 'DE',
+                                                'post_type' => 'image',
+                                                //SETTINGS
+                                                'number_of_results' => 1,
+                                                'maximum_length' => 2000,
+                                                'creativity' => 1,
+                                                'language' => 'en',
+                                                'negative_prompt' => 'ugly, tiling, poorly drawn hands, poorly drawn, poorly drawn face, out of frame, extra limbs, disfigured, deformed, body out of frame, blurry, bad anatomy, blurred, watermark, grainy, signature, cut off, draft, duplicate, coppy, multi, two faces, disfigured, kitsch, oversaturated, grain, low-res, mutation, mutated, extra limb, missing limb, floating limbs, disconnected limbs, malformed hands, blur, out of focus, long neck, long body, disgusting, childish, mutilated, mangled, old, heterochromia, dots, bad quality, weapons, NSFW, draft',
+                                                'tone_of_voice' => 0,
+                                                'description'=> 'studio photography set of high detail of '.$keywords_en.', with perfect composition, cinematic light photo studio, beige color scheme, indirect lighting, 8k, elegant and luxury style',
+                                                'keywords' => $keywords_en,
+                                                'image_number_of_images'  => 1,
+                                                'image_mood' =>  'happy',
+                                                'image_lighting' => 'bright ',
+                                                'image_style' => 'minimalist',
+                                                'size' => '1024x1024',
+                                                'post_type' => 'ai_image_generator',
+                                            
+                                            );
+                                            $course_thumb=$this->smai_text_gen_inside($image_thumb_request);
+                                            $course_image=$this->smai_text_gen_inside($image_request);
+
+                                            Log::debug('Course Image from PostCourse '.$course_image[0]);
+                                            Log::debug('Course Thumb from PostCourse '.$course_thumb[0]);
+                                            //Or Add Post to SEO by Models
+                                            $posttime = Carbon::now();
+                                            // echo $posttime->toDateTimeString();
+                                            $slug=Str::slug($post_title, '-');
+                                            $new_post=Course::create([
+                                                'title' => $post_title,
+                                                'slug' => $slug,
+                                                'duration' => '10',
+                                                'publish' => 1,
+                                                'level' => 2,
+                                                'trailer_link' => 'https://www.youtube.com/',
+                                                'host' => 'Youtube',
+                                                'about' => $responsedText,
+                                                'status' => 1,
+                                                'category_id' => 1,
+                                                'subcategory_id' => 1,
+                                                'user_id' => 1,
+                                                'price' => 20,
+                                                'discount_price' => 10,
+                                                'lang_id' => 19,
+                                                'reveiw' => 0,
+                                                'total_enrolled' => 1,
+                                                'reveune' => '50',
+                                                'image' => $course_image[0],
+                                                'thumbnail' =>  $course_thumb[0],
+                                                
+                                            ]);
 
 
-                    echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-                    ob_flush();
-                    flush();
-                    usleep(500);
-                }
-            } else {
-                if (isset($response->choices[0]->text)) {
-                    $message = $response->choices[0]->text;
-                    $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                    $output .= $messageFix;
-                    $responsedText .= $message;
-                    $total_used_tokens += Str::of($messageFix)->wordCount();
-                   
+                                            $postid = $new_post->id;
+                                            Log::debug('Post ID from PostCourse '.$postid);
+                                            Log::debug('Post Title from PostCourse '.$post_title);
+                    
+                                        }
+                                        break;
 
-                    $string_length = Str::length($messageFix);
-                    $needChars = 6000 - $string_length;
-                    $random_text = Str::random($needChars);
+                                    //add more case here
+                                    //for example protfolio_generator, product_generator, blog_generator, etc.
 
 
-                    // SMAI text-davinci-003 start sync  token usage
-                    if( $send_smai==1)
-                     {
-                        $smai_params_input['platform'] = 'main_coin';
-                        $smai_params_input['gpt_category'] = 'DocText_SmartContentCoIn';
-
-                        $usage= $total_used_tokens;
-
-                        $data_api=  json_encode($response);
-                        //SMAITokenSyncController::synctoken_digitalasset($user_id,$usage,$data_api,$smai_params_input);
-
-                        //$request =  response()->json(compact('message_id', 'creativity', 'maximum_length', 'number_of_results', 'inputPrompt'));
-
-                        $params = json_encode(array( 
-                            'user_id' => $user_id,
-                            'usage'	 => $usage,
-                            'data' => $data_api,
-                            'params_input' => $smai_params_input,
-                            'main_useropenai_message_id' => $message_id,
-                            
-                          ));  
-
-                        $this->smaisync_main_tokens( $params);
-
-                     }
-                        //eof SMAI text-davinci-003 start sync  token usage
+                                }
 
 
-                    }
 
-                }
+
+
+
+
+                
+
+           
+
+
+
+    }
+
+    public function smai_bubblechat_get_info(Request $request)
+    {
+        $ipAddress = $request->ip();
+
+      //  Log::debug('Bubble request from IP '.$ipAddress);
+        //Log::info(print_r($request, true));
+
+        $block_bio= $request->block_id;
+        $block_bio_data=$request->block_bio_link_data;
+        //Log::info($block_bio);
+       //Log::info($block_bio_data);
+        foreach($block_bio_data as $blcok_data)
+        {
+            if(($blcok_data['type']=='socialschat'))
+            {
+            //Log::debug('Found Type Social from email ');
+            //Log::info($blcok_data['settings']['socialschat']['email_chat']);
+            //Log::info($blcok_data['is_enabled']);
+
+            $blcok_data['settings']['is_enabled']=$blcok_data['is_enabled'];
+            $return_data=json_encode($blcok_data['settings']);
+           // Log::info($blcok_data['settings']['is_enabled']);
+            return $return_data;
 
             }
+            
 
+        }
 
+      
+
+       
 
     }
 

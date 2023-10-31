@@ -45,7 +45,6 @@ Route::post('/smaisync/translate', 'APIsController@smai_translation');
 Route::post('/smaisync/textgen', 'APIsController@smai_text_gen');
 
 
-
 // update profile     
 Route::post('/smaiupdate/profile', 'APIsController@smaiuser_update_profile');
 
@@ -59,7 +58,10 @@ Route::post('/smaiupdate/plan', 'APIsController@smaiuser_update_plan');
 //SEO from smartcontent.co.in/seo
 Route::get('/manage-cron-all-posts/{id}', 'APIsController@smai_seo_manage_cron_all_posts');
 Route::post('/smai-seo/usercreatepost', 'APIsController@smai_seo_user_create_cron_posts');
-  
+
+//BioLink Bubble CHAT from SmartBio
+Route::get('/smai-bubblechat/getchatinfo', 'APIsController@smai_bubblechat_get_info');
+Route::post('/smai-bubblechat/getchatinfo', 'APIsController@smai_bubblechat_get_info');
 
 
 // EOF SMAI Sync data

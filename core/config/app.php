@@ -174,6 +174,8 @@ return [
         // App\Providers\BroadcastServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
+        Nwidart\Modules\LaravelModulesServiceProvider::class,
+
     ])->toArray(),
 
     /*
@@ -194,6 +196,8 @@ return [
         'Html' => Collective\Html\HtmlFacade::class,
         'Socialite' => Laravel\Socialite\Facades\Socialite::class,
         'GeoIP' => \Torann\GeoIP\Facades\GeoIP::class,
+        'Module' => Nwidart\Modules\Facades\Module::class,
+        
     ])->toArray(),
 
 ];

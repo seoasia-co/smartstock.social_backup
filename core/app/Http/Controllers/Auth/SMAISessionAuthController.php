@@ -370,6 +370,17 @@ class SMAISessionAuthController extends Controller
         else{
              $privatehash_password=Hash::make(Str::random(24));
         }
+
+        if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+
         //TODO Mobile app Demo
         $MobileApp_connected=1;
         if($MobileApp_connected==1)
@@ -378,7 +389,7 @@ class SMAISessionAuthController extends Controller
             $assign_plan=Plan::where('price',0)->orderBy('id','asc')->first();
             $userdata = [
                 'id' => $user_id,
-                'name' => $request->name,
+                'name' => $name_ins,
                 'email' => $request->email,
                 'password' => $this->hash_password,
                 'user_type' => 'company',
@@ -431,13 +442,24 @@ class SMAISessionAuthController extends Controller
 
          /* if (env('APP_STATUS') == 'Demo') { */
 
+            if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+
+
         if($user_id>0)
         {
             $updated_user=0;
             
                 $userdata = [
                 'id' => $user_id,
-                'name' => $request->name,
+                'name' => $name_ins,
                 'surname' => $surname_ins,
                 'email' => $request->email,
                 'email_confirmation_code' => Str::random(67),
@@ -466,7 +488,7 @@ class SMAISessionAuthController extends Controller
 
         $userdata = [
             
-            'name' => $request->name,
+            'name' => $name_ins,
             'surname' => $surname_ins,
             'email' => $request->email,
             'email_confirmation_code' => Str::random(67),
@@ -506,6 +528,16 @@ class SMAISessionAuthController extends Controller
         else
         $user_type='Member';
 
+        if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+
         //$affiliate_user_id = 0;
         $package_info = DB::connection('main_db')->table('packages')->where(['is_default'=>'1'])->first();
         $validity = isset($package_info->validity) ? $package_info->validity : 0;
@@ -515,7 +547,7 @@ class SMAISessionAuthController extends Controller
         $curtime = date("Y-m-d H:i:s");
         $userdata = [
             'id' => $user_id,
-            'name' => $request->name,
+            'name' => $name_ins,
             'email' => $request->email,
             'password' => $this->hash_password,
             'user_type'=>$user_type,
@@ -543,7 +575,16 @@ class SMAISessionAuthController extends Controller
 
         Log::debug('before insert new Design Name :'.$request->name);
         Log::debug('before insert new Design Name :'.$request->email);
-        if(!empty($request->name) && !empty($request->email) )
+        if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+        if(!empty($name_ins) && !empty($request->email) )
         {
 			$where = array( 'email' => ($request->email ));
 			//$result = $this->Common_DML->get_data( 'users', $where, 'COUNT(*) As total' );
@@ -572,7 +613,7 @@ class SMAISessionAuthController extends Controller
             {
 				$array = array(
                     'id' => $main_id,
-					'name' => trim(($request->name)),
+					'name' => $name_ins,
 					'email' => trim(($request->email)),
                     'phone_no' => '+xxxxxxxxx',
                     'profile_pic' => $profile_pic,
@@ -650,11 +691,21 @@ class SMAISessionAuthController extends Controller
         else
         $user_avatar='';
 
+        if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+
 
         $assign_plan=PlanMobile::where('plan_price',0)->orderBy('id','asc')->first();
             $userdata = [
                 'id' => $user_id,
-                'name' => $request->name,
+                'name' => $name_ins,
                 'email' => $request->email,
                 'password' => $this->hash_password,
                 'image' => $request->image,
@@ -684,11 +735,20 @@ class SMAISessionAuthController extends Controller
 
     public function freetrial_mobileAppV2_email($request,$user_id,$user_email)
     {
+        if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
 
         //$assign_plan=PlanMobile::where('price',0)->orderBy('id','asc')->first();
             $userdata = [
                 'id' => $user_id,
-                'name' => $request->name,
+                'name' => $name_ins,
                 'email' => $request->email,
                 'password' => $this->hash_password,
                 'image' => $request->image,
@@ -722,9 +782,19 @@ class SMAISessionAuthController extends Controller
         else
         $username_ins=$request->email;
 
+        if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+
         $userdata = [
             'id' => $user_id,
-            'name' => $request->name,
+            'name' => $name_ins,
             'email' => $request->email,
             'username' => $username_ins,
             'password' => $this->hash_password,
@@ -738,10 +808,21 @@ class SMAISessionAuthController extends Controller
 
    public function freetrial_sync_node($request,$user_id)
     {
+        if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+
+
         $userdata = [
             'id' => $user_id,
             'uid' =>  Str::random(32),
-            'name' => $request->name,
+            'name' => $name_ins,
             'email' => $request->email,
             'password' => $this->hash_password,
         ];
@@ -755,10 +836,19 @@ class SMAISessionAuthController extends Controller
 
    public function freetrial_crm($request,$user_id)
     {
+        if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
        
         $userdata = [
             'id' => $user_id,
-            'name' => $request->name,
+            'name' => $name_ins,
             'email' => $request->email,
             
         ];
@@ -849,10 +939,21 @@ class SMAISessionAuthController extends Controller
         $country_code=null;
         $city_name=null;
 
+        if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+
+
         $userdata = [
 
             'user_id' => $user_id,
-            'name' => $request->name,
+            'name' => $name_ins,
             'email' => $request->email,
             'password' => $this->hash_password,
             'is_newsletter_subscribed' => 0,
@@ -891,9 +992,19 @@ class SMAISessionAuthController extends Controller
 
     public function freetrial_course($request,$user_id)
     {
+        if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+
         $userdata = [
             'id' => $user_id,
-            'name' => $request->name,
+            'name' => $name_ins,
             'email' => $request->email,
             'password' => $this->hash_password,
         ];
@@ -907,21 +1018,31 @@ class SMAISessionAuthController extends Controller
 
     public function freetrial_liveshop($request,$user_id)
     {
-        if(strpos($request->name, " ") !== false)
+        if($request->name!= NULL)
         {
-            $firstname=$this->get_first_last_name($request->name,'firstname');
-            $lastname=$this->get_first_last_name($request->name,'lastname');
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+
+        if(strpos($name_ins, " ") !== false)
+        {
+            $firstname=$this->get_first_last_name($name_ins,'firstname');
+            $lastname=$this->get_first_last_name($name_ins,'lastname');
 
         }
         else{
-            $firstname=$request->name;
+            $firstname=$name_ins;
             $lastname='';
         }
         $userdata = [
             'id' => $user_id,
             'firstname' => $firstname,
             'lastname' => $lastname,
-            'name' => $request->name,
+            'name' => $name_ins,
             'email' => $request->email,
             'password' => $this->hash_password,
             'role_id' => 2,
@@ -937,22 +1058,31 @@ class SMAISessionAuthController extends Controller
 
     public function freetrial_seo($request,$user_id)
     {
-
-        if(strpos($request->name, " ") !== false)
+        if($request->name!= NULL)
         {
-            $firstname=$this->get_first_last_name($request->name,'firstname');
-            $lastname=$this->get_first_last_name($request->name,'lastname');
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+
+        if(strpos($name_ins, " ") !== false)
+        {
+            $firstname=$this->get_first_last_name($name_ins,'firstname');
+            $lastname=$this->get_first_last_name($name_ins,'lastname');
 
         }
         else{
-            $firstname=$request->name;
+            $firstname=$name_ins;
             $lastname='';
         }
 
 
         $userdata = [
             'id' => $user_id,
-            'name' => $request->name,
+            'name' => $name_ins,
             'first_name' => $firstname,
             'last_name' => $lastname,
             'email' => $request->email,
@@ -982,6 +1112,18 @@ class SMAISessionAuthController extends Controller
 
     public function freetrial_user_api($request,$user_id,$raw_password=NULL)
     {
+        
+
+        if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+
         if($raw_password!=NULL)
         $password_ins=$raw_password;
         else if(isset($request->raw_password))
@@ -991,7 +1133,7 @@ class SMAISessionAuthController extends Controller
 
         $userdata = [
             'id' => $user_id,
-            'name' => $request->name,
+            'name' => $name_ins,
             'email' => $request->email,
             'password' =>  $password_ins,
         ];

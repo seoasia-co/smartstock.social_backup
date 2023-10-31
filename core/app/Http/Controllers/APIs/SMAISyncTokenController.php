@@ -95,6 +95,36 @@ use App\Http\Controllers\APIs\SMAIUpdateProfileController;
 
 class SMAISyncTokenController extends Controller
 {
+
+
+    /* Main Type of API from platforms GPT Category
+    DocText_
+    Images_ 
+    ------------------------------
+    Platforms
+
+    main_coin
+    MainCoIn
+
+    SocialPost
+    socilpost
+
+    MobileApp
+    MobileV2
+    mobile
+
+    Sync
+    SyncNodeJS
+    sync
+
+    Design
+    DigitalAsset
+    design
+
+
+    
+    */
+
     protected $client;
     protected $settings;
     protected $postContent;
@@ -115,7 +145,9 @@ class SMAISyncTokenController extends Controller
     public $main_template_id;
     public $main_openai_id;
     public $main_chat_category;
-
+    public $image_url;
+    public $nameOfImage;
+    public $image_origin_id;
 
     public function __construct($response = NULL, $usage = NULL, $chatGPT_catgory = NULL, $chat_id = NULL,$chat_main_id =NULL,$chat_name=NULL,$params=NULL,$user_id=NULL,$response_text=NULL,$main_useropenai_message_id=NULL)
     {
@@ -153,6 +185,13 @@ class SMAISyncTokenController extends Controller
             
             if($params_json1['main_template_id']>0)
             $this->main_template_id=$params_json1['main_template_id'];
+
+        }
+
+        if(isset($params_json1['image_origin_id']))
+        {  
+            //if source image ID was set
+            $this->image_origin_id=$params_json1['image_origin_id'];
 
         }
 
@@ -1948,7 +1987,9 @@ if($params_json1['prompt']!='SKIP')
                 //$user = UserDesign::where('id',$user_id);
                 $user = DB::connection('digitalasset_db')->table('users')->where('id', $user_id)->first();
 
+                if(isset($user->email))
                 $user_email = $user->email;
+            
                 Log::debug('Debug UderDesign from Eloqunt ');
                 //Log::info($user);
 
@@ -3672,12 +3713,8 @@ if($params_json1['prompt']!='SKIP')
 //Universal SMAI fnc
     public function SMAI_Update_TableColumn($arr_ids, $database, $table, $data_array)
     {
-
-
         $array_of_ids = $arr_ids;
         $table_update = DB::connection($database)->table($table)->whereIn('id', $array_of_ids)->update(array($data_array));
-
-
     }
 
 
@@ -3761,12 +3798,10 @@ if($params_json1['prompt']!='SKIP')
     public function SMAI_QryAll_Eloq_openAI_content_TB($user_id, $database, $table)
     {
 
-
     }
 
     public function SMAI_QryFilter_Eloq_openAI_content_TB($user_id, $database, $table)
     {
-
 
     }
 
@@ -3821,11 +3856,10 @@ if($params_json1['prompt']!='SKIP')
     public function update_token_centralize($user_id, $email, $token_array)
     {
 
-
     }
 
 
-    public function imageOutput_save_main_coin($user_id, $usage, $response, $params, $size = NULL, $post = NULL, $style = NULL, $lighting = NULL, $mood = NULL, $number_of_images = 1, $image_generator = 'DE', $negative_prompt = NULL)
+    public function imageOutput_save_main_coin($user_id, $usage, $response, $params, $size = NULL, $post = NULL, $style = NULL, $lighting = NULL, $mood = NULL, $number_of_images = 1, $image_generator = 'DE', $negative_prompt = NULL,$main_image_id=NULL)
     {
         $image_arr = array(
             'style' => $style,
@@ -3834,13 +3868,25 @@ if($params_json1['prompt']!='SKIP')
             'mood' => $mood,
         );
 
-
         $path_array = array();
         $image_storage = "s3";
         Log::debug('Usage in imageOutput_save ' . $usage);
         Log::debug('user_id in imageOutput_save ' . $user_id);
         Log::debug('response in imageOutput_save ' . $response);
         Log::info($response);
+
+        if(isset($response))
+        {
+            //case if defind imgae_url from $data_image
+            $image_url_decode=json_decode($response,true);
+            if(isset($image_url_decode['image_url']))
+            {
+            $this->image_url=$image_url_decode['image_url'];
+            Log::debug(' Debug reponse url '.$this->image_url);
+            Log::info($this->image_url);
+            }
+        }
+
         Log::debug('params in imageOutput_save ');
         Log::info($params);
 
@@ -3891,21 +3937,51 @@ if($params_json1['prompt']!='SKIP')
 
                 if (isset($params_json['nameOfImage'])) {
 
-                    $contents = $params_json['contents'];
+                    if($chatGPT_catgory == 'Images_Bio')
+                    {
+                        //Log::info($response);
+                        //$image_url = $this->image_url;
+                        $contents = $this->image_url;
+                    }
+                    
+                    else
+                    {
+                        $contents = $params_json['contents'];
+                    }
+
                     $nameOfImage = $params_json['nameOfImage'];
+
                 } else {
 
                     //send prompt to openai
                     if ($prompt == null) return response()->json(["status" => "error", "message" => "You must provide a prompt"]);
 
-                    $response = json_decode($response, true);
-                    if ($chatGPT_catgory == 'Images_Design')
-                        $image_url = $response['data'][0]['url'];
-                    else
-                        $image_url = $response['data'][0]['b64_json'];
+                    if(is_array($response)==false)
+                    {
+                         $response = json_decode($response, true);
+                    
+                    }
 
-                    //$contents = base64_decode($image_url);
-                    $contents = $image_url;
+                    if ($chatGPT_catgory == 'Images_Design')
+                    {
+                        $image_url = $response['data'][0]['url'];
+                        $contents = $image_url;
+                    }
+                    else if($chatGPT_catgory == 'Images_Bio')
+                    {
+                        
+                        /* $image_url = $response['b64_json'];
+                        $contents = base64_decode($image_url); */
+                        $contents = $this->image_url;
+                    }
+                    else
+                    {
+                        $image_url = $response['data'][0]['b64_json'];
+                        $contents = $image_url;
+                    }
+
+                    
+                    
                     $nameOfImage = Str::random(12) . '-DALL-E-' . Str::slug($prompt) . '.png';
 
                 }
@@ -3918,8 +3994,22 @@ if($params_json1['prompt']!='SKIP')
 
                 if (isset($params_json['nameOfImage'])) {
 
+                    if($chatGPT_catgory == 'Images_Bio')
+                    {
+                      
+                       /*  $image_url = $response['b64_json'];
+                        $contents = base64_decode($image_url); */
+                        $contents = $this->image_url;
+                    }
+                    
+                    else
+                    {
                     $contents = $params_json['contents'];
+                    }
+                    
+                    
                     $nameOfImage = $params_json['nameOfImage'];
+
                 } else {
                     //send prompt to stablediffusion
                     $settings = SettingTwo::first();
@@ -3947,7 +4037,9 @@ if($params_json1['prompt']!='SKIP')
 
             }
 
-
+            Log::debug('Image name '.$nameOfImage);
+            Log::debug(' Check Content before get ');
+            //Log::info($contents);
             Storage::disk('topics')->put($nameOfImage, file_get_contents($contents));
             $path = 'https://smartstock.social/uploads/topics/' . $nameOfImage;
             $path_s3 = 'uploads/topics/' . $nameOfImage;
@@ -3981,7 +4073,53 @@ if($params_json1['prompt']!='SKIP')
             $entry->words = 0;
             $entry->storage = UserOpenai::STORAGE_AWS;
             $entry->file_size = $file_ImageSize;
+            $entry->origin_user_openai_id =$this->image_origin_id;
             $entry->save();
+
+            $image_arr['main_image_id'] =$entry->id;
+
+              if(Str::contains($this->chatGPT_catgory,'_SmartContentCoIn')==true || Str::contains($this->chatGPT_catgory,'_main_coin') ==true )
+              {
+
+              }
+              else{
+
+                      //Bio
+                      if(Str::contains($this->chatGPT_catgory,'_SmartBio')==true || Str::contains($this->chatGPT_catgory,'_Bio')==true )
+                      {
+                          $image_origin_update=ImagesBio::where('image_id',$this->image_origin_id)->first();
+                      }
+
+                      //SocialPost
+                      if(Str::contains($this->chatGPT_catgory,'_SocialPost')==true || Str::contains($this->chatGPT_catgory,'_socialpost')==true )
+                      {
+                          $image_origin_update=SP_UserOpenai ::where('id',$this->image_origin_id)->first();
+                      }
+
+                      //Design
+                      if(Str::contains($this->chatGPT_catgory,'_SmartBio')==true || Str::contains($this->chatGPT_catgory,'_Bio')==true )
+                      {
+                          $image_origin_update=DigitalAsset_UserOpenai::where('id',$this->image_origin_id)->first();
+                      }
+
+                      //Sync wait for update real image table
+                      if(Str::contains($this->chatGPT_catgory,'_SyncNodeJS')==true || Str::contains($this->chatGPT_catgory,'_sync')==true )
+                      {
+                          $image_origin_update=UserSyncNodeJSOpenai::where('id',$this->image_origin_id)->first();
+                      }
+
+                      //MobileV2 wait for update real image table
+                      if(Str::contains($this->chatGPT_catgory,'_mobile')==true || Str::contains($this->chatGPT_catgory,'_MobileApp')==true )
+                      {
+                          $image_origin_update=Mobile_UserOpenai::where('id',$this->image_origin_id)->first();
+                      }
+
+                      $image_origin_update->main_user_openai_id =$entry->id;
+                      $image_origin_update->save();
+
+                     
+
+              }
 
             //push each generated image to an array
             array_push($entries, $entry);
@@ -3991,7 +4129,7 @@ if($params_json1['prompt']!='SKIP')
                 $user->save();
                 $userOpenai = UserOpenai::where('user_id', $user_id)->where('openai_id', $post->id)->orderBy('created_at', 'desc')->get();
                 $openai = OpenAIGenerator::where('id', $post->id)->first();
-                return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
+                //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
             }
 
             if ($user->remaining_images == 1) {
@@ -4029,7 +4167,7 @@ if($params_json1['prompt']!='SKIP')
     }
 
 
-    public function imageOutput_save_SocialPost_self($user_id, $size, $path, $img_width, $img_height, $image_arr, $prompt)
+    public function imageOutput_save_SocialPost_self($user_id, $size, $path, $img_width, $img_height, $image_arr, $prompt,$main_image_id=NULL)
     {
 
         //update openai_usage_tokens
@@ -4068,7 +4206,7 @@ if($params_json1['prompt']!='SKIP')
 
     }
 
-    public function imageOutput_save_Bio_self($user_id, $size, $path, $img_width, $img_height, $image_arr, $prompt)
+    public function imageOutput_save_Bio_self($user_id, $size, $path, $img_width, $img_height, $image_arr, $prompt,$main_image_id=NULL)
     {
 
 
@@ -4118,18 +4256,36 @@ if($params_json1['prompt']!='SKIP')
             'api' => $images_api,
             'api_response_time' => 9999,
             'datetime' => date("Y-m-d H:i:s"),
+            'main_user_openai_id' => $main_image_id,
         ]);
 
         $image_bio_new_ins->save(); //returns true
+        $images_bio_new_ins_id=$image_bio_new_ins->id;
 
         // $image_bio_new_ins = ImagesBio::create($data_image);
         Log::debug('Insert new image to self_Bio result');
         Log::info($image_bio_new_ins);
+
+        //Check if double inserted
+        if(Str::contains($this->chatGPT_catgory,'_SmartBio')==true || Str::contains($this->chatGPT_catgory,'_Bio')==true )
+        {
+           $main_user_origin=UserOpenai::where('id',$main_image_id)->first();
+           $main_user_origin_id= $main_user_origin->origin_user_openai_id;
+           $images_bio_origin=ImagesBio::where('image_id',$main_user_origin_id)->first();
+           $images_bio_origin->image = $image_bio_new_ins->image ;
+           //update original
+           $images_bio_origin->save();
+           //del the new 
+           $image_bio_new_ins->delete();
+
+        }
+
+
+
     }
 
-    public function imageOutput_save_Bio($user_id, $prompt, $number_of_images, $path_array, $image_array)
+    public function imageOutput_save_Bio($user_id, $prompt, $number_of_images, $path_array, $image_array,$main_image_id=NULL)
     {
-
 
         $image_generator = 'DE';
         $entries = [];
@@ -4140,10 +4296,11 @@ if($params_json1['prompt']!='SKIP')
             $post_type = 'ai_image_generator';
             $image_storage = "s3";
             $path = $path_array[$i];
-
             $post = OpenAIGenerator::where('slug', $post_type)->first();
-            $entry = new UserBioOpenai();
-            $entry->title = 'New Image';
+           
+            // change to update not insert
+           /*  $entry = new ImagesBio();
+            $entry->name = 'New Image';
             $entry->slug = Str::random(7) . Str::slug($user->name) . '-workbsook';
             $entry->user_id = $user_id;
             $entry->openai_id = $post->id;
@@ -4154,44 +4311,22 @@ if($params_json1['prompt']!='SKIP')
             $entry->credits = 1;
             $entry->words = 0;
             $entry->storage = UserOpenai::STORAGE_AWS;
-            $entry->save();
+            $entry->main_user_openai_id =$main_image_id;
+            $entry->save(); */
 
             //push each generated image to an array
-            array_push($entries, $entry);
+           
 
-            if ($user->remaining_images - 1 == -1) {
-                $user->remaining_images = 0;
-                $user->save();
-                $userOpenai = UserBioOpenai::where('user_id', $user_id)->where('openai_id', $post->id)->orderBy('created_at', 'desc')->get();
-                $openai = OpenAIGenerator::where('id', $post->id)->first();
-                return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
-            }
-
-            if ($user->remaining_images == 1) {
-                $user->remaining_images = 0;
-                $user->save();
-            }
-
-            if ($user->remaining_images != -1 and $user->remaining_images != 1 and $user->remaining_images != 0) {
-                $user->remaining_images -= 1;
-                $user->save();
-            }
-
-            if ($user->remaining_images < -1) {
-                $user->remaining_images = 0;
-                $user->save();
-            }
-
-            if ($user->remaining_images == 0) {
-                //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
-            }
-
+            Log::debug('Image array in  imageOutput_save_Bio');
+            Log::info($image_array);
             $size = $image_array['size'];
             $size_arr = explode("x", $size);
             $img_width = $size_arr[0];
             $img_height = $size_arr[1];
-            $this->imageOutput_save_Bio_self($user_id, $size, $path, $img_width, $img_height, $image_array, $prompt);
-
+           
+            // change this 2 method to Update data not insert incase from Bio
+            $this->imageOutput_save_Bio_self($user_id, $size, $path, $img_width, $img_height, $image_array, $prompt,$main_image_id);
+            
         }
         //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
 
@@ -4200,7 +4335,7 @@ if($params_json1['prompt']!='SKIP')
 
     }
 
-    public function imageOutput_save_SocialPost($user_id, $prompt, $number_of_images, $path_array, $image_array)
+    public function imageOutput_save_SocialPost($user_id, $prompt, $number_of_images, $path_array, $image_array,$main_image_id=NULL)
     {
         $image_generator = 'DE';
         $entries = [];
@@ -4225,6 +4360,7 @@ if($params_json1['prompt']!='SKIP')
             $entry->credits = 1;
             $entry->words = 0;
             $entry->storage = UserOpenai::STORAGE_AWS;
+            $entry->main_user_openai_id =$main_image_id;
             $entry->save();
 
             //push each generated image to an array
@@ -4271,12 +4407,17 @@ if($params_json1['prompt']!='SKIP')
 
     }
 
-    public function imageOutput_save_Design($user_id, $prompt, $number_of_images, $path_array)
+    public function imageOutput_save_Design($user_id, $prompt, $number_of_images, $path_array,$main_image_id=NULL)
     {
 
+         Log::debug('imageOutput_save_Design  User ID '.$user_id);
         $image_generator = 'DE';
         $entries = [];
-        $user = UserDesign::where('id', $user_id)->first();
+
+        if($user_id==1)
+        $user_check_id=20;
+
+        $user = UserDesign::where('id', $user_check_id)->first();
 
         for ($i = 0; $i < count($path_array); $i++) {
 
@@ -4297,6 +4438,7 @@ if($params_json1['prompt']!='SKIP')
             $entry->credits = 1;
             $entry->words = 0;
             $entry->storage = UserOpenai::STORAGE_AWS;
+            $entry->main_user_openai_id =$main_image_id;
             $entry->save();
 
             //push each generated image to an array
@@ -4337,7 +4479,7 @@ if($params_json1['prompt']!='SKIP')
     }
 
 
-    public function imageOutput_save_Sync($user_id, $prompt, $number_of_images, $path_array)
+    public function imageOutput_save_Sync($user_id, $prompt, $number_of_images, $path_array,$main_image_id=NULL)
     {
 
         $image_generator = 'DE';
@@ -4363,6 +4505,7 @@ if($params_json1['prompt']!='SKIP')
             $entry->credits = 1;
             $entry->words = 0;
             $entry->storage = UserOpenai::STORAGE_AWS;
+            $entry->main_user_openai_id =$main_image_id;
             $entry->save();
 
             //push each generated image to an array
@@ -4404,7 +4547,7 @@ if($params_json1['prompt']!='SKIP')
     }
 
 
-    public function imageOutput_save_MobileAppV2($user_id, $prompt, $number_of_images, $path_array)
+    public function imageOutput_save_MobileAppV2($user_id, $prompt, $number_of_images, $path_array,$main_image_id=NULL)
     {
 
         $image_generator = 'DE';
@@ -4430,6 +4573,7 @@ if($params_json1['prompt']!='SKIP')
             $entry->credits = 1;
             $entry->words = 0;
             $entry->storage = UserOpenai::STORAGE_AWS;
+            $entry->main_user_openai_id =$main_image_id;
             $entry->save();
 
             //push each generated image to an array

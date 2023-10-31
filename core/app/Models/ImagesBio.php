@@ -15,7 +15,7 @@ class ImagesBio extends Authenticatable
     protected $connection = 'bio_db';
     protected $table='images';
 
-    //protected $primaryKey = 'user_id';
+    protected $primaryKey = 'image_id';
     //protected $primaryKey = null;
 
     /**
