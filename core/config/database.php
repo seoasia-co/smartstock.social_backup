@@ -320,6 +320,35 @@ return [
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
         ],
+
+        'punbot_db' => [
+            'driver' => 'mysql',
+            'url' => env('DATABASE_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_PUNBOT_DATABASE', 'forge'),
+            'username' => env('DB_PUNBOT_USERNAME', 'forge'),
+            'password' => env('DB_PUNBOT_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+        
+        // other DB connections...
+            'punbot_firebase' => [
+                'driver' => 'firebase',
+                'database' => env('FIREBASE_DATABASE_URL'),
+                'credentials' => [
+                    'file' => env('FIREBASE_CREDENTIALS'),
+                ],
+            ],
         
         
 

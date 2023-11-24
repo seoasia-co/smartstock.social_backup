@@ -37,14 +37,6 @@ class UserDesignSubscriptions extends Authenticatable
         'created',
         'status' ,
 
-        
-
- 
-  
-  
-
-
-        
     ];
 
    

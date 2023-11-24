@@ -148,6 +148,8 @@ class SMAISyncTokenController extends Controller
     public $image_url;
     public $nameOfImage;
     public $image_origin_id;
+    public $image_generator;
+    //public $token_usge;
 
     public function __construct($response = NULL, $usage = NULL, $chatGPT_catgory = NULL, $chat_id = NULL,$chat_main_id =NULL,$chat_name=NULL,$params=NULL,$user_id=NULL,$response_text=NULL,$main_useropenai_message_id=NULL)
     {
@@ -194,6 +196,16 @@ class SMAISyncTokenController extends Controller
             $this->image_origin_id=$params_json1['image_origin_id'];
 
         }
+
+
+
+        if(isset($params_json1['image_generator']))
+        {
+        
+        $this->image_generator=$params_json1['image_generator'];
+        }
+
+
 
         if(isset($params_json1['main_useropenai_message_id']))
         {
@@ -250,7 +262,6 @@ class SMAISyncTokenController extends Controller
                       if($check_fix_caption->wait_for_fix==1)
                       {
 
-
                         $check_fix_caption->content=$this->response_text;
                         $check_fix_caption->save();
 
@@ -291,6 +302,9 @@ class SMAISyncTokenController extends Controller
 
             if (isset($choices["text"]))
                 $this->postContent = $choices["text"];
+
+
+                //Log::debug(' !!!!!!!!!!!!!! Check Post COntent response text in Contructor '.$this->postContent);
 
 
             //case send from Smart Bio ||   model = gpt-4-0613
@@ -341,7 +355,7 @@ class SMAISyncTokenController extends Controller
 
 
 
-            Log::debug('Debug $this_chat_id ' . $this->chat_id);
+            //Log::debug('Debug $this_chat_id ' . $this->chat_id);
 
             
             if ($chat_main_id == NULL || $chat_main_id  < 0) {
@@ -1317,6 +1331,7 @@ class SMAISyncTokenController extends Controller
                 $message_id = $entry->id;
                
                 Log::debug('Message_ID of MainCoIn ' . $message_id);
+                if($this->chat_id==NULL)
 
                 // Create UserOpenai Models belong to OpenAIGenerator Models
                 $message = UserOpenai::whereId($message_id)->first();
@@ -1340,7 +1355,15 @@ class SMAISyncTokenController extends Controller
                 }
 
                 if ($message_id == $entry->id)
-                    return $message_id;
+                {
+                    $return_message_array=array(
+                        'message_id'=>$message_id,
+                        'total_used_tokens'=>$this->total_used_tokens,
+                    );
+                  
+                    return $return_message_array;
+
+                }
 
 
                 //Update remaining  to users section
@@ -1582,7 +1605,7 @@ if($params_json1['prompt']!='SKIP')
             }
 
 
-                Log::debug('Desc after convert to string' . $description);
+                //Log::debug('Desc after convert to string' . $description);
 
                 if(!isset($save_user_request_chat["chat_id"]))
                 $save_user_request_chat["chat_id"]=$this->chat_main_id;
@@ -1790,7 +1813,7 @@ if($params_json1['prompt']!='SKIP')
                 if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
                     $total_used_tokens = $this->total_used_tokens;
 
-                Log::debug('before update TOken numbers remaining_words');
+                //Log::debug('before update TOken numbers remaining_words');
                 // Save Users of Digital_Asset
                 //Update new remaining Tokens
                 $user = \DB::connection('main_db')->table('sp_users')->where('id', $user_id)->get();
@@ -1818,7 +1841,7 @@ if($params_json1['prompt']!='SKIP')
 
             }
 
-            Log::debug('before Skip Caption _Socialpost');
+            //Log::debug('before Skip Caption _Socialpost');
             if (Str::contains($chatGPT_catgory, 'Chat_') == false) {
 
                 if(Str::length($this->response_text) >2 )
@@ -1830,7 +1853,7 @@ if($params_json1['prompt']!='SKIP')
 
 
                 //add to SP_Captions for show in socialpost caption list
-                Log::debug('before insert Caption _Socialpost caption_text '.$caption_save);
+                //Log::debug('before insert Caption _Socialpost caption_text '.$caption_save);
                 $caption_table = "sp_captions";
                 $caption_database = "main_db";
                 $this->SMAI_Ins_Eloq_openAI_Caption_Socialpost($description, $caption_save, $user_id, $message_id, $caption_database, $caption_table);
@@ -2079,7 +2102,7 @@ if($params_json1['prompt']!='SKIP')
             } else {
 
                 if ($settings->openai_default_model == 'gpt-3.5-turbo') {
-                    Log::debug('Response in gpt-3.5-turbo SMAI_UpdateGPT_DigitalAsset from SMAIsyncController ');
+                    //Log::debug('Response in gpt-3.5-turbo SMAI_UpdateGPT_DigitalAsset from SMAIsyncController ');
                     if (isset($response['choices'][0]['delta']['content'])) {
                         $message = $response['choices'][0]['delta']['content'];
                         $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
@@ -2253,7 +2276,7 @@ if($params_json1['prompt']!='SKIP')
                 $message_id = $entry->id;
                 Log::debug('Message_ID of DigitalAsset Design ' . $message_id);
 
-                Log::info(print_r("Inserted new openai to ID " . $message_id, true));
+                //Log::info(print_r("Inserted new openai to ID " . $message_id, true));
 
                 // Create UserOpenai Models belong to OpenAIGenerator Models
                 $message = DigitalAsset_UserOpenai::whereId($message_id)->first();
@@ -3139,7 +3162,7 @@ if($params_json1['prompt']!='SKIP')
             ";
 
 
-                // Save Users of Mobile App
+                // Save Users of Bio 
                 $user = \DB::connection('bio_db')->table('users')->where('user_id', $user_id)->get();
                 //$users = DB::connection('second_db')->table('users')->get();
 
@@ -3152,6 +3175,7 @@ if($params_json1['prompt']!='SKIP')
                 Log::debug('Check if create AI Bio Doc success'.$entry->document_id);
 
                 $entry->title = 'New Workbook';
+                
 
                 if ($params_json1["model"] == 'whisper-1') {
 
@@ -3176,18 +3200,40 @@ if($params_json1['prompt']!='SKIP')
                 $entry->credits = 0;
                 $entry->words = 0;
                 $entry->main_user_openai_id = $main_message_id;
+                $entry->name = $entry->title;
+
+                if($this->chatGPT_catgory=='Text_Design' || $this->chatGPT_catgory=='DocText_SocialPost')
+                {
+                    $entry->template_id = 11;
+                    $entry->type = 11;
+                    $entry->template_category_id=2;
+                    $entry->content=$entry->output;
+
+                }
+
+
+
                 $entry->save();
 
                 //for socialpost caption
+                if($this->chatGPT_catgory=='Images_Design' || $this->platform=='design')
+                $responsedText_backup =$entry->$output;
+                else
                 $responsedText_backup =$entry->response;
 
+                if(isset($entry->id))
                 $message_id = $entry->id;
-                Log::debug('Message_ID of MobileAppV2 ' . $message_id);
+                else
+                $message_id =$entry->document_id ;
+
+                Log::debug('Message_ID of Bio ' . $message_id);
 
                 // Create UserOpenai Models belong to OpenAIGenerator Models
                 $message = UserBioOpenai::where('document_id',$message_id)->first();
                 
                // new update gpt-4-0613
+               if(isset($message->response))
+               {
                 if ($params_json1["model"] == 'whisper-1') {
                     $message->response = serialize(json_encode($response_arr));
 
@@ -3195,6 +3241,7 @@ if($params_json1['prompt']!='SKIP')
                     $message->response = $responsedText;
 
                 }
+               }
                 $message->output = $output;
                 $message->hash = Str::random(256);
                 $message->credits = $this->total_used_tokens;
@@ -3284,11 +3331,19 @@ if($params_json1['prompt']!='SKIP')
 
             $response_bk = $response;
             $response = json_decode($response, true);
+
+            Log::debug('Debug after jSOn dEcode respone');
             if (Str::contains($chatGPT_catgory, 'Chat_')) {
                 //add Sync GPT chat version here
 
                 $total_used_tokens = $usage;
+
+                if(isset($this->chat_id))
+                {
                 $chat_id = $this->chat_id;
+                }
+
+                Log::debug('Debug after this _ chat_id');
 
 
                 $chat_new_ins = UserOpenaiChatSyncNodeJS::updateOrCreate(
@@ -3326,7 +3381,7 @@ if($params_json1['prompt']!='SKIP')
 
                 $message_id = $message_new_ins;
 
-
+                Log::debug('Debug after message_id');
                 if (isset($response['choices'][0]['delta']['content']))
                     $message_response = $response['choices'][0]['delta']['content'];
                 if (isset($response['choices'][0]['message']['content']))
@@ -3425,7 +3480,8 @@ if($params_json1['prompt']!='SKIP')
 
                 $n_prompt = 2;
 
-                $this->chat_role = $params_json1['messages'][1]['role'];
+                 if(isset($params_json1['messages'][1]['role']))
+                 $this->chat_role = $params_json1['messages'][1]['role'];
 
                 //Define CHat Role Universal
 
@@ -3455,6 +3511,7 @@ if($params_json1['prompt']!='SKIP')
 
 
                 if ($settings->openai_default_model == 'gpt-3.5-turbo') {
+                    Log::debug('Debug after gpt-3.5-turbo');
                     if (isset($response['choices'][0]['delta']['content'])) {
                         $message = $response['choices'][0]['delta']['content'];
                         $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
@@ -3472,7 +3529,10 @@ if($params_json1['prompt']!='SKIP')
                     } else {
                         if (isset($response)) {
 
-                            if (Str::length($this->postContent) > 0) {
+                            Log::debug('Debug after response');
+                            if (isset($this->postContent) && Str::length($this->postContent) > 0) {
+                                
+                                Log::debug('Debug before trim postContent');
                                 $message = trim($this->postContent);
                                 $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                                 $output .= $messageFix;
@@ -3482,12 +3542,15 @@ if($params_json1['prompt']!='SKIP')
                                 $string_length = Str::length($messageFix);
                                 $needChars = 6000 - $string_length;
                                 $random_text = Str::random($needChars);
+                                Log::debug('Debug finished trim postContent');
+
                             }
 
                         }
                     }
                 } 
-                else if (Str::contains($this->GPTModel,'gpt-4-')) {
+                else if (isset($this->GPTModel) && Str::contains($this->GPTModel,'gpt-4-')) {
+                    Log::debug('Debug after gpt-4-');
                     if (isset($response['choices'][0]['message']['content'])) {
                         $message = $response['choices'][0]['message']['content'];
                         $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
@@ -3523,6 +3586,7 @@ if($params_json1['prompt']!='SKIP')
                 } 
                 else {
                     if (isset($response->choices[0]->text)) {
+                        Log::debug('Debug after response_choices0_text none GPT version');
                         $message = $response->choices[0]->text;
                         $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
                         $output .= $messageFix;
@@ -3559,7 +3623,7 @@ if($params_json1['prompt']!='SKIP')
                 else
                     $params_json = json_decode($params, true);
 
-
+                Log::debug('Debug after NodeJs params_json');
                 $keywords = '';
                 $description = $params_json["prompt"];
                 $creativity = 1;
@@ -3582,19 +3646,26 @@ if($params_json1['prompt']!='SKIP')
                 $entry = new UserSyncNodeJSOpenai();
                 $entry->title = 'New Workbook';
 
-                if ($params_json1["model"] == 'whisper-1') {
+                Log::debug('Check if create AI Doc success');
 
-                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                } else {
-                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                if(isset($params_json1["model"]))
+                {
+                    if ($params_json1["model"] == 'whisper-1') {
+
+                        $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                    } else {
+                        $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                    }
+                    
+
+                    if ($params_json1["model"] == 'whisper-1') {
+                        $prompt = $description;
+                        $output = $response['text'];
+                    }
                 }
 
-                if ($params_json1["model"] == 'whisper-1') {
-                    $prompt = $description;
-                    $output = $response['text'];
-                }
 
-
+                Log::debug('Debug before response_arr');
                 $response_arr = json_decode($response_bk, true);
                 $entry->user_id = $user_id;
                 $entry->openai_id = $post->id;
@@ -3826,8 +3897,14 @@ if($params_json1['prompt']!='SKIP')
         $parent_openai_data = SP_UserOpenai::where('id', $parentid)->first();
         $response_from_parent= $parent_openai_data->response;
 
-        if(Str::length($content)<2 || $content==NULL )
+        $isUTF8 = preg_match('//u', $content);
+
+        if(Str::length($content)<2 || $content==NULL || $isUTF8==false) 
         $content=$response_from_parent;
+
+        if(Str::contains($this->platform,'social') || Str::contains($this->platform,'design'))
+        $content=$response_from_parent;
+
 
 
         if(Str::length($content)<2 || $content==NULL )
@@ -3835,7 +3912,9 @@ if($params_json1['prompt']!='SKIP')
         else
         $wait_fix=0;
 
-
+        
+       
+        
 
         $entry = new SP_UserCaption();
 
@@ -3962,7 +4041,7 @@ if($params_json1['prompt']!='SKIP')
                     
                     }
 
-                    if ($chatGPT_catgory == 'Images_Design')
+                    if ($chatGPT_catgory == 'Images_Design' || $chatGPT_catgory == 'Images_SocialPost' )
                     {
                         $image_url = $response['data'][0]['url'];
                         $contents = $image_url;
@@ -4065,7 +4144,12 @@ if($params_json1['prompt']!='SKIP')
             $entry->slug = Str::random(7) . Str::slug($user->name) . '-workbsook';
             $entry->user_id = $user_id;
             $entry->openai_id = $post->id;
+
+            if(is_array($prompt)==true)
+            $entry->input = json_encode($prompt);
+            else
             $entry->input = $prompt;
+        
             $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
             $entry->output = $image_storage == "s3" ? $path : '/' . $path;
             $entry->hash = Str::random(256);
@@ -4077,30 +4161,61 @@ if($params_json1['prompt']!='SKIP')
             $entry->save();
 
             $image_arr['main_image_id'] =$entry->id;
+            $this->main_openai_id=$entry->id;
+            Log::debug('Image ID '.$entry->id);
+
+
 
               if(Str::contains($this->chatGPT_catgory,'_SmartContentCoIn')==true || Str::contains($this->chatGPT_catgory,'_main_coin') ==true )
               {
-
+                
               }
               else{
 
                       //Bio
                       if(Str::contains($this->chatGPT_catgory,'_SmartBio')==true || Str::contains($this->chatGPT_catgory,'_Bio')==true )
                       {
+
                           $image_origin_update=ImagesBio::where('image_id',$this->image_origin_id)->first();
                       }
 
                       //SocialPost
-                      if(Str::contains($this->chatGPT_catgory,'_SocialPost')==true || Str::contains($this->chatGPT_catgory,'_socialpost')==true )
+                      if(Str::contains($this->chatGPT_catgory,'_SocialPost')==true || Str::contains($this->chatGPT_catgory,'_socialpost')==true || Str::contains($this->platform,'socialpost')==true )
                       {
-                          $image_origin_update=SP_UserOpenai ::where('id',$this->image_origin_id)->first();
-                      }
 
-                      //Design
+                        $post_type = 'ai_image_generator';
+                        $post = OpenAIGenerator::where('slug', $post_type)->first();
+                        $entrys = new SP_UserOpenai();
+                        $entrys->title = 'New Image';
+                        $entrys->slug = $entry->slug;
+                        $entrys->user_id = $user_id;
+                        $entrys->openai_id = $post->id;
+                        $entrys->input = $prompt;
+                        $entrys->response = $image_generator == "stablediffusion" ? "SD" : "DE";
+                        $entrys->output = $image_storage == "s3" ? $path : '/' . $path;
+                        $entrys->hash = Str::random(256);
+                        $entrys->credits = 1;
+                        $entrys->words = 0;
+                        $entrys->storage = UserOpenai::STORAGE_AWS;
+
+                        $entrys->main_user_openai_id =$entrys->id;
+                        $entrys->save();
+
+                        $this->image_origin_id=$entrys->id;
+
+                        $entry->origin_user_openai_id =$this->image_origin_id;
+                        $entry->save();
+                          
+                        $image_origin_update=SP_UserOpenai ::where('id',$this->image_origin_id)->first();
+                      
+                      
+                        }
+
+                     /*  //BIo
                       if(Str::contains($this->chatGPT_catgory,'_SmartBio')==true || Str::contains($this->chatGPT_catgory,'_Bio')==true )
                       {
-                          $image_origin_update=DigitalAsset_UserOpenai::where('id',$this->image_origin_id)->first();
-                      }
+                          $image_origin_update=UserBioOpenai::where('id',$this->image_origin_id)->first();
+                      } */
 
                       //Sync wait for update real image table
                       if(Str::contains($this->chatGPT_catgory,'_SyncNodeJS')==true || Str::contains($this->chatGPT_catgory,'_sync')==true )
@@ -4114,8 +4229,65 @@ if($params_json1['prompt']!='SKIP')
                           $image_origin_update=Mobile_UserOpenai::where('id',$this->image_origin_id)->first();
                       }
 
-                      $image_origin_update->main_user_openai_id =$entry->id;
-                      $image_origin_update->save();
+                      //Design Digital_asset
+                      if(Str::contains($this->chatGPT_catgory,'_design')==true || Str::contains($this->chatGPT_catgory,'_Design')==true || Str::contains($this->platform,'design')==true)
+                      {
+                          $image_origin_update=DigitalAsset_UserOpenai::where('id',$this->image_origin_id)->first();
+                      
+                          $post_type = 'ai_image_generator';
+                          $post = OpenAIGenerator::where('slug', $post_type)->first();
+                          $entrys = new DigitalAsset_UserOpenai();
+                          $entrys->title = 'New Image';
+                          $entrys->slug = $entry->slug;
+                          $entrys->user_id = $user_id;
+                          $entrys->openai_id = $post->id;
+                          $entrys->input = $prompt;
+                          $entrys->response = $image_generator == "stablediffusion" ? "SD" : "DE";
+                          $entrys->output = $image_storage == "s3" ? $path : '/' . $path;
+                          $entrys->hash = Str::random(256);
+                          $entrys->credits = 1;
+                          $entrys->words = 0;
+                          $entrys->storage = UserOpenai::STORAGE_AWS;
+  
+                          $entrys->main_user_openai_id =$entrys->id;
+                          $entrys->save();
+  
+                          $this->image_origin_id=$entrys->id;
+  
+                          $entry->origin_user_openai_id =$this->image_origin_id;
+                          $entry->save();
+                            
+                          $image_origin_update=DigitalAsset_UserOpenai::where('id',$this->image_origin_id)->first();
+                        
+                        }
+
+                      if(isset($image_origin_update->main_user_openai_id))
+                      {
+                        $image_origin_update->main_user_openai_id = $entry->id;
+                     
+                        $image_origin_update->save();
+                      }
+                      else
+                      {
+
+                             /* if(Str::contains($this->chatGPT_catgory,'_design')==true || Str::contains($this->chatGPT_catgory,'_Design')==true || Str::contains($this->platform,'design')==true)
+                                {
+                                    UserOpenai::query()
+                                        ->where('id','>', $entry->id)
+                                        ->each(function ($oldRecord) {
+                                            $newRecord = NEW DigitalAsset_UserOpenai();
+                                            $newRecord = $oldRecord->replicate();
+                                            //$newRecord->setTable('inactive_users');
+                                            $newRecord->save();
+                                            $oldRecord->delete();
+                                        });
+
+                                } */
+                      }
+                     
+
+
+                      
 
                      
 
@@ -4245,8 +4417,8 @@ if($params_json1['prompt']!='SKIP')
             'user_id' => $user_id,
             'project_id' => $project_id,
             'name' => $name,
-            'input' => $prompt,
-            'image' => $path,
+            'input' => json_encode($prompt),
+            'image' => strval($path),
             'style' => $image_arr['style'],
             'artist' => $image_arr['artist'],
             'lighting' => $image_arr['lighting'],
@@ -4287,7 +4459,11 @@ if($params_json1['prompt']!='SKIP')
     public function imageOutput_save_Bio($user_id, $prompt, $number_of_images, $path_array, $image_array,$main_image_id=NULL)
     {
 
+        if(isset($this->image_generator))
+        $image_generator = $this->image_generator;
+        else
         $image_generator = 'DE';
+
         $entries = [];
         $user = UserBio::where('user_id', $user_id)->first();
 
@@ -4337,7 +4513,13 @@ if($params_json1['prompt']!='SKIP')
 
     public function imageOutput_save_SocialPost($user_id, $prompt, $number_of_images, $path_array, $image_array,$main_image_id=NULL)
     {
+        
+        if(isset($this->image_generator))
+        $image_generator = $this->image_generator;
+        else
         $image_generator = 'DE';
+
+
         $entries = [];
         $user = UserSP::where('id', $user_id)->first();
 
@@ -4353,7 +4535,13 @@ if($params_json1['prompt']!='SKIP')
             $entry->slug = Str::random(7) . Str::slug($user->name) . '-workbsook';
             $entry->user_id = $user_id;
             $entry->openai_id = $post->id;
+
+            if(is_array($prompt)==true)
+            $entry->input = json_encode($prompt);
+            else
             $entry->input = $prompt;
+
+
             $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
             $entry->output = $image_storage == "s3" ? $path : '/' . $path;
             $entry->hash = Str::random(256);
@@ -4411,11 +4599,18 @@ if($params_json1['prompt']!='SKIP')
     {
 
          Log::debug('imageOutput_save_Design  User ID '.$user_id);
+        if(isset($this->image_generator))
+        $image_generator = $this->image_generator;
+        else
         $image_generator = 'DE';
+        
+        
         $entries = [];
 
         if($user_id==1)
         $user_check_id=20;
+        else
+        $user_check_id=$user_id;
 
         $user = UserDesign::where('id', $user_check_id)->first();
 
@@ -4431,7 +4626,12 @@ if($params_json1['prompt']!='SKIP')
             $entry->slug = Str::random(7) . Str::slug($user->name) . '-workbsook';
             $entry->user_id = $user_id;
             $entry->openai_id = $post->id;
+
+            if(is_array($prompt)==true)
+            $entry->input = json_encode($prompt);
+            else
             $entry->input = $prompt;
+
             $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
             $entry->output = $image_storage == "s3" ? $path : '/' . $path;
             $entry->hash = Str::random(256);
@@ -4482,7 +4682,12 @@ if($params_json1['prompt']!='SKIP')
     public function imageOutput_save_Sync($user_id, $prompt, $number_of_images, $path_array,$main_image_id=NULL)
     {
 
+        if(isset($this->image_generator))
+        $image_generator = $this->image_generator;
+        else
         $image_generator = 'DE';
+
+
         $entries = [];
         $user = UserSyncNodeJS::where('id', $user_id)->first();
 
@@ -4498,7 +4703,12 @@ if($params_json1['prompt']!='SKIP')
             $entry->slug = Str::random(7) . Str::slug($user->name) . '-workbsook';
             $entry->user_id = $user_id;
             $entry->openai_id = $post->id;
+
+            if(is_array($prompt)==true)
+            $entry->input = json_encode($prompt);
+            else
             $entry->input = $prompt;
+
             $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
             $entry->output = $image_storage == "s3" ? $path : '/' . $path;
             $entry->hash = Str::random(256);
@@ -4550,7 +4760,12 @@ if($params_json1['prompt']!='SKIP')
     public function imageOutput_save_MobileAppV2($user_id, $prompt, $number_of_images, $path_array,$main_image_id=NULL)
     {
 
+        if(isset($this->image_generator))
+        $image_generator = $this->image_generator;
+        else
         $image_generator = 'DE';
+
+
         $entries = [];
         $user = UserMobile::where('id', $user_id)->first();
 
@@ -4566,7 +4781,12 @@ if($params_json1['prompt']!='SKIP')
             $entry->slug = Str::random(7) . Str::slug($user->name) . '-workbsook';
             $entry->user_id = $user_id;
             $entry->openai_id = $post->id;
+
+             if(is_array($prompt)==true)
+            $entry->input = json_encode($prompt);
+            else
             $entry->input = $prompt;
+
             $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
             $entry->output = $image_storage == "s3" ? $path : '/' . $path;
             $entry->hash = Str::random(256);

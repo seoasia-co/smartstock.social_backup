@@ -32,10 +32,7 @@ class UserMain extends Authenticatable
         'provider_id',
         'provider',
         'access_token',
-        
         'surname',
-        
-        
         'affiliate_id',
         'affiliate_code',
         'remaining_words',
@@ -43,6 +40,8 @@ class UserMain extends Authenticatable
         'email_confirmation_code',
         'email_confirmed',
         'password_reset_code',
+        'expired_date',
+        'plan_expire_date',
     ];
 
     /**

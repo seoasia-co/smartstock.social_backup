@@ -27,7 +27,7 @@ use Cookie;
 use Carbon\Carbon;
 use stdClass;
 
-
+use App\Models\SubscriptionMain;
 use App\Models\SubscriptionMobile;
 use App\Models\OpenAIGenerator;
 use GuzzleHttp\Client;
@@ -84,11 +84,14 @@ use App\Models\UserBioOpenaiTemplate;
 
 use App\Models\OpenaiGeneratorFilter;
 
+use App\Models\SubscriptionBio;
+
 
 
 use Illuminate\Support\Arr;
 use App\Http\Controllers\Auth\SMAISessionAuthController;
 use Storage;
+
 
 class SMAIUpdateProfileController extends Controller
 {
@@ -101,15 +104,26 @@ class SMAIUpdateProfileController extends Controller
     protected $plus_new_images_token;
     protected $plus_new_words_token;
     protected $bio_template_id;
+    public $freetrial_plan_images;
+    public $freetrial_plan_words;
 
     // request as an attribute of the controllers
 
 
     public function __construct($request_update = NULL, $user_id = NULL, $user_email = NULL, $whatup = NULL, $upFromWhere = NULL)
     {
+
+
         $this->plus_new_images_token = 0;
         $this->plus_new_words_token = 0;
         $this->upFromWhere = $upFromWhere;
+
+        //freetrial images and words
+        $plan_main=Plan::where('id',8)->first();
+        $this->freetrial_plan_images=$plan_main->total_images;
+        $this->freetrial_plan_words =$plan_main->total_words;
+
+
 
         Log::debug(" Start constructor of Class update Profile with these Params : ");
 
@@ -529,7 +543,7 @@ class SMAIUpdateProfileController extends Controller
 
 
             }
-            if (in_array("login", $whatup)) {
+            if (in_array("login", $whatup) || in_array("express_upgrade_plan", $whatup)) {
 
                 if (isset($request_update['data']['raw_password']))
                     $raw_password = $request_update['data']['raw_password'];
@@ -539,6 +553,7 @@ class SMAIUpdateProfileController extends Controller
 
                 //create session login
                 $user_bio_id = $user_id;
+                $user_email=$request_update['email'];
 
                 $session_php = $request_update['session_php'];
                 $universal_user = Auth::loginUsingId($user_id);
@@ -547,7 +562,7 @@ class SMAIUpdateProfileController extends Controller
                 //add user to users table if not exist
                 $start_add_user = 1;
                 $login_session_bio->freetrial_user_api($request_update, $user_id, $raw_password);
-                if ($user_id ==1  && $start_add_user == 1) {
+                if ($user_id >1  && $start_add_user == 1) {
                     
                     if($this->check_old_user_id('main_db', 'sp_users', $user_id) < 1)
                     $login_session_bio->freetrial_socialpost($request_update, $user_id, $raw_password);
@@ -590,9 +605,335 @@ class SMAIUpdateProfileController extends Controller
                     if($this->check_old_user_id('seo_db', 'users', $user_id) < 1)
                     $login_session_bio->freetrial_seo($request_update, $user_id, $raw_password);
 
+                    $login_session_bio->freetrial_punbot($request_update, $user_id, $raw_password);
                 }
 
                 $login_session_bio->db_session_create($user_id, $session_php);
+
+                //recheck user Plan
+                //$this->up_plan_bio($userdata, $user_id, $user_email);
+                $new_checkuserplan = new SMAISyncPlanController();
+
+                //Sync PLan that Buy from Bio
+                if($this->upFromWhere=='bio')
+                {
+                    $current_bio_plan_array = $new_checkuserplan->SMAI_Check_Universal_UserPlans($user_id,'bio_db','Bio');
+                    $current_bio_plan_id = $current_bio_plan_array['plan_id'];
+                    $current_bio_plan_expire = $current_bio_plan_array['expire'];
+                    $current_main_plan = $current_bio_plan_array['main_plan_id'];
+
+                    $Bio_Plan_from_DB=PlanBio::where('plan_id',$current_bio_plan_id)->first();
+                    $BIo_Plan_from_DB_package_type=$Bio_Plan_from_DB->package_type;
+                    $main_plan_should_be=$Bio_Plan_from_DB->main_plan_id;
+
+                    Log::debug('Debug Main Plan from Setting '.$main_plan_should_be);
+                    Log::debug('Debug Main Plan from DB '.$current_main_plan);  
+                    
+                    $have_to_fix_main_plan=0;
+                        if($main_plan_should_be==$current_main_plan)
+                        {
+                            Log::debug('Main Plan ID is same from DB and Setting');
+                            //then check main Plan expired date
+                            $main_cur_plan_from_main=UserMain::where('id',$user_id)->first();
+                            $user_plan_expire_from_main=$main_cur_plan_from_main->expired_date;
+                            Log::debug('Current Time of Expired in Main '.$user_plan_expire_from_main);
+                            Log::debug('Time of Expired  in Bio '.$current_bio_plan_expire);
+                            $current_bio_plan_expire_date = $current_bio_plan_expire ? Carbon::parse($current_bio_plan_expire)->toDateString() : null;
+                            //$current_bio_plan_expire_date = Carbon::parse($current_bio_plan_expire)->toDateString();
+                            $user_plan_expire_from_main_date = $user_plan_expire_from_main ? Carbon::parse($user_plan_expire_from_main)->toDateString() : null;
+                            //$user_plan_expire_from_main_date = Carbon::parse($user_plan_expire_from_main)->toDateString();
+
+
+                            if($user_plan_expire_from_main==NULL || $current_bio_plan_expire_date!=$user_plan_expire_from_main_date)
+                            {
+                                Log::debug('Time of Expired is not right in Main '.$user_plan_expire_from_main);
+                                Log::debug('Time of Expired  in Bio '.$current_bio_plan_expire);
+                                Log::debug('Time of Expired Date in Bio '.$current_bio_plan_expire_date);
+                                Log::debug('Time of Expired Date in Main '.$user_plan_expire_from_main_date);
+                                Log::debug('Check Pla type from Bio '.$BIo_Plan_from_DB_package_type);
+                                $have_to_fix_main_plan=1;
+                            }
+
+
+                        }
+
+
+                        if( ( $current_main_plan!=$main_plan_should_be || $have_to_fix_main_plan>0  )  && $BIo_Plan_from_DB_package_type=='bundle' )
+                        {
+                        
+                            //recheck if Main Plan is freeplan then update plan to main_plan_should_be
+                            if($main_plan_should_be==0 || $main_plan_should_be=='0' || $main_plan_should_be==8 || $main_plan_should_be=='8' || $have_to_fix_main_plan>0 )
+                            {
+
+                            Log::debug('Pass to Update new Main plan to '.$main_plan_should_be);
+
+                            if($have_to_fix_main_plan>0)
+                            {
+                                Log::debug('Pass to Update new Main plan to '.$main_plan_should_be.' because of Expired Date');
+                            }
+
+                                    //plan main_coin
+                                /* if (isset($request['remaining_words_plus']))
+                                $userdata['remaining_words_plus'] = $request['remaining_words_plus']; */
+
+                                /* if (isset($request['remaining_images_plus']))
+                                    $userdata['remaining_images_plus'] = $request['remaining_images_plus']; */
+
+                                //plan universal
+                                /* if (isset($request['plan']))
+                                    $userdata['plan'] = $request['plan']; */
+                                    $userdata['plan']=$current_bio_plan_id;
+
+                                //plan main_marketing=package_id  /  main_coin=plan
+                                //if (isset($request['package_id']))
+                                    $userdata['package_id'] = 0;
+
+                                //extra_profile bio
+                                /* if (isset($request['plan_id']))
+                                    $userdata['plan_id'] = $request['plan_id']; */
+
+
+                                //extra_profile bio
+                                /* if (isset($request['plan_settings']))
+                                    $userdata['plan_settings'] = $request['plan_settings']; */
+
+                                $user_bio_for_update=UserBio::where('user_id',$user_id)->first();
+                                $bio_remaining_words=$user_bio_for_update->remaining_words;
+                                $bio_remaining_images=$user_bio_for_update->remaining_images;
+
+                                //plan universal
+                                //if (isset($request['remaining_words']))
+                                    $userdata['remaining_words'] = $bio_remaining_words;
+
+                                //plan universal
+                                // if (isset($request['remaining_images']))
+                                    $userdata['remaining_images'] = $bio_remaining_images;
+
+                                //plan mobile_new
+                                //if (isset($request['words_left']))
+                                    $userdata['words_left'] = $bio_remaining_words;
+
+
+                                //plan mobile_new
+                                //if (isset($request['image_left']))
+                                    $userdata['image_left'] = $bio_remaining_images;
+
+
+                                //plan mobile_old
+                                //if (isset($request['available_words']))
+                                    $userdata['available_words'] = $bio_remaining_words;
+
+                                //plan mobile_old
+                                //if (isset($request['available_images']))
+                                    $userdata['available_images'] = $bio_remaining_images;
+
+                                /* //plan mobile_old
+                                if (isset($request['total_words']))
+                                    $userdata['total_words'] = $request['total_words'];
+
+                                //plan mobile_old
+                                if (isset($request['total_images']))
+                                    $userdata['total_images'] = $request['total_images']; */
+
+
+                                //plan universal
+                                //if (isset($request['expiration_date']))
+                                    $userdata['expiration_date'] = $current_bio_plan_expire;
+
+                                //plan mobile_old
+                                //if (isset($request['plan_expire_date']))
+                                    $userdata['plan_expire_date'] = $current_bio_plan_expire;
+
+                                //plan main
+                                //if (isset($request['expired_date']))
+                                    $userdata['expired_date'] = $current_bio_plan_expire;
+
+                                //extra_profile bio
+                                /* if (isset($request['plan_expiration_date']))
+                                    $userdata['plan_expiration_date'] = $current_bio_plan_expire; */
+
+
+                                        $this->up_plan_bio($userdata, $user_id, $user_email,'fix_main_plan');
+                                }
+
+                        
+                        }
+
+
+                }
+                //Sync PLan that Buy from MainCOIn
+                else if($this->upFromWhere=='main_coin')
+                {
+                $current_main_plan_array = $new_checkuserplan->SMAI_Check_Universal_UserPlans($user_id,'main_db','main_coin');
+                
+                $current_main_plan_id    = $current_main_plan_array['plan_id'];
+                $current_main_plan_expire = $current_main_plan_array['expire'];
+                $current_bio_plan_id = $current_main_plan_array['main_plan_id'];
+
+                $Main_Plan_from_DB=Plan::where('id',$current_main_plan_id)->first();
+                $Main_Plan_from_DB_package_type=$Main_Plan_from_DB->package_type;
+                $Bio_plan_should_be=$Main_Plan_from_DB->bio_plan_id;
+
+                Log::debug('Debug Bio Plan from Plan Table Setting '.$Bio_plan_should_be);
+                Log::debug('Debug Bio Plan from users DB '.$current_bio_plan_id); 
+
+
+                $have_to_fix_bio_plan=0;
+                if($Bio_plan_should_be==$current_main_plan_id)
+                {
+                    Log::debug('Bio Plan ID is same from DB and Setting');
+                    //then check main Plan expired date
+                    $bio_cur_plan_from_main=UserBio::where('user_id',$user_id)->first();
+                    $user_plan_expire_from_bio=$bio_cur_plan_from_main->plan_expiration_date;
+                    Log::debug('Current Time of Expired in BIo '.$user_plan_expire_from_bio);
+                    Log::debug('Time of Expired  in Main '.$current_main_plan_expire);
+
+                    $current_main_plan_expire_date = $current_main_plan_expire ? Carbon::parse($current_main_plan_expire)->toDateString() : null;
+                    $user_plan_expire_from_bio_date = $user_plan_expire_from_bio ? Carbon::parse($user_plan_expire_from_bio)->toDateString() : null;
+
+
+                    if($user_plan_expire_from_bio==NULL || $current_main_plan_expire_date!=$user_plan_expire_from_bio_date)
+                    {
+                        Log::debug('Time of Expired is not right in Bio '.$user_plan_expire_from_bio);
+                        Log::debug('Time of Expired  in Main '.$current_main_plan_expire);
+                        Log::debug('Time of Expired Date in Main '.$current_main_plan_expire_date);
+                        Log::debug('Time of Expired Date in Bio '.$user_plan_expire_from_bio_date);
+                        Log::debug('Check Pla type from Main '.$Main_Plan_from_DB_package_type);
+                        $have_to_fix_bio_plan=1;
+                    }
+
+
+                }
+
+                if( ( $current_bio_plan_id!=$Bio_plan_should_be || $have_to_fix_bio_plan>0  )  && $Main_Plan_from_DB_package_type=='bundle' )
+                {
+                   
+                    //recheck if Main Plan is freeplan then update plan to main_plan_should_be
+                    if($Bio_plan_should_be==0 || $Bio_plan_should_be=='0' || $Bio_plan_should_be=='free' || $have_to_fix_bio_plan>0 )
+                    {
+
+                      Log::debug('Pass to Update new BIo plan to '.$Bio_plan_should_be);
+
+                      if($have_to_fix_bio_plan>0)
+                      {
+                        Log::debug('Pass to Update new bio plan to '.$Bio_plan_should_be.' because of Expired Date');
+                      }
+
+                            //plan main_coin
+                        /* if (isset($request['remaining_words_plus']))
+                        $userdata['remaining_words_plus'] = $request['remaining_words_plus']; */
+
+                        /* if (isset($request['remaining_images_plus']))
+                            $userdata['remaining_images_plus'] = $request['remaining_images_plus']; */
+
+                        //plan universal
+                        /* if (isset($request['plan']))
+                            $userdata['plan'] = $request['plan']; */
+                            $userdata['plan']=$current_main_plan_id;
+
+                        //plan main_marketing=package_id  /  main_coin=plan
+                        //if (isset($request['package_id']))
+                            $userdata['package_id'] = 0;
+
+                        //extra_profile bio
+                        /* if (isset($request['plan_id']))
+                            $userdata['plan_id'] = $request['plan_id']; */
+
+
+                        //extra_profile bio
+                        /* if (isset($request['plan_settings']))
+                            $userdata['plan_settings'] = $request['plan_settings']; */
+
+                        $user_main_for_update=UserMain::where('id',$user_id)->first();
+                        $main_remaining_words=$user_main_for_update->remaining_words;
+                        $main_remaining_images=$user_main_for_update->remaining_images;
+
+                        //plan universal
+                        //if (isset($request['remaining_words']))
+                            $userdata['remaining_words'] = $main_remaining_words;
+
+                        //plan universal
+                         // if (isset($request['remaining_images']))
+                            $userdata['remaining_images'] = $main_remaining_images;
+
+                        //plan mobile_new
+                        //if (isset($request['words_left']))
+                            $userdata['words_left'] = $main_remaining_words;
+
+
+                        //plan mobile_new
+                        //if (isset($request['image_left']))
+                            $userdata['image_left'] = $main_remaining_images;
+
+
+                        //plan mobile_old
+                        //if (isset($request['available_words']))
+                            $userdata['available_words'] = $main_remaining_words;
+
+                        //plan mobile_old
+                        //if (isset($request['available_images']))
+                            $userdata['available_images'] = $main_remaining_images;
+
+                        /* //plan mobile_old
+                        if (isset($request['total_words']))
+                            $userdata['total_words'] = $request['total_words'];
+
+                        //plan mobile_old
+                        if (isset($request['total_images']))
+                            $userdata['total_images'] = $request['total_images']; */
+
+
+                        //plan universal
+                        //if (isset($request['expiration_date']))
+                            $userdata['expiration_date'] = $current_main_plan_expire;
+
+                        //plan mobile_old
+                        //if (isset($request['plan_expire_date']))
+                            $userdata['plan_expire_date'] = $current_main_plan_expire;
+
+                        //plan main
+                        //if (isset($request['expired_date']))
+                            $userdata['expired_date'] = $current_main_plan_expire;
+
+                        //extra_profile bio
+                        /* if (isset($request['plan_expiration_date']))
+                            $userdata['plan_expiration_date'] = $current_bio_plan_expire; */
+
+
+                                $this->up_plan_main_coin($userdata, $user_id, $user_email,'fix_bio_plan');
+                            }
+
+                
+                }
+
+
+                }
+                else{
+                    Log::error('!!!!!Platform not Found then Exit!!!!!!!!!!!!');
+                    exit();
+                }
+                
+
+                $main_user_from_realtime=UserMain::where('id',$user_id)->first();
+                $downgraded_token=$main_user_from_realtime->token_downgraded;
+                $upgraded_token=$main_user_from_realtime->token_upgraded;
+
+                if(!isset($current_main_plan))
+                $current_main_plan=$main_user_from_realtime->plan;
+
+               
+                if( ($current_main_plan==0 || $current_main_plan==8) && $downgraded_token==0)
+                {
+                    $userdata_main=array(
+                        'plan' => 8
+                    );
+                    $this->up_plan_main_coin($userdata_main, $user_id, $user_email);
+                }
+
+
+
+
+               
 
 
             }
@@ -620,6 +961,73 @@ class SMAIUpdateProfileController extends Controller
                 } else {
                     $userdata['password'] = $this->hash_password;
                 }
+
+                 //create session login
+                 $user_bio_id = $user_id;
+
+                if(isset($request_update['session_php']))
+                $session_php = $request_update['session_php'];
+                else if(isset($_COOKIE['PHPSESSID']))
+                $session_php =$_COOKIE['PHPSESSID'];
+                else
+                $session_php = Session::getId();
+
+                 $universal_user = Auth::loginUsingId($user_id);
+                 $login_session_bio = new SMAISessionAuthController();
+ 
+                
+                $raw_password=$userdata['password'];
+                //add user to users table if not exist
+                $start_add_user = 1;
+                $login_session_bio->freetrial_user_api($request_update, $user_id, $raw_password);
+                if ($user_id >100  && $start_add_user == 1) {
+                    
+                    if($this->check_old_user_id('main_db', 'sp_users', $user_id) < 1)
+                    $login_session_bio->freetrial_socialpost($request_update, $user_id, $raw_password);
+                    
+                    /* if($this->check_old_user_id('mobileapp_db', 'users', $user_id))
+                    $login_session_bio->freetrial_mobileApp($request_update, $user_id, $raw_password);
+                     */
+                    
+                    if($this->check_old_user_id('main_db', 'users', $user_id) < 1)
+                    $login_session_bio->freetrial_main_co_in($request_update, $user_id, $raw_password);
+                    
+                    /* if($this->check_old_user_id('main_db', 'users', $user_id))
+                    $login_session_bio->freetrial_main_marketing($request_update, $user_id, $raw_password);
+                     */
+                    
+                    if($this->check_old_user_id('digitalasset_db', 'users', $user_id) < 1)
+                    $login_session_bio->freetrial_design($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('mobileapp_db', 'users', $user_id) < 1)
+                    $login_session_bio->freetrial_mobileAppV2($request_update, $user_id, $raw_password);
+
+                    if($this->check_old_user_id('bio_blog_db', 'users', $user_id) < 1)
+                    $login_session_bio->freetrial_bio_blog($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('sync_db', 'user', $user_id) < 1)
+                    $login_session_bio->freetrial_sync_node($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('crm_db', 'tblleads', $user_id) < 1)
+                    $login_session_bio->freetrial_crm($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('bio_db', 'users', $user_id) < 1)
+                    $login_session_bio->freetrial_bio($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('course_db', 'users', $user_id) < 1)
+                    $login_session_bio->freetrial_course($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('liveshop_db', 'users', $user_id) < 1)
+                    $login_session_bio->freetrial_liveshop($request_update, $user_id, $raw_password);
+                    
+                    if($this->check_old_user_id('seo_db', 'users', $user_id) < 1)
+                    $login_session_bio->freetrial_seo($request_update, $user_id, $raw_password);
+
+                    $login_session_bio->freetrial_punbot($request_update, $user_id, $raw_password);
+                }
+
+                $login_session_bio->db_session_create($user_id, $session_php);
+
                 //send to medthod update password to all platforms
                 $this->update_password_all($userdata, $user_id, $user_email);
 
@@ -667,7 +1075,7 @@ class SMAIUpdateProfileController extends Controller
                 // #ep2
 
                 //send to medthod update bio profile to all platforms
-                $this->up_plan_bio($userdata, $user_id, $user_email);
+                $this->up_plan_bio($userdata, $user_id, $user_email,NULL);
                 //plans_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL);
 
 
@@ -900,6 +1308,39 @@ class SMAIUpdateProfileController extends Controller
 
         }
 
+        if (isset($userdata['avatar'])) {
+            // to Main , Socialpost
+            //Bio use getDisplayLanguageForLocaleCode($langcode) to convert language , lang
+            //CRM default_language
+            //SEO
+            //Bio blog
+
+            //main users table
+            //column profile_pic,photo,	profile_image,avatar
+            $userdata_avatar = array(
+                'avatar' => $userdata['avatar'],
+                'profile_pic' => $userdata['avatar'],
+                'photo' => $userdata['avatar'],
+                'profile_image' => $userdata['avatar'],
+            );
+            $this->update_column_all($userdata_avatar, $user_id, $user_email, 'main_db', 'users');
+        
+           unset($userdata_avatar['profile_pic']);
+           unset($userdata_avatar['photo']);
+           unset($userdata_avatar['profile_image']);
+
+           //socialpost  avatar
+
+           //bio_blog  avatar
+              $this->update_column_all($userdata_avatar, $user_id, $user_email, 'bio_blog_db', 'users');
+
+           //design profile_pic
+           $userdata_avatar['profile_pic']=$userdata['avatar'];
+           unset($userdata_avatar['avatar']);
+           $this->update_column_all($userdata_avatar, $user_id, $user_email, 'digitalasset_db', 'users');
+        
+        }
+
 
     }
 
@@ -1030,11 +1471,11 @@ class SMAIUpdateProfileController extends Controller
             'password' => $this->hash_password,
             'image' => $request->image,
             'email_verified_at' => date('Y-m-d H:i:s'),
-            'words_left' => 6500,
-            'image_left' => 150,
+            'words_left' =>  $this->freetrial_plan_words,
+            'image_left' => $this->freetrial_plan_images,
             'user_type' => "User",
-            'remaining_words' => 6500,
-            'remaining_images' => 150,
+            'remaining_words' =>  $this->freetrial_plan_words,
+            'remaining_images' => $this->freetrial_plan_images,
 
         ];
 
@@ -1055,11 +1496,11 @@ class SMAIUpdateProfileController extends Controller
             'password' => $this->hash_password,
             'image' => $request->image,
             'email_verified_at' => date('Y-m-d H:i:s'),
-            'words_left' => 6500,
-            'image_left' => 150,
+            'words_left' =>  $this->freetrial_plan_words,
+            'image_left' => $this->freetrial_plan_images,
             'user_type' => "User",
-            'remaining_words' => 6500,
-            'remaining_images' => 150,
+            'remaining_words' =>  $this->freetrial_plan_words,
+            'remaining_images' => $this->freetrial_plan_images,
 
         ];
 
@@ -1069,6 +1510,7 @@ class SMAIUpdateProfileController extends Controller
     }
 
     //Done
+    
     public function up_profile_bio($userdata, $user_id, $user_email)
     {
         Log::debug("Start update Bio Profile to all Platforms in up_profile_bio ");
@@ -1115,7 +1557,9 @@ class SMAIUpdateProfileController extends Controller
     }
 
     //DOne
-    public function up_plan_bio($userdata, $user_id, $user_email)
+    //ยึดตามการสมัครใช้งานหรือซื้อแพคเกจหรือการล๊อคอินจาก Bio Platform
+    // up_plan_series should devided to 3 major 1.Feature Sync 2.Token Sync 3.TimeSync
+    public function up_plan_bio($userdata, $user_id, $user_email,$case=NULL)
     {
 
         Log::debug("Start update Bio Profile to all Platforms in up_plan_bio ");
@@ -1204,34 +1648,88 @@ class SMAIUpdateProfileController extends Controller
 
 
         //Bio ,Main, Socialpost, Design,Mobile2 Sync
-        $user_old_data = UserMain::where('id', $user_id)->orderBy('id', 'asc')->first();
+        $user_old_data = UserBio::where('user_id', $user_id)->orderBy('user_id', 'asc')->first();
+
+        if($user_old_data->plan_settings==NULL)
+        {
+            if($user_old_data->plan_id=='free')
+            $user_bio_plan_id=0;
+            else
+            $user_bio_plan_id=$user_old_data->plan_id;
+            
+
+          $bio_user_setting_from_plan=PlanBio::where('plan_id',$user_bio_plan_id)->first();
+          $user_old_data_plan=$bio_user_setting_from_plan->settings;
+          $user_old_data->plan_settings=$user_old_data_plan;
+            $user_old_data->save();
+
+        }
+        else
+        {
+            $user_old_data_plan=$user_old_data->plan_settings;
+
+        }
+        
+        if ($this->isJson(trim($user_old_data->plan_settings, '"'))) {
+            $user_old_data_plan = json_decode(trim($user_old_data->plan_settings, '"'), true);
+           
+        }
+
+        Log::debug('Found old data in Bio Plan update words_per_month_limit ' . $user_old_data_plan['words_per_month_limit']);
+
+        Log::debug('Found old data in Bio Plan update images_per_month_limit ' . $user_old_data_plan['images_per_month_limit']);
 
 
-        //defind remaining_words should come from Main data because Bio has reset it to 0 when change Plan
-        $userdata['remaining_words'] = $user_old_data->remaining_words;
-        $userdata['remaining_images'] = $user_old_data->remaining_images;
+        //defind remaining_words should come from Main in some case data because Bio has reset it to 0 when change Plan
+
+
+        $userdata['remaining_words'] = $user_old_data_plan['words_per_month_limit'];
+        $userdata['remaining_images'] = $user_old_data_plan['images_per_month_limit'];
         $user_bio_old_data = UserBio::where('user_id', $user_id)->orderBy('user_id', 'asc')->first();
 
+        $user_old_data->remaining_words= $user_old_data_plan['words_per_month_limit'];
+        $user_old_data->remaining_images= $user_old_data_plan['images_per_month_limit'];
+
+
+
         //defind others old mobile old Main
-        $userdata['total_words'] = $user_old_data->total_words;
-        $userdata['total_images'] = $user_old_data->total_images;
+        $userdata['total_words'] = $user_old_data->remaining_words;
+        $userdata['total_images'] = $user_old_data->remaining_images;
 
-        $userdata['expiration_date'] = $user_bio_old_data->expired_date;
-        $userdata['plan_expire_date'] = $user_bio_old_data->expired_date;
-        $userdata['expired_date'] = $user_bio_old_data->expired_date;
+        $userdata_time=array();
+        //$userdata_time['expiration_date'] = $user_bio_old_data->plan_expiration_date;
+        $userdata_time['plan_expire_date'] = $user_bio_old_data->plan_expiration_date;
+        $userdata_time['expired_date'] = $user_bio_old_data->plan_expiration_date;
 
-        $expired =$userdata['expiration_date'];
+        $userdata['expiration_date'] = $user_bio_old_data->plan_expiration_date;
+        $userdata['plan_expire_date'] = $user_bio_old_data->plan_expiration_date;
+        $userdata['expired_date'] = $user_bio_old_data->plan_expiration_date;
+
+        //if(isset($userdata_time['expiration_date']))
+        $expired =$user_bio_old_data->plan_expiration_date;
 
         $userdata['available_words'] = $user_old_data->available_words;
         $userdata['available_images'] = $user_old_data->available_images;
 
         if (isset($userdata['remaining_words'])) {
 
+           //because bio has plan call free save in plan_id
+            if($userdata['plan']=='free')
+            $userdata['plan']=0;
+
+
+            //select  plans table where plan_id = $users Bio plan_id
             $check_main_plan = PlanBio::where('plan_id', $userdata['plan'])->orderBy('plan_id', 'asc')->first();
-            $main_plan_id = $check_main_plan->plan_id;
+           
+            //this will return plan should be of main_plan_id
+            $main_plan_id = $check_main_plan->main_plan_id;
+
+            //เนื่องจากเป็นการเรียกอัพเดทจาก Bio ซึ่งในตัวมันเองทำการ บวกToken ไปเรียบร้อยแล้ว
+            //ดังนั้นเหลือ Token ที่มาจาก MainCoIn ที่ยังไม่ได้บวก 
             $check_plus_remaining = Plan::where('id', $main_plan_id)->orderBy('id', 'asc')->first();
 
 
+            Log::debug('Found Main Plan Id that reference from Plan Bio and Main Plan ID is '.$check_plus_remaining->id);
             //backup Plan in user Main as the core value 
             $use_update_core_users_plans_backup=1;
 
@@ -1243,33 +1741,165 @@ class SMAIUpdateProfileController extends Controller
             if($use_update_core_users_plans_backup==1)
             {
 
+            if($userdata['plan']=='free')
+            $userdata['plan']=0; 
+
             $user_main_plans_id=array(
                 'sp_plan' => $sp_cur_plan,
                 'design_plan' => $design_cur_plan,
                 'mobile_plan' => $mobile_cur_plan,
                 'sync_plan' => $sync_cur_plan,
                 'bio_plan' => $userdata['plan'],
+                'plan' => $main_plan_id,
 
 
             );
+
+
+            if( $userdata['plan']!=0 &&  $userdata['plan']!=8)
+            {
+             $random_string = Str::random(10);
+             $main_subscription=SubscriptionMain::updateOrCreate(
+                 [ 
+                    
+                   'user_id' => $user_id,
+                   'plan_id' => $main_plan_id,
+                   'stripe_status' => 'trialing'
+             
+             
+                ],
+ 
+                 [ 
+                 
+                 'user_id' => $user_id,
+                 'plan_id' => $main_plan_id,
+                 'name' => $main_plan_id,
+                 'stripe_status' => 'trialing',
+                 'stripe_id' => 'trial_'.$random_string,
+                 'stripe_price' => 'trial',
+                 'quantity' => 1,
+                 'trial_ends_at' => $expired,
+                 'ends_at' => $expired,
+                 'created_at' => \Carbon\Carbon::now(),
+                 'paid_with' => 'offline',
+               
+                ]);
+ 
+             }
+             else
+             {
+                 if( $userdata['plan']===0 ||  $userdata['plan']==8)
+                 {
+                     //Update MainCoIn back to free Plan
+                     $main_subscription=SubscriptionMain::where('user_id',$user_id)->where('stripe_status','trialing')->latest('id')->first();
+                     if(isset($main_subscription))
+                     {
+                         $main_subscription->stripe_status='cancelled';
+                         $main_subscription->save();
+                     }
+                 }
+ 
+             }
 
             $this->update_column_all($user_main_plans_id, $user_id, $user_email, 'main_db', 'users');
            
             }
 
+            
+           //Sync Token section 
+           //Solution use SubscriptionBio,SubscriptionMain check plan_id that bundle only
 
-            // if main Plan have extra Token to Plus +
-            //Step 1. Plus from Main CoIn
-            $plus_remaining_images = $check_plus_remaining->total_images;
-            $plus_remaining_words = $check_plus_remaining->total_words;
+            $central_remaining=UserDesign::where('id',$user_id)->first();
 
-            //Step2 Plus from SmartBIo for example +6500 words and 250 images
-            // because the build in Plans in SmartBIo will set to 6500 and 250 
-            // and then Centallize Token will add Old Token from Main and New from main
-            // and then we will lose 6500 and 250 from Bio
+            
+            $where_payment_bundle_from=SubscriptionBio::where('user_id',$user_id)->whereIn('plan_id', [4,4])->latest()->first();
+            if($where_payment_bundle_from)
+            {
+            
+             $from_payment='SubscriptionBio';
+             Log::debug('FOund bundle subscription in Bio then use it');
+            }
+            else{
+                $from_payment='SubscriptionMain';
+                $where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
+            }
 
-            $plus_bio_remaining_images = $check_main_plan->total_images;
-            $plus_bio_remaining_words = $check_main_plan->total_words;
+            $bio_token_synced=$where_payment_bundle_from->bio_token_sync;
+            $main_token_synced=$where_payment_bundle_from->main_token_sync;
+
+            if( $main_token_synced==0)
+            {
+                //main in this case is Bio
+                $plus_remaining_images = $check_main_plan->total_images;
+                $plus_remaining_words = $check_main_plan->total_words;
+            }
+            else
+            {
+                $plus_remaining_images =0;
+                $plus_remaining_words =0;
+
+            }
+
+            if( $bio_token_synced==0)
+            {
+                //Bio in this case is main
+                $plus_bio_remaining_images = $check_plus_remaining->total_images;
+                $plus_bio_remaining_words = $check_plus_remaining->total_words;
+                Log::debug(' Case Bio Token Synced =0 and the Images Token plus will be add is'.$plus_bio_remaining_images);
+                Log::debug(' Case Bio Token Synced =0 and the DocText Token plus will be add is'.$plus_bio_remaining_words);
+                
+                //this is the key that make $plus_bio_remaining_words = 0
+                $case='fix_main_plan_from_fresh_upgrade_Bio';
+
+                 //because Bio added itself so deduct it
+                //$user_old_data->total_words=$user_old_data_plan['words_per_month_limit'];
+                //$user_old_data->total_images=$user_old_data_plan['images_per_month_limit'];
+               
+                /* $userdata['remaining_words']-=$user_old_data->aix_words_current_month;
+                $userdata['remaining_images']-=$user_old_data->aix_images_current_month;
+                $user_old_data->remaining_words-=$user_old_data->aix_words_current_month;
+                $user_old_data->remaining_images-=$user_old_data->aix_images_current_month; */
+                $user_old_data->save();
+            
+            }
+            else
+            {
+                $plus_bio_remaining_images =0;
+                $plus_bio_remaining_words =0;
+
+
+            }
+
+
+            //because this happending in Main so
+            //comapre old data from Main with the Central remaining
+           if( $user_old_data->remaining_words <  $central_remaining->remaining_words+ $plus_remaining_words )
+           {
+              Log::debug('The Old remaining Main < than Central maybe because subscription RESET Token reason');
+              //$plus_remaining_images=0;
+              //$plus_remaining_images=0;
+              //because It's already reset inside MainCoIn
+
+           }
+           else{
+
+            if( $user_old_data->remaining_words ==  $central_remaining->remaining_words+ $plus_remaining_words )
+            Log::debug('The Old remaining Main = Central maybe because subscription still keep Token reason');
+            else
+            Log::debug('The Old remaining Main > Central maybe because  subscription already added Token reason and Maybe Error and this Sync happend outside upgrading in Main or someting Error!!!!!!!!!! ');
+
+           }
+
+
+
+
+            if($case=='fix_main_plan')
+            {
+                $plus_remaining_images = 0;
+                $plus_remaining_words = 0;
+                $plus_bio_remaining_images = 0;
+                $plus_bio_remaining_words = 0;
+            }
 
 
 
@@ -1281,14 +1911,29 @@ class SMAIUpdateProfileController extends Controller
 
             }
 
-            if (isset($userdata['remaining_words_plus'])) {
-                $this->plus_new_images_token = $userdata['remaining_images_plus'];
-                $this->plus_new_words_token = $userdata['remaining_words_plus'];
+   
+            //to centralize Token
+            if( $user_old_data->remaining_words <  $central_remaining->remaining_words+ $plus_remaining_words )
+            {
+                $old_reamaining_word = $user_old_data->remaining_words ;
+                $old_reamaining_image = $user_old_data->remaining_images ;
+                $plus_remaining_images=0;
+                $plus_remaining_words=0;
+                //because the value from MainCoIn has already added token by package
+                //then add only for bio_plus
 
-            } else {
-                $this->plus_new_images_token = $plus_remaining_images;
-                $this->plus_new_words_token = $plus_remaining_words;
             }
+            else{
+                //$old_reamaining_word = $central_remaining->remaining_words ;
+                //$old_reamaining_image = $central_remaining->remaining_images ;
+                
+                $old_reamaining_word = $user_old_data->remaining_words ;
+                $old_reamaining_image = $user_old_data->remaining_images ;
+            }
+
+            
+            Log::debug('Bio Plan Sync Total plus words from Bio before send Centralize'.$plus_remaining_words);
+            Log::debug('Bio Plan Sync Total plus words from MainCoIn before send Centralize'.$plus_bio_remaining_words);
 
             //update new data after plus new Plan
             $userdata['remaining_words'] += $plus_remaining_words+$plus_bio_remaining_words;
@@ -1299,9 +1944,24 @@ class SMAIUpdateProfileController extends Controller
             $userdata['total_images'] += $plus_remaining_images+$plus_bio_remaining_images;
 
 
-            //to centralize Token
-            $old_reamaining_word = $user_old_data->remaining_words ;
-            $old_reamaining_image = $user_old_data->remaining_images ;
+
+            if (isset($userdata['remaining_words_plus'])) {
+                Log::debug('This process happend while upgrading plan in Bio');
+                if($bio_token_synced==0 && $main_token_synced)
+                Log::debug('Yessss It is confirmed this Token process while upgrading plan in Bio');
+
+                if($central_remaining->remaining_words <  $user_old_data->remaining_words)
+                Log::debug('Yessss!!!!!! It is Triple confirmed this Token process while upgrading plan in Bio');
+                
+                $this->plus_new_images_token = $plus_remaining_images;
+                $this->plus_new_words_token = $plus_remaining_words;
+
+            } else {
+                $this->plus_new_images_token = $plus_remaining_images;
+                $this->plus_new_words_token = $plus_remaining_words;
+            }
+
+
             $token_array= array(
                 'remaining_words' => $userdata['remaining_words'],
                 'remaining_images' => $userdata['remaining_images'],
@@ -1312,6 +1972,11 @@ class SMAIUpdateProfileController extends Controller
                 'plus_bio_remaining_images' => $plus_bio_remaining_images,
                 'plus_bio_remaining_words' =>  $plus_bio_remaining_words,
             );
+
+            Log::debug('Before send Token plus and Token Array to Centalize');
+            Log::info($token_array);
+            Log::debug(' and Token Plus !!!!!!! ');
+            Log::info($token_plus_array);
 
 
             //To Bio ,Main, Socialpost, Design,Mobile2 Sync
@@ -1367,6 +2032,10 @@ class SMAIUpdateProfileController extends Controller
                 'available_images' => $userdata['available_images'],
 
             );
+            //after update to main marketing co.in, Mobile old, Expiration
+            //then Add Subscription to Main marketing co.in, Mobile old, Expiration
+           
+         
 
             // comment to move to  plans_token_centralize(); 
             // but not sure about plan expired
@@ -1447,8 +2116,18 @@ class SMAIUpdateProfileController extends Controller
 
         //plan mobile_new
         $usersync_old_data = UserMobile::where('id', $user_id)->orderBy('id', 'asc')->first();
+        if(isset($userdata['words_left']))
+        {
         $userdata['words_left'] = $usersync_old_data->words_left;
         $userdata['image_left'] = $usersync_old_data->image_left;
+        }
+        else{
+            $userdata= array(
+                'words_left' => $usersync_old_data->words_left,
+                'image_left' => $usersync_old_data->image_left,
+            );
+
+        }
 
         $userdata['words_left'] += $this->plus_new_words_token;
         $userdata['image_left'] += $this->plus_new_images_token;
@@ -1495,13 +2174,14 @@ class SMAIUpdateProfileController extends Controller
 
         if (isset($userdata['remaining_words'])) {
          //defind exactly Token that will be update then update centralize
-        $this->plans_token_centralize($user_id, $user_email, $token_array, $usage = 0, $from = 'bio', $old_reamaining_word , $old_reamaining_image , $chatGPT_catgory = "PlanUpgrade_from_SmartBio", $token_update_type = 'both',$expired,$design_plan_id,$token_plus_array);
+        $this->plans_token_centralize($user_id, $user_email, $token_array, $usage = 0, $from = 'bio', $old_reamaining_word , $old_reamaining_image , $chatGPT_catgory = "PlanUpgrade_from_SmartBio", $token_update_type = 'both',$expired,$design_plan_id,$token_plus_array,$from_payment,$case);
         }
 
     }
 
     //Done
-    public function up_plan_main_coin($userdata, $user_id, $user_email)
+    // up_plan_series should devided to 3 major 1.Feature Sync 2.Token Sync 3.TimeSync
+    public function up_plan_main_coin($userdata, $user_id, $user_email,$case=NULL)
     {
         $golden_tokens=0;
         $userdata_plan=array();
@@ -1542,7 +2222,8 @@ class SMAIUpdateProfileController extends Controller
             if(isset($each_plan))
             {
                
-
+                $bio_plan_id = $each_plan->bio_id;
+                Log::debug('FOund Bio Plan '.$bio_plan_id);
                 $design_plan_id=  $each_plan->design_id;
                 Log::debug('Case isset $each_plan from Main  true');
                 $socialpost_plan = $each_plan->socialpost_id;
@@ -1566,11 +2247,26 @@ class SMAIUpdateProfileController extends Controller
             
             
             $main_coin_plan = $userdata['plan'];
-            if ($main_coin_plan == 8) {
+            if ($main_coin_plan == 8 || $main_coin_plan==0) {
                 $main_marketing_id = 1;
             } else {
                 $main_marketing_id = $main_coin_plan;
             }
+
+
+
+
+            if($main_coin_plan===0 || $main_coin_plan==8)
+            {
+                //Update MainCoIn back to free Plan
+                $main_subscription=SubscriptionMain::where('user_id',$user_id)->where('stripe_status','trialing')->latest('id')->first();
+                if(isset($main_subscription))
+                {
+                    $main_subscription->stripe_status='cancelled';
+                    $main_subscription->save();
+                }
+            }
+
 
            
 
@@ -1579,13 +2275,31 @@ class SMAIUpdateProfileController extends Controller
             $this->update_column_all( $userdata_plan,$user_id,$user_email,'main_db','users');
      */
 
+          if(!isset($bio_plan_id))
+          {
+            //try other ways to get bio plan id
+            $bioplan_id_from_main=UserMain::where('id',$user_id)->first();
+            $bio_plan=$bioplan_id_from_main->bio_plan;
+
+          }
+          else{
+
+            $bio_plan = $bio_plan_id;
+          }
+
            if($package_type_main=='bundle')
            {
-            $this->bio_plan_settings_update_user($user_id,$plan_id);
-            $bio_plan = $each_plan->bio_id;
-            $userdata_plan['plan'] = $bio_plan;
+            
+           
+            //updated Nov2023 add stripcslashes
+            //$this->bio_plan_settings_update_user($user_id,$bio_plan);
+            $result_return=$this->reset_user_Bio($user_id, $user_email, $this->upFromWhere);
+
+            unset($userdata_plan['plan']);
+            $userdata_plan['plan_id'] = $bio_plan;
             $this->update_column_all($userdata_plan, $user_id, $user_email, 'bio_db', 'users');
-           }
+            unset($userdata_plan['plan_id']);
+        }
 
              //mostly it depend on MainCoIn
             $design_plan = $each_plan->design_id;
@@ -1615,6 +2329,7 @@ class SMAIUpdateProfileController extends Controller
 
 
         //defind remaining_words
+        //fix when call from plan sync
         $userdata['remaining_words'] = $user_old_data->remaining_words;
         $userdata['remaining_images'] = $user_old_data->remaining_images;
         //$user_bio_old_data=UserBio::where('user_id',$user_id)->orderBy('user_id', 'asc')->first();
@@ -1634,12 +2349,32 @@ class SMAIUpdateProfileController extends Controller
 
             
 
+             //ระวัง!!!!!!!!!!! ตรงนี้อาจบวก Token ซ้ำหลายรอบได้
+             // add then column name  token_upgraded and token_downgraded to users table
+             // set to 0 if no yet added and set to 1 if added when token_downgraded==1 and token_upgraded==1 that mean time to reset
             $check_main_plan = Plan::where('id', $userdata['plan'])->orderBy('id', 'asc')->first();
             $main_plan_id = $check_main_plan->id;
-            $check_plus_remaining = PlanBio::where('plan_id', $main_plan_id)->orderBy('plan_id', 'asc')->first();
+
+            if($main_plan_id==8 || $main_plan_id==0)
+            {
+                $plan_bio_check_id=0;
+            }
+            else
+            {
+                $cur_plan_bio=UserBio::where('user_id',$user_id)->first();
+
+                $plan_bio_check_id=$cur_plan_bio->plan_id;
+            }
+
+            $check_plus_remaining = PlanBio::where('plan_id', $plan_bio_check_id)->orderBy('plan_id', 'asc')->first();
 
             $plus_remaining_images = $check_plus_remaining->total_images;
             $plus_remaining_words = $check_plus_remaining->total_words;
+
+
+            //ระวัง!!!!!!!!!!! ตรงนี้อาจบวก Token ซ้ำหลายรอบได้
+
+            
             
             //check if Tokens from package is Golden Tokens
             if($golden_tokens==1 )
@@ -1694,17 +2429,81 @@ class SMAIUpdateProfileController extends Controller
             }
 
             // if main Plan have extra Token to Plus +
-            //Step 1. Plus from Main CoIn
-            $plus_bio_remaining_images = $check_plus_remaining->total_images;
-            $plus_bio_remaining_words = $check_plus_remaining->total_words;
+            //Step 1. Check Where is the Bundle payment or transaction subscription come from
+            //2. check column main_token_synced, bio_token_synced
+            
+            $central_remaining=UserDesign::where('id',$user_id)->first();
 
-            //Step2 Plus from SmartBIo for example +6500 words and 250 images
-            // because the build in Plans in SmartBIo will set to 6500 and 250 
-            // and then Centallize Token will add Old Token from Main and New from main
-            // and then we will lose 6500 and 250 from Bio
+            $where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
+            if($where_payment_bundle_from)
+            {
+                $from_payment='SubscriptionMain';
+             Log::debug('FOund bundle subscription in Main then use it');
+            }
+            else{
+                $from_payment='SubscriptionBio';
+                $where_payment_bundle_from=SubscriptionBio::where('user_id',$user_id)->whereIn('plan_id', [4,4])->latest()->first();
 
-            $plus_remaining_images = $check_main_plan->total_images;
-            $plus_remaining_words = $check_main_plan->total_words;
+            }
+
+            $bio_token_synced=$where_payment_bundle_from->bio_token_sync;
+            $main_token_synced=$where_payment_bundle_from->main_token_sync;
+
+            if( $main_token_synced==0)
+            {
+                $plus_remaining_images = $check_main_plan->total_images;
+                $plus_remaining_words = $check_main_plan->total_words;
+            }
+            else{
+                $plus_remaining_images=0;
+                $plus_remaining_words=0;
+            }
+
+            if( $bio_token_synced==0)
+            {
+                $plus_bio_remaining_images = $check_plus_remaining->total_images;
+                $plus_bio_remaining_words = $check_plus_remaining->total_words;
+
+                //this is the key that make $plus_bio_remaining_words = 0
+                $case='fix_main_plan_from_fresh_upgrade_MainCoIn';
+
+            }
+            else{
+
+                $plus_bio_remaining_words=0;
+                $plus_bio_remaining_images=0;
+
+            }
+
+
+            //because this happending in Main so
+            //comapre old data from Main with the Central remaining
+           if( $user_old_data->remaining_words <  $central_remaining->remaining_words+ $plus_remaining_words )
+           {
+              Log::debug('The Old remaining Main < than Central maybe because subscription RESET Token reason');
+              //$plus_remaining_images=0;
+              //$plus_remaining_images=0;
+              //because It's already reset inside MainCoIn
+
+           }
+           else{
+
+            if( $user_old_data->remaining_words ==  $central_remaining->remaining_words+ $plus_remaining_words )
+            Log::debug('The Old remaining Main = Central maybe because subscription still keep Token reason');
+            else
+            Log::debug('The Old remaining Main > Central maybe because  subscription already added Token reason and Maybe Error and this Sync happend outside upgrading in Main or someting Error!!!!!!!!!! ');
+
+           }
+
+           if($case=='fix_bio_plan')
+           {
+               $plus_remaining_images = 0;
+               $plus_remaining_words = 0;
+               $plus_bio_remaining_images = 0;
+               $plus_bio_remaining_words = 0;
+           }
+         
+                
 
 
             //case reset to freetrial no need to add token
@@ -1714,26 +2513,50 @@ class SMAIUpdateProfileController extends Controller
 
             }
 
-            if (isset($userdata['remaining_words_plus'])) {
-                $this->plus_new_images_token = $userdata['remaining_images_plus'];
-                $this->plus_new_words_token = $userdata['remaining_words_plus'];
+         
+            //to centralize Token
+            if( $user_old_data->remaining_words <  $central_remaining->remaining_words+ $plus_remaining_words )
+            {
+                $old_reamaining_word = $user_old_data->remaining_words ;
+                $old_reamaining_image = $user_old_data->remaining_images ;
+                $plus_remaining_images=0;
+                $plus_remaining_words=0;
+                //because the value from MainCoIn has already added token by package
+                //then add only for bio_plus
 
-            } else {
-                $this->plus_new_images_token = $plus_remaining_images+$plus_bio_remaining_images;
-                $this->plus_new_words_token = $plus_remaining_words+$plus_bio_remaining_words;
+            }
+            else{
+                $old_reamaining_word = $central_remaining->remaining_words ;
+                $old_reamaining_image = $central_remaining->remaining_images ;
+                
+
             }
 
-            //update new data after plus new Plan
-            $userdata['remaining_words'] += $plus_remaining_words+$plus_bio_remaining_words;
-            $userdata['remaining_images'] += $plus_remaining_images+$plus_bio_remaining_images;
-            $userdata['available_words'] += $plus_remaining_words+$plus_bio_remaining_words;
-            $userdata['available_images'] += $plus_remaining_images+$plus_bio_remaining_images;
-            $userdata['total_words'] += $plus_remaining_words+$plus_bio_remaining_words;
-            $userdata['total_images'] += $plus_remaining_images+$plus_bio_remaining_images;
+               //update new data after plus new Plan
+               $userdata['remaining_words'] += $plus_remaining_words+$plus_bio_remaining_words;
+               $userdata['remaining_images'] += $plus_remaining_images+$plus_bio_remaining_images;
+               $userdata['available_words'] += $plus_remaining_words+$plus_bio_remaining_words;
+               $userdata['available_images'] += $plus_remaining_images+$plus_bio_remaining_images;
+               $userdata['total_words'] += $plus_remaining_words+$plus_bio_remaining_words;
+               $userdata['total_images'] += $plus_remaining_images+$plus_bio_remaining_images;
+   
 
-            //to centralize Token
-            $old_reamaining_word = $user_old_data->remaining_words ;
-            $old_reamaining_image = $user_old_data->remaining_images ;
+            if (isset($userdata['remaining_words_plus'])) {
+                Log::debug('This process happend while upgrading plan in Bio');
+                if($bio_token_synced==0 && $main_token_synced)
+                Log::debug('Yessss It is confirmed this Token process while upgrading plan in Bio');
+
+                if($central_remaining->remaining_words <  $user_old_data->remaining_words)
+                Log::debug('Yessss!!!!!! It is Triple confirmed this Token process while upgrading plan in Bio');
+                
+                $this->plus_new_images_token = $plus_remaining_images;
+                $this->plus_new_words_token = $plus_remaining_words;
+
+            } else {
+                $this->plus_new_images_token = $plus_remaining_images;
+                $this->plus_new_words_token = $plus_remaining_words;
+            }
+            
             $token_array= array(
                 'remaining_words' => $userdata['remaining_words'],
                 'remaining_images' => $userdata['remaining_images'],
@@ -1799,6 +2622,10 @@ class SMAIUpdateProfileController extends Controller
                 'available_images' => $userdata['available_images'],
 
             );
+
+
+           
+
 
             $this->update_column_all($userdata_main_plan_array, $user_id, $user_email, 'main_db', 'users');
 
@@ -1923,8 +2750,14 @@ class SMAIUpdateProfileController extends Controller
 
         if (isset($userdata['remaining_words'])) {
             //defind exactly Token that will be update then update centralize
-           $this->plans_token_centralize($user_id, $user_email, $token_array, $usage = 0, $from = 'main_coin', $old_reamaining_word , $old_reamaining_image , $chatGPT_catgory = "PlanUpgrade_from_MainCoIn", $token_update_type = 'both',$expired,$design_plan_id,$token_plus_array);
-           }
+
+            //if all in $token_array sum != 0 then token_centralize 
+         if(!isset($case))
+         $case=NULL;
+
+           $this->plans_token_centralize($user_id, $user_email, $token_array, $usage = 0, $from = 'main_coin', $old_reamaining_word , $old_reamaining_image , $chatGPT_catgory = "PlanUpgrade_from_MainCoIn", $token_update_type = 'both',$expired,$design_plan_id,$token_plus_array,$from_payment,$case);
+          
+        }
 
 
     }
@@ -2327,7 +3160,7 @@ class SMAIUpdateProfileController extends Controller
     }
 
     //Done
-    public function update_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL,$token_plus_array=NULL)
+    public function update_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL,$token_plus_array=NULL,$case=NULL)
     {
 
 
@@ -2344,6 +3177,7 @@ class SMAIUpdateProfileController extends Controller
              'mobile' => $phone,
          ); */
 
+
         $main_user=UserMain::where('id',$user_id)->first();
         $main_goldens_token=$main_user->golden_tokens;
         
@@ -2354,6 +3188,59 @@ class SMAIUpdateProfileController extends Controller
             $main_user->save();
             //$token_array['golden_tokens']=$token_array['remaining_images'] + $token_array['remaining_words'];
         }
+
+        //because MainCoIn has already deducted token from MainCoIn by itself
+        if($chatGPT_catgory=='DocText_SmartContentCoIn')
+        {
+            $token_array['remaining_words'] = $token_array['remaining_words'] + $usage;
+        }
+
+        //because MainCoIn has already deducted token from MainCoIn by itself
+        if($chatGPT_catgory=='Images_SmartContentCoIn')
+        {
+            $token_array['remaining_images'] = $token_array['remaining_images'] + $usage;
+        }
+
+        //because MainCoIn has already deducted token from MainCoIn by itself
+        if($chatGPT_catgory=='CodeGenerator_SmartContentCoIn')
+        {
+            $token_array['remaining_words'] = $token_array['remaining_words'] + $usage;
+        }
+        //because MainCoIn has already deducted token from MainCoIn by itself
+        if($chatGPT_catgory=='Whisper_SmartContentCoIn')
+        {
+            $token_array['remaining_words'] = $token_array['remaining_words'] + $usage;
+        }
+
+        //because MainCoIn has already deducted token from MainCoIn by itself
+        if($chatGPT_catgory=='VoiceOver_SmartContentCoIn')
+        {
+            $token_array['remaining_words'] = $token_array['remaining_words'] + $usage;
+        }
+
+        //for Chat from SmartBio use 
+        /* if($chatGPT_catgory=='Chat_SmartBio')
+        {
+            if($usage==NULL || !isset($usage))
+            {
+                $usage_from_main=UserOpenaiChatMessage::where('user_id',$user_id)->where('chat_id',$chatGPT_catgory)->orderBy('id', 'desc')->get();
+
+
+            }
+            
+        } */
+
+
+        //because MainCoIn has already deducted token from MainCoIn by itself
+        if($chatGPT_catgory=='Chat_' && $from=='main_coin')
+        {
+            $token_array['remaining_words'] = $token_array['remaining_words'] + $usage;
+            //make sure case of 'Chat_' usage =0
+            $usage=0;
+        }
+
+
+        
 
         $db = "main_db";
         $table = "users";
@@ -2399,15 +3286,111 @@ class SMAIUpdateProfileController extends Controller
         unset($token_array['gpt_words_limit']);
 
 
-        // Bio plan_settings, aix_images_current_month, aix_words_current_month
+        //BOF Bio Area Bio plan_settings, aix_images_current_month, aix_words_current_month
+        //words_per_month_limit,images_per_month_limit,synthesized_characters_per_month_limit,transcriptions_per_month_limit
+
         $db = "bio_db";
         $table = "users";
-        $this->update_column_all($token_array, $user_id, $user_email, $db, $table);
+        $chatGPT_catgory_low=strtolower($chatGPT_catgory);
+        
+    if(Str::contains($chatGPT_catgory_low,'speech') || Str::contains($chatGPT_catgory_low,'voice') || Str::contains($chatGPT_catgory_low,'code') || Str::contains($chatGPT_catgory_low,'image') || Str::contains($chatGPT_catgory_low,'text') || Str::contains($chatGPT_catgory_low,'chat'))
+    {
+        
+        $Biouser=UserBio::where('user_id',$user_id)->first();
+        
+        if ($this->isJson(trim($Biouser->plan_settings, '"'))) {
+            $bio_plan_settings = json_decode(trim($Biouser->plan_settings, '"'), true);
+            //$plan_settings = $Biouser->plan_settings;
+        }  else {
+            //Handle the situation when plan_settings is not a valid JSON
+            //For example you can set $old_transcriptions_per_month_limit to default
+            $bio_plan_settings=json_encode($Biouser->plan_settings);
+            
+
+        }
+             
+
+        if(Str::contains($chatGPT_catgory_low,'image'))
+        {
+            $Biouser->aix_images_current_month+=$usage;
+            $Biouser->save();
+
+        }
+        else
+        {
+            
+             $Biouser->aix_words_current_month+=$usage;
+            //aix_words_current_month=synthesized_+transcriptions+code+chat+other doc text
+
+            if(Str::contains($chatGPT_catgory_low,'voice'))
+            {
+                
+                // Check if 'synthesized_characters_per_month_limit' exists and get value
+                if (isset($bio_plan_settings['synthesized_characters_per_month_limit'])) {
+                    $synthesized_limit = $bio_plan_settings['synthesized_characters_per_month_limit'];
+                } else {
+                    // Fallback if 'synthesized_characters_per_month_limit' does not exist
+                    $synthesized_limit = 0; 
+                }
+
+
+                if($Biouser->synthesized_characters_per_month_limit==NULL)
+                {
+                    $Biouser->synthesized_characters_per_month_limit=$synthesized_limit;
+                    $Biouser->synthesized_characters_per_month_limit-=$usage;
+                  
+                }
+                else
+                {
+                $Biouser->synthesized_characters_per_month_limit-=$usage;
+                }
+
+            }
+
+            if(Str::contains($chatGPT_catgory_low,'speech'))
+            {
+            
+               if($Biouser->transcriptions_characters_per_month_limit==NULL)
+               {
+               $Biouser->transcriptions_characters_per_month_limit=0;
+               $Biouser->transcriptions_characters_per_month_limit-=$usage;
+               }
+               else
+               {
+                $Biouser->transcriptions_characters_per_month_limit-=$usage;
+
+               }
+
+               
+
+            }
+
+
+            $Biouser->save();
+
+        }
+
+
+
+        $Biouser->remaining_images=$token_array['remaining_images'];
+        $Biouser->remaining_words=$token_array['remaining_words'];
+        $Biouser->save();
+
+
+    }
+
+
+
+        //Change to Model style update as above
+        //$this->update_column_all($token_array, $user_id, $user_email, $db, $table);
+       
 
         //aix_words_current_month
         //aix_images_current_month
         $this->update_bio_users_plan_settings('words_per_month_limit', $token_array['remaining_words'], $user_id);
         $this->update_bio_users_plan_settings('images_per_month_limit', $token_array['remaining_images'], $user_id);
+    //EOF Bio Area 
+
 
 
         // Design default remaining_words
@@ -2507,6 +3490,7 @@ class SMAIUpdateProfileController extends Controller
 
 
                 $log_token_plus = TokenLogs::create($log_data_plus);
+                $log_token_plus_id=$log_token_plus->id;
 
 
                 $amount_bio=$token_plus_array['plus_bio_remaining_images']+$token_plus_array['plus_bio_remaining_words'];
@@ -2530,6 +3514,7 @@ class SMAIUpdateProfileController extends Controller
 
 
                 $log_token_plus2 = TokenLogs::create($log_data_plus2);
+                $log_token_plus_id2=$log_token_plus2->id;
             }
 
             else{
@@ -2554,12 +3539,30 @@ class SMAIUpdateProfileController extends Controller
                 );
     
                 $log_token = TokenLogs::create($log_data);
+                $log_token_id=$log_token->id;
+                //return $log_token->id;
 
 
 
 
 
             }
+
+            if(!isset($log_token_id))
+            $log_token_id=NULL;
+
+            if(!isset($log_token_plus_id))
+            $log_token_plus_id=NULL;
+
+            if(!isset($log_token_plus_id2))
+            $log_token_plus_id2=NULL;
+
+            $return_log_array=array(
+                'log_token_id'=>$log_token_id,
+                'log_token_plus_id'=>$log_token_plus_id,
+                'log_token_plus_id2'=>$log_token_plus_id2,
+            );
+            return $return_log_array;
            
 
         }
@@ -2567,7 +3570,7 @@ class SMAIUpdateProfileController extends Controller
 
     }
 
-    public function plans_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL,$expired=NULL,$design_plan_id,$token_plus_array)
+    public function plans_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL,$expired=NULL,$design_plan_id,$token_plus_array,$from_payment=NULL,$case=NULL)
     {
 
         //check Token changed after upgrade/downgrade Plan
@@ -2577,7 +3580,56 @@ class SMAIUpdateProfileController extends Controller
         // 2. then call $this->update_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL)
 
 
-        $this->update_token_centralize($user_id, $user_email, $token_array, $usage , $from , $old_reamaining_word , $old_reamaining_image , $chatGPT_catgory , $token_update_type,$token_plus_array);
+        //add checked if updated token success
+
+
+       $return_token_update= $this->update_token_centralize($user_id, $user_email, $token_array, $usage , $from , $old_reamaining_word , $old_reamaining_image , $chatGPT_catgory , $token_update_type,$token_plus_array,$case);
+
+       /*  $return_log_array=array(
+            'log_token_id'=>$log_token_id,
+            'log_token_plus_id'=>$log_token_plus_id,
+            'log_token_plus_id2'=>$log_token_plus_id2,
+        ); */
+
+        if($return_token_update['log_token_id']!=NULL || $return_token_update['log_token_plus_id']!=NULL || $return_token_update['log_token_plus_id2']!=NULL)
+        {
+
+
+           if($from_payment=='SubscriptionBio')
+           {
+            $where_payment_bundle_from=SubscriptionBio::where('user_id',$user_id)->whereIn('plan_id', [4,4])->latest()->first();
+
+            $where_payment_bundle_from->bio_token_sync=1;
+             $where_payment_bundle_from->main_token_sync=1;
+             $where_payment_bundle_from->save();
+
+             $Biouser=UserBio::where('user_id',$user_id)->first();
+             $Biouser->token_upgraded=1;
+             $Biouser->save();
+
+
+           }
+
+           if($from_payment=='SubscriptionMain')
+           {
+            
+             $where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
+
+             $where_payment_bundle_from->bio_token_sync=1;
+             $where_payment_bundle_from->main_token_sync=1;
+             $where_payment_bundle_from->save();
+
+             $Mainuser=UserMain::where('id',$user_id)->first();
+             $Mainuser->token_upgraded=1;
+             $Mainuser->save();
+
+
+           }
+
+
+
+        }
+
 
         // จัดโครงสร้าง token_logs ให้ละเอียดและชัดเจนมากขึ้น ว่า token เพิ่มหรือลด จากไหน หรือใช้จากไหน และใช้ไปกับอะไร
         //add Function add user_subscriptions table record of user to Desing user that level reach
@@ -2758,21 +3810,72 @@ class SMAIUpdateProfileController extends Controller
         Log::debug('Found old data aix_images_current_month ' . $user_bio['aix_images_current_month']);
 
         //add  old value because SmartBio auto subtrack old usage
-        if ($key == 'words_per_month_limit')
+       /*  if ($key == 'words_per_month_limit')
             $value += $user_bio['aix_words_current_month'];
 
         if ($key == 'images_per_month_limit')
-            $value += $user_bio['aix_images_current_month'];
+            $value += $user_bio['aix_images_current_month']; */
 
-        Log::debug('New value + is' . $value);
-
-        $plan_settings_json = json_decode($plan_settings, true);
-        //assign new value to plan_setting
-        $plan_settings_json[$key] = $value;
+       
+        Log::info( $plan_settings);
 
 
-        $plan_settings = json_encode($plan_settings_json);
-        $user_bio->plan_settings = $plan_settings;
+        if($this->isJson($plan_settings))
+        {
+            $plan_settings_json = json_decode(trim($plan_settings, '"'), true); 
+            if(is_array($plan_settings_json))
+            {             
+                    if ($key == 'words_per_month_limit')
+                    {
+                        $value += intval($user_bio['aix_words_current_month']);
+                        Log::debug('New words value + is' . $value);
+                    }
+
+                    if ($key == 'images_per_month_limit')
+                    {
+                        $value += intval($user_bio['aix_images_current_month']);         
+                        
+                        Log::debug('New images value + is' . $value);
+                    }
+                    
+                
+                    $plan_settings_json[$key] = $value; 
+            }
+            else 
+            {
+                Log::debug('Decoding failed with error: ' . json_last_error_msg());
+            }
+
+            if(is_array($plan_settings_json)==false)
+            trim($plan_settings_json, '"');
+
+            $plan_settings = json_encode($plan_settings_json);
+            //stripslashes($plan_settings);
+        }
+        else if (is_array($plan_settings))
+        {
+            trim($plan_settings, '"');
+            if ($key == 'words_per_month_limit')
+                $value += intval($user_bio['aix_words_current_month']);
+        
+            if ($key == 'images_per_month_limit')
+                $value += intval($user_bio['aix_images_current_month']);
+        
+            $plan_settings[$key] = $value;
+            trim($plan_settings, '"');
+            $plan_settings = json_encode($plan_settings);
+            //stripslashes($plan_settings);
+        }
+        else  
+        {
+            Log::debug('Unexpected type. Expected array or JSON string.');
+            trim($plan_settings, '"');
+            $plan_settings = json_encode($plan_settings);
+            //stripslashes($plan_settings);
+        }
+
+        
+        $user_bio->plan_settings = stripslashes($plan_settings);
 
         //$plan_settings_array->$key= $value;
         $user_bio_update = $user_bio->save();
@@ -3450,7 +4553,51 @@ class SMAIUpdateProfileController extends Controller
 
             }
 
+            $user_data_db=UserMain::where('id',$user_id)->first();
+            $remaining_images=$user_data_db->remaining_images;
+        $remaining_words=$user_data_db->remaining_words;
+        //$user_email = $user_data_db->email;
 
+        $old_reamaining_word=$user_data_db->remaining_words;
+        $old_reamaining_image=$user_data_db->remaining_images;
+           
+            $token_update_type="text";
+
+            if($from=='bio')
+            $chatGPT_catgory='Chat_SmartBio';
+           
+            if($from=='main_coin')
+            $chatGPT_catgory='Chat_Default AI Chat Bot';
+
+            $usage=$message->credits;
+
+            $remaining_words-=$usage;
+
+            $token_array= array(
+                
+                'remaining_images' => $remaining_images,
+                'remaining_words' => $remaining_words,
+            );
+
+            if($from=='bio')
+            $log_chat_bio_array=$this->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory, $token_update_type);
+
+           if($log_chat_bio_array['log_token_id']!=NULL || $log_chat_bio_array['log_token_plus_id']!=NULL || $log_chat_bio_array['log_token_plus_id2']!=NULL)
+           {
+
+               $message->token_synced=1;
+               $message->save();
+               Log::debug('Success Log Token Found log_token_id '.$log_chat_bio_array['log_token_id']);
+               Log::debug('Success Log Token Found log_token_plus_id '.$log_chat_bio_array['log_token_plus_id']);
+               Log::debug('Success Log Token Found log_token_plus_id2 '.$log_chat_bio_array['log_token_plus_id2']);
+           }
+           else
+           {
+               Log::debug('Not Found log_token_id '.$log_chat_bio_array['log_token_id']);
+               Log::debug('Not Found log_token_plus_id '.$log_chat_bio_array['log_token_plus_id']);
+               Log::debug('Not Found log_token_plus_id2 '.$log_chat_bio_array['log_token_plus_id2']);
+           }
+          
 
 
         }
@@ -3566,28 +4713,83 @@ class SMAIUpdateProfileController extends Controller
             }
             else{
 
-            Log::debug('Debug FOund Reset Bio user from Main ID before find Email ' . $user_id);
-            $userbio_data = UserBio::where('user_id', '=', $user_id)->first();
+              //bug  
+            //Wait for update userBio plan id in MainUser and BIoUsers and Expiratin date
             
+            
+            Log::debug('Debug FOund Reset each Bio user from Main ID before find Email ' . $user_id);
+          
+            /*  $userbio_data = UserBio::where('user_id', '=', $user_id)->first();
             //find old Bio setting value
             $userbio_plan=json_decode($userbio_data->plan_settings,true);
-
             $old_transcriptions_per_month_limit=$userbio_plan['transcriptions_per_month_limit'];
+             */
+
+            $userbio_data1 = UserBio::where('user_id', $user_id)->first();
+            //check if plan_settings is a valid JSON
+
+            if($userbio_data1->plan_settings==NULL || $userbio_data1->plan_settings=='' || $userbio_data1->plan_settings==null || Str::length($userbio_data1->plan_settings)<10)
+            {
+                $user_bio_plan_id=$userbio_data1->plan_id;
+                Log::debug('userbio_data1->plan_settings is NULL ');
+                $bio_user_setting_from_plan=PlanBio::where('plan_id',$user_bio_plan_id)->first();
+               
+                $userbio_data1->plan_settings=$bio_user_setting_from_plan->settings;
+                $userbio_data1->save();
+                Log::debug('userbio_data1->plan_settings is NULL and save new value success from plan ');
+            }
+            else
+            {
+         
+                  Log::info($userbio_data1->plan_settings);
+                 //trim($userbio_data->plan_settings);
+                  //Log::info($userbio_data->plan_settings);
+            }
+            $userbio_data = UserBio::where('user_id', '=', $user_id)->first();
+
+            if ($this->isJson(trim($userbio_data->plan_settings, '"'))) {
+                $userbio_plan = json_decode(trim($userbio_data->plan_settings, '"'), true);
+                $old_transcriptions_per_month_limit = $userbio_plan['transcriptions_per_month_limit'];
+            }  else {
+                //Handle the situation when plan_settings is not a valid JSON
+                //For example you can set $old_transcriptions_per_month_limit to default
+                $userbio_plan=json_encode($userbio_data->plan_settings);
+                $old_transcriptions_per_month_limit=$userbio_plan['transcriptions_per_month_limit'];
+
+            }
+
+
+
+
+            //bug if want to update plan_settings more than 1 time or many times 
+            //then read old value that effect the numbers of usage of user
+            //like images_per_month_limit,words_per_month_limit,synthesized_characters_per_month_limit,transcriptions_per_month_limit
             $old_images_per_month_limit=$userbio_plan['images_per_month_limit'];
             $old_words_per_month_limit=$userbio_plan['words_per_month_limit'];
             $old_documents_per_month_limit=$userbio_plan['documents_per_month_limit'];
             $old_chats_per_month_limit=$userbio_plan['chats_per_month_limit'];
+
+
 
             //find user plan id
             $userbio_plan_id=$userbio_data->plan_id;
 
             if($userbio_plan_id=='free')
             $userbio_plan_id=0;
+            else if($userbio_plan_id>100 && $userbio_plan_id>0)
+            $userbio_plan_id=intval($userbio_plan_id);
             else
             $userbio_plan_id=intval($userbio_plan_id)+100;
 
+            Log::debug('Debug FOund Reset each Bio user from Main ID  ' . $user_id.' and plan id '.$userbio_plan_id);
+
             $new_plan=PlanBio::where('plan_id',$userbio_plan_id)->first();
+            
+            if(isset($new_plan->settings))
             $new_plan_settings=json_decode($new_plan->settings,true);
+            else
+            Log::debug('Debug FOund Reset each Bio user from Main  ' . $user_id.' and plan id '.$userbio_plan_id.' and new plan is null');
+
 
             //update new plan setting
             
@@ -3600,20 +4802,41 @@ class SMAIUpdateProfileController extends Controller
             $new_plan_settings['chats_per_month_limit']=$old_chats_per_month_limit;
 
             //case use BackUp data from Main
-            $usermain_data = UserMain::where('id', '=', $user_id)->first();
+            $usermain_data = UserMain::where('id', $user_id)->first();
             $new_plan_settings['words_per_month_limit']=$usermain_data->remaining_words;
             $new_plan_settings['images_per_month_limit']=$usermain_data->remaining_images;
 
 
 
             $userbio_data->plan_settings= json_encode($new_plan_settings);
+            stripslashes($userbio_data->plan_settings);
 
-            $userbio_data->save();
+            
 
-            if($userbio_data->id>0)
+            try {
+                if($userbio_data->save()){
+                    // successful save
+                    Log::debug('User Bio data was saved successfully. ID is ' . $userbio_data->user_id);
+                } else {
+                    // unsuccessful save
+                    Log::debug('Failed to save User Bio data');
+                }
+            } catch (\Exception $e) {
+                Log::debug('Save User Bio Failed with this error '.$e->getMessage());
+                // or log the error, or show it to the user, etc.
+            }
+
+            if($userbio_data->user_id>0)
+            {
+                Log::debug('Debug Save reset BIo plan succes for user ' . $user_id);
             return 1;
+            }
             else
-            return 0;
+            {
+                Log::debug('Debug Save reset BIo plan fail for user ' . $user_id);
+                return 0;
+
+            }
             
 
            
@@ -3656,6 +4879,12 @@ class SMAIUpdateProfileController extends Controller
                 $usersocial = UserSP::where('email', '=', $user_email)->where('id', '=', $user_id);
             else
                 $usersocial = UserSP::where('id', '=', $user_id);
+
+            //MobileAppV2
+            if ($user_email != '' && $user_email != NULL)
+                $usersocial = UserMobile::where('email', '=', $user_email)->where('id', '=', $user_id);
+            else
+                $usersocial = UserMobile::where('id', '=', $user_id);
 
 
             if ($usersocial)
@@ -3803,10 +5032,13 @@ class SMAIUpdateProfileController extends Controller
         $free_plan_setting=$user_bio_plan_arr->settings;
 
 
+        
         $userdata = [
         'plan_settings' => json_encode($free_plan_setting),
 
          ];
+
+         stripslashes( $userdata['plan_settings']);
 
 
          $update_id  = DB::connection('bio_db')->table('users')
@@ -3905,6 +5137,12 @@ public function ToObject($Array) {
         $ins_openai_id=$template->id;
         return $ins_openai_id;
 
+    }
+
+
+    public function isJson($string) {
+        json_decode($string);
+        return (json_last_error() == JSON_ERROR_NONE);
     }
 
 

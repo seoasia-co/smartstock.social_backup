@@ -4,6 +4,21 @@ All Notable changes to `laravel-modules` will be documented in this file.
 
 ## Next
 
+## 10.0.3 - 2023-10-02
+
+## Changed
+
+- [@solomon-ochepa](https://github.com/solomon-ochepa) updated multiple & config stubs to follow modern laravel standards
+- [@dcblogdev](https://github.com/dcblogdev) updated enabled `$MODULE_NAMESPACE$` & `$CONTROLLER_NAMESPACE$` placeholders to be used inside stubs
+- [@hungthai1401](https://github.com/hungthai1401) updated rule stub
+
+## Added
+
+- [@dcblogdev](https://github.com/dcblogdev) added support for using modules inside the main `vite.config.js` file https://github.com/nWidart/laravel-modules/pull/1682
+- [@dcblogdev](https://github.com/dcblogdev) added option to generate a factory by using the flag `-f` when generating a model
+- [@hungthai1401](https://github.com/hungthai1401 ) added implicit rule https://github.com/nWidart/laravel-modules/pull/1664
+
+
 ## 10.0.2 - 2023-09-18
 
 ## Changed
@@ -13,7 +28,7 @@ All Notable changes to `laravel-modules` will be documented in this file.
 ## 10.0.1 - 2023-09-18
 
 ## Added
-
+ 
 - [@JaberWiki](https://github.com/JaberWiki) Added Include an optional flag `subpath` for rolling back a module's specific migration file [#1626](https://github.com/nWidart/laravel-modules/pull/1626)
 - [@sergiy-petrov](https://github.com/sergiy-petrov) Added support for testing GitHub actions against PHP versions 8.2 and 8.3. [#1624](https://github.com/nWidart/laravel-modules/pull/1624)
 - [@hanieas](https://github.com/hanieas) Added make Observer command. [#1623](https://github.com/nWidart/laravel-modules/pull/1623)

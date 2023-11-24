@@ -59,6 +59,7 @@ class AIController extends Controller
             $newObj->$key = $value;
         }
 
+        if(!isset($request->post_type))
         $request= $newObj;
 
         //Log::debug('request inside function buildOutput '.$request);
@@ -337,7 +338,9 @@ class AIController extends Controller
 
            // $language='Indonesian'; 
             $description = $request->description;
-            $prompt = "Translate $description. from English to $language.";
+            $prompt = "Translate $description. from English to $language." ;
+
+           // $prompt = "Translate the following English text to $language. Note: Preserve the HTML tags: $description";
 
             //Log::debug(' description inside function buildOutput '.$description);
 

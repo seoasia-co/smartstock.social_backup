@@ -24,6 +24,10 @@ class Kernel extends HttpKernel
         \Illuminate\Session\Middleware\StartSession::class,
         \Illuminate\View\Middleware\ShareErrorsFromSession::class,
         \App\Http\Middleware\LanguageSwitcher::class,
+
+        /* 'IPCheck' => \App\Http\Middleware\IPMiddleware::class,  */
+       
+        
     ];
 
     /**

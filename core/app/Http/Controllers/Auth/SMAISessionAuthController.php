@@ -47,9 +47,6 @@ use App\Models\UserSyncNodeJS;
 
 use App\Models\SettingBio;
 
-
-
-
 use App\Models\Settings;
 
 class SMAISessionAuthController extends Controller
@@ -58,11 +55,17 @@ class SMAISessionAuthController extends Controller
 
     //protected $request; 
     protected $hash_password;
+    public $freetrial_plan_images;
+    public $freetrial_plan_words;
     // request as an attribute of the controllers
     public function __construct($request_mobile=NULL)
     {
        
-        
+        //freetrial images and words
+        $plan_main=Plan::where('id',8)->first();
+        $this->freetrial_plan_images=$plan_main->total_images;
+        $this->freetrial_plan_words =$plan_main->total_words;
+
         /* if(isset($request->password))
         {
             $this->hash_password=Hash::make($request->password);
@@ -301,8 +304,8 @@ class SMAISessionAuthController extends Controller
                      "status" => 2,
                      "changed" => time(),
                      "created" => time(),
-                     'remaining_words' => 6500,
-                     'remaining_images' => 150,
+                     'remaining_words' => $this->freetrial_plan_words,
+                     'remaining_images' => $this->freetrial_plan_images,
                  ];
             }
             else{
@@ -327,8 +330,8 @@ class SMAISessionAuthController extends Controller
                      "status" => 2,
                      "changed" => time(),
                      "created" => time(),
-                     'remaining_words' => 6500,
-                     'remaining_images' => 150,
+                     'remaining_words' => $this->freetrial_plan_words,
+                     'remaining_images' => $this->freetrial_plan_images,
                  ];
 
 
@@ -463,8 +466,8 @@ class SMAISessionAuthController extends Controller
                 'surname' => $surname_ins,
                 'email' => $request->email,
                 'email_confirmation_code' => Str::random(67),
-                'remaining_words' => 6500,
-                'remaining_images' => 150,
+                'remaining_words' => $this->freetrial_plan_words,
+                'remaining_images' => $this->freetrial_plan_images,
                 'password' => $this->hash_password,
                 'email_verification_code' => Str::random(67),
                 'affiliate_id' => $affCode,
@@ -492,8 +495,8 @@ class SMAISessionAuthController extends Controller
             'surname' => $surname_ins,
             'email' => $request->email,
             'email_confirmation_code' => Str::random(67),
-            'remaining_words' => 6500,
-            'remaining_images' => 150,
+            'remaining_words' => $this->freetrial_plan_words,
+            'remaining_images' => $this->freetrial_plan_images,
             'password' => $this->hash_password,
             'email_verification_code' => Str::random(67),
             'affiliate_id' => $affCode,
@@ -622,8 +625,8 @@ class SMAISessionAuthController extends Controller
                     'source' => '',
 					'status' => 1,
 					'datetime' => date('Y-m-d H:i:s', \Carbon\Carbon::now()->timestamp),
-                    'remaining_words' => 6500,
-                    'remaining_images' => 150
+                    'remaining_words' => $this->freetrial_plan_words,
+                    'remaining_images' => $this->freetrial_plan_images
 				);
 
                 // change to Laravel insert
@@ -710,11 +713,11 @@ class SMAISessionAuthController extends Controller
                 'password' => $this->hash_password,
                 'image' => $request->image,
                 'email_verified_at' => date('Y-m-d H:i:s'),
-                'words_left' => 6500,
-                'image_left' => 150,
+                'words_left' => $this->freetrial_plan_words,
+                'image_left' => $this->freetrial_plan_images,
                 'user_type' => "User",
-                'remaining_words' => 6500,
-                'remaining_images' => 150,
+                'remaining_words' => $this->freetrial_plan_words,
+                'remaining_images' => $this->freetrial_plan_images,
                 
             ];
 
@@ -753,11 +756,11 @@ class SMAISessionAuthController extends Controller
                 'password' => $this->hash_password,
                 'image' => $request->image,
                 'email_verified_at' => date('Y-m-d H:i:s'),
-                'words_left' => 6500,
-                'image_left' => 150,
+                'words_left' => $this->freetrial_plan_words,
+                'image_left' => $this->freetrial_plan_images,
                 'user_type' => "User",
-                'remaining_words' => 6500,
-                'remaining_images' => 150,
+                'remaining_words' => $this->freetrial_plan_words,
+                'remaining_images' => $this->freetrial_plan_images,
                 
             ];
 
@@ -1093,6 +1096,49 @@ class SMAISessionAuthController extends Controller
         if($this->check_old_user('seo_db','users',$request->email) < 1)  
         {
         $insert_id  = DB::connection('seo_db')->table('users')->insert($userdata);
+        }
+
+    }
+
+    public function freetrial_punbot($request,$user_id)
+    {
+        if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+
+        if(strpos($name_ins, " ") !== false)
+        {
+            $firstname=$this->get_first_last_name($name_ins,'firstname');
+            $lastname=$this->get_first_last_name($name_ins,'lastname');
+
+        }
+        else{
+            $firstname=$name_ins;
+            $lastname='';
+        }
+
+       $password_ins=md5($request->password);
+        $userdata = [
+            'id' => $user_id,
+            'name' => $name_ins,
+            'user_type' => 'Member',
+            'email' => $request->email,
+            'password' => $password_ins,
+            'status' => '1',
+            'package_id' => '1',
+            'deleted' => '0',
+
+        ];
+
+        if($this->check_old_user('punbot_db','users',$request->email) < 1)  
+        {
+        $insert_id  = DB::connection('punbot_db')->table('users')->insert($userdata);
         }
 
     }

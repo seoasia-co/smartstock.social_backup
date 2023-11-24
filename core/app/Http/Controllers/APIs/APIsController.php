@@ -50,6 +50,18 @@ use App\Models\SEOWebOption;
 use App\Models\SEOAiAutomation;
 
 use Modules\CourseSetting\Entities\Course;
+use Facebook\Facebook;
+
+use App\Models\PunbotProductEcommerce;
+use App\Models\PunbotCommentsFBLive;
+use App\Models\PunbotOrdersEcommerce;
+use Illuminate\Support\Facades\Storage;
+use Kreait\Firebase\Factory;
+use Kreait\Firebase\ServiceAccount;
+use DB;
+use PDO;
+
+
 
 class APIsController extends Controller
 {
@@ -2501,14 +2513,109 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
     }
 
+    public function smai_translation_lang_folder(Request $request)
+    {
+
+         $contents=$request->contents;
+         $connection=$request->connection;
+         //var_dump($contents); // show contents
+         $contents=json_decode($contents,true);
+
+         $new_lang_key_array=$contents['key'];
+         $new_lang_desc_array=$contents['desc'];
+
+        //Log::info( $new_lang_desc_array);
+
+        //start or stop
+        //$conn_smart=array();
+        $new_punbot_func=NEW SMAI_SEO_PUNBOTController();
+        $lang_table='translation_example_lang';
+
+        if($connection=='bio_db')
+        {
+                           date_default_timezone_set('Asia/Bangkok');
+	                       // Host Name
+                            $db_hostname_s = 'localhost';
+                            // Database Name
+                            $db_name_s = 'cafealth_smartbio';
+                            // Database Username
+                            $db_username_s = 'cafealth_smartbio';
+                            // Database Password
+                            $db_password_s = 'n0[R}PZ.92hF';
+                            // define( 'DB_CHARSET', 'utf8mb4' );
+                            try {
+
+                                $conn_smart = new PDO("mysql:host=$db_hostname_s;dbname=$db_name_s",$db_username_s,$db_password_s, array(PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"));
+                                $conn_smart->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                                
+                            }
+                            catch(PDOException $e){
+                                Log::info($e->getMessage('utf8mb4'));
+                            }
+
+        }
+
+        if($connection=='main_old_coin')
+        {
+                           date_default_timezone_set('Asia/Bangkok');
+                            // Host Name
+                            $db_hostname_s = 'localhost';
+                            // Database Name
+                            $db_name_s = 'cafealth_smartcontent_coin';
+                            // Database Username
+                            $db_username_s = 'cafealth_smartcontent_coin';
+                            // Database Password
+                            $db_password_s ='2[nolVnpJ@V6';
+                            // define( 'DB_CHARSET', 'utf8mb4' );
+                            try {
+
+                                $conn_smart = new PDO("mysql:host=$db_hostname_s;dbname=$db_name_s",$db_username_s,$db_password_s, array(PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"));
+                                $conn_smart->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                                
+                            }
+                            catch(PDOException $e){
+                                Log::info($e->getMessage('utf8mb4'));
+                            }
+
+        }
+
+       //$return_lang_ins= $new_punbot_func->ins_lang_smart_content($lang_table,$new_lang_key_array,$new_lang_desc_array,$conn_smart);
+       $return_lang_ins=1;
+       
+       if($return_lang_ins==1)
+       {
+         // Response MSG
+         $response = [
+            'msg' => 'Translate Status details',
+            'details' => $return_lang_ins
+        ];
+        return response()->json($response, 200);
+       }
+       else{
+        // Response MSG
+        $response = [
+            'msg' => 'Translate Status details',
+            'details' => $return_lang_ins
+        ];
+        return response()->json($response, 404);
+       }
+
+
+    
+        
+
+    }
+
 
     public function smai_translation(Request $request)
     {
 
+        Log::debug('Debug request from smai_translation from APIsController : ');
+        Log::info($request);
         $new_translation=NEW AIController();
         $text_translated=$new_translation->buildOutput($request);
-         //Log::debug('Debug response translated '.$text_translated);
-         //Log::info($text_translated);
+        // Log::debug('Debug response translated '.$text_translated);
+         Log::info($text_translated);
         return  $text_translated;
 
 
@@ -2656,7 +2763,78 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
             // $user_id,$usage,$data_image,$image_params
             $new_update_main_image = new SMAISyncTokenController($data_req, $usage, $chatGPT_catgory, $chat_id=NULL,NULL,NULL,$params,$user_id);
+            
+            if($chatGPT_catgory!='Images_SmartContentCoIn')
+            {
             $return_arr = $new_update_main_image->imageOutput_save_main_coin($user_id, $usage, $data_req, $params,$size=NULL, $post=NULL,  $style=NULL, $lighting=NULL, $mood=NULL, $number_of_images=1, $image_generator='DE', $negative_prompt=NULL,NULL);
+            }
+            else{
+
+                if (isset($params->prompt))
+                $prompt =$params->prompt;
+                else if (isset($params['prompt']))
+                $prompt = $params['prompt'];
+                else
+                $prompt = NULL;
+
+
+                if (isset($params->size))
+                $size =$params->size;
+                else if (isset($params['size']))
+                $size = $params['size'];
+                else
+                $size = NULL;
+
+                
+                if (isset($params->contents))
+                $contents_img =$params->contents;
+                else if (isset($params['contents']))
+                $contents_img = $params['contents'];
+                else
+                $contents_omg = NULL;
+
+
+                if (isset($params->file_size))
+                $file_size =$params->file_size;
+                else if (isset($params['file_size']))
+                $file_size = $params['file_size'];
+                else
+                $file_size = NULL;
+
+                
+
+                $main_img_openai=UserOpenai::where('output',$contents_img)->first();
+               
+
+
+                $style=NULL;
+                $lighting=NULL;
+                $mood=NULL;
+
+                $image_arr = array(
+                    'style' => $style,
+                    'artist' => 'Leonardo da Vinci',
+                    'lighting' => $lighting,
+                    'mood' => $mood,
+                );
+                $image_arr['main_image_id'] =$main_img_openai->id;
+                $image_arr['size'] = $size;
+                $image_arr['file_size'] = $file_size;
+
+                $path_array=array();
+                array_push($path_array, $contents_img);
+
+                $return_arr=array(
+
+                    'path_array' => $path_array,
+                    'image_array' => $image_arr,
+                );
+
+                
+
+
+            }
+           
 
             Log::debug('Return array from new_update_main_image ');
             Log::info($return_arr);
@@ -2676,6 +2854,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
 
             //save image to SocialPost OpenAI
+            if(Str::contains($chatGPT_catgory,'SocialPost')==false)
             $new_update_main_image->imageOutput_save_SocialPost($user_id,$prompt, $number_of_images,$path_array,$image_array,$main_image_id);
             
 
@@ -2699,7 +2878,19 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         // if not called from SocialPost add extra update to MainCoIn table
         if ($from != 'main_coin')
         {
-        $main_message_id = $new_update_digitalasset->SMAI_UpdateGPT_MainCoIn($user_id, $usage, $data_req, $params,$from,NULL);
+           $main_message_array = $new_update_digitalasset->SMAI_UpdateGPT_MainCoIn($user_id, $usage, $data_req, $params,$from,NULL);
+           
+           Log::debug('debug return message array !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+           Log::info($main_message_array);
+
+           if(isset($main_message_array['message_id']))
+           $main_message_id=$main_message_array['message_id'];
+           
+           if($usage==NULL || !isset($usage))
+            {
+                if(isset($main_message_array['total_used_tokens']))
+                $usage=$main_message_array['total_used_tokens'];
+            }
         }
         else
         {
@@ -2739,11 +2930,15 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
         if ($from != 'bio' )
         { 
-            if((Str::contains($chatGPT_catgory,'OtherSocialText_SmartBio')==false) && (Str::contains($chatGPT_catgory,'DocText')==false))
+            if(Str::contains($chatGPT_catgory,'DocText_SocialPost')==true)
+             {
+               $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_id);
+             }
+            else if((Str::contains($chatGPT_catgory,'OtherSocialText_SmartBio')==false) && (Str::contains($chatGPT_catgory,'DocText')==false))
             { 
               $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_id);
             }
-            else if(Str::contains($chatGPT_catgory,'DocText_SmartContentCoIn')==true)
+            else if(Str::contains($chatGPT_catgory,'DocText_SmartContentCoIn')==true )
             {
 
               $new_update_digitalasset->Save_Bio_Documents($params, NULL,NULL,$user_id,$usage,$main_message_id);
@@ -2812,8 +3007,11 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         else{
 
             Log::debug('Debug case None-Images GPT with usage '.$usage);
+            
 
             $remaining_words-=$usage;
+
+
 
             if(isset($usage) && $usage>0)
             $token_update_type="text";
@@ -2826,10 +3024,13 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
                 'remaining_words' => $remaining_words,
             );
 
-
-
+           
+           
+            if($usage!=NULL && isset($usage))
+           {
             $new_token_centralize=NEW SMAIUpdateProfileController();
             $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array,$usage,$from,$old_reamaining_word,$old_reamaining_image,$chatGPT_catgory,$token_update_type);
+           }
 
         }
 
@@ -3051,6 +3252,36 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
 
     }
+    public function smai_seo_import_punbot_backlinks($id)
+    {
+
+        Log::debug('Start accept smai_seo_import_punbot_backlinks value form Website ID '.$id);
+        Log::info($id);
+
+        $response = 'will import for soon for web id '.$id;
+       
+
+        $new_seo_sync=NEW SMAISyncSEOController();
+        $response_bl_punbot=$new_seo_sync->import_seo_backlink_punbot($id);
+        return $response_bl_punbot; 
+
+        //return response()->json( $response );
+
+
+    }
+
+    public function smai_seo_open_footer_posts($id)
+    {
+
+        Log::debug('Start accept smai_seo_open_footer_posts value form Website ID '.$id);
+        Log::info($id);
+
+        /* $new_seo_sync=NEW SMAISyncSEOController();
+        $response_onoff=$new_seo_sync->cron_seo_on_off_posts($id);
+        return $response_onoff; */
+
+
+    }
 
     public function smai_seo_user_create_cron_posts(Request $request)
     {
@@ -3194,7 +3425,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
                             'post_type' => $post_type,
                             //SETTINGS
                             'number_of_results' => 1,
-                            'maximum_length' => 3800,
+                            'maximum_length' => 1000,
                             'creativity' => 1,
                             'language' => $language,
                             'negative_prompt' => 0,
@@ -3208,6 +3439,14 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
                         $responsedText_array= $this->smai_text_gen_inside($body_request);
                         $responsedText=trim($responsedText_array['html']);
+                       
+                        for($i=-10;$i<10;$i++)
+                        {
+                            for($j=-10;$j<10;$j++)
+                            {
+                                $responsedText = str_replace('between '.$i.' and '.$j,' ',$responsedText);
+                            }
+                        }
                         $responsedText = str_replace('between 0 and 1','',$responsedText);
                         $responsedText = str_replace('or negative.','',$responsedText);
                         $responsedText = str_replace('between -2 and 2 (neutral).','',$responsedText);
@@ -3485,6 +3724,352 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
        
 
     }
+
+   
+
+        public function getCommentDetail($comment_id)
+        {
+            $accesstoken='EAARmpR9yiuUBOxuSKoFjs0jK7dte4KV6XkpSKvuzbSSeEnZASH3J41eeg2LizoTjMTXMZB3XsDZB8hnXmZB3Wz9NRxbO3bSjozymBa4KZBwZAb64VoSNSBrpEb6LEhZA7HZBJRRWM482JPt2UEsB38oVQvpygXZCZC3qWgbZCubLWUi3Ejns1X8dFVo2RaSR2klMCycxZAFosWOl6vfjr6gZD'; // Your page access token
+            $fb = new Facebook([
+                'app_id' => '1238759290079973',
+                'app_secret' => '12b019180410c15be86235175ebcbb3f',
+                'default_graph_version' => 'v18.0',
+            ]);
+
+
+
+            try {
+                $response = $fb->get('/' . $comment_id . '?fields=message,created_time,from,message_tags,object', $accesstoken);
+                $comment = $response->getGraphNode();
+                
+                $comment=$comment->asArray();
+                $commentData = [
+                    'id' => $comment_id,
+                    'message' => $comment['message'],
+                    'created_time' => $comment['created_time']->format('Y-m-d H:i:s'),
+                ];
+                
+               Log::debug('Comment response Detail from '.$commentData['id']);
+               Log::info($comment);
+
+                // Now you can access the comment details
+                $commentData['id'];             // Comment ID
+                $commentData['message'];        // Comment message/content
+                $commentData['created_time'];   // Comment creation date and time
+                 
+            } catch (\Facebook\Exceptions\FacebookResponseException $e) {
+                // Handle API error responses
+            } catch (\Facebook\Exceptions\FacebookSDKException $e) {
+                // Handle SDK error exceptions
+            }
+
+
+           
+        }
+
+    public function smai_fblivecomment_get_info(Request $request)
+    {
+        $fb = new Facebook([
+            'app_id' => '1238759290079973',
+            'app_secret' => '12b019180410c15be86235175ebcbb3f',
+            'default_graph_version' => 'v10.0',
+        ]);
+        $accesstoken='EAARmpR9yiuUBOxuSKoFjs0jK7dte4KV6XkpSKvuzbSSeEnZASH3J41eeg2LizoTjMTXMZB3XsDZB8hnXmZB3Wz9NRxbO3bSjozymBa4KZBwZAb64VoSNSBrpEb6LEhZA7HZBJRRWM482JPt2UEsB38oVQvpygXZCZC3qWgbZCubLWUi3Ejns1X8dFVo2RaSR2klMCycxZAFosWOl6vfjr6gZD'; // Your page access token
+        $pageId = '102217868688';
+
+       Log::debug('Start accept smai_fblivecomment_get_info value Comment ');
+       // Log::info($request);
+
+        $comments=$request->data;
+        $user_id=2;
+        //map sotre id to current post_id
+        $store_id=3;
+        $currency='USD';
+
+        //$comments=$request;
+
+       foreach ($comments as $comment) 
+       {
+            //Log::debug('Comment ID '.$comment['id']);
+            Log::debug('Comment Message '.$comment['message']);
+            // Log::debug('Comment created_time '.$comment['created_time']);
+           
+          
+          if(Str::length($comment['id']) > 5)
+           {
+             
+              $products=PunbotProductEcommerce::where('store_id',$store_id)->get();
+
+              $post_id_arr=explode('_',$comment['id']);
+              $post_id=$post_id_arr[0];
+
+              $collection_mysql='ecommerce_product_'.$post_id;
+              $collection_firebase=$post_id.'_stock';
+
+              $products_firebase=[];
+              
+              //push array products before Firebase Check has collection
+              foreach($products as $product)
+              {
+
+                array_push( $products_firebase,
+                 ['id' => '', 
+                 'product_name' => $product->product_name, 
+                 'cf_code' => $product->product_name, 
+                 'product_description' => $product->product_description,
+                 'stock_item' => $product->stock_item]
+                );
+
+                //clean comment
+                //$cleanedComment = Str::squish($comment['message']);
+                $cleanedComment = str_replace(' ', '', $comment['message']);
+               // $cfComment = preg_replace( '/[\W]/', '', $cleanedComment);
+
+                $cfComment  = preg_replace("/^[0-9A-Zก-ฮ]$/", "", $cleanedComment );
+
+                //preg_match("/^[0-9A-Zก-ฮ]$/", $msg
+
+                //Log::debug('!!!!!!!!!!!!!!!!! Final cfComment '.$cfComment);
+
+                $cf_code=$product->cf_code;
+
+                 //Log::debug('!!!!!!!!!!!!!!!!! CF COde '.$cf_code);
+
+                        if($cfComment==$cf_code)
+                        {
+                            Log::debug('Product ID match '.$product->id.' with comment '.$cf_code);
+                            //insert new order
+
+                            $filename_order='ecommerce_cart.json';
+                            $contents_order = json_encode(array(
+
+                                'subscriber_id' => $comment['id'],
+                                'user_id' => $user_id,
+                                'store_id' => $store_id,
+                                'currency' => $currency,
+                                'status' => "pending",
+                                'ordered_at' => Carbon::now(),
+                                'payment_method'=>'',
+                                'updated_at' => Carbon::now(),
+                                'initial_date' => Carbon::now(),
+                                'confirmation_response' => '[]',
+                                'buyer_email' => '',
+                                'buyer_mobile' => '',
+                                'payment_amount' => $product->original_price,
+
+                            ));
+
+                            //$this->smai_save_comments_json($filename_order,$contents_order);
+
+                            /* 
+                            $new_order=PunbotOrdersEcommerce::firstOrCreate(
+
+                                ['subscriber_id' => $comment['id']],
+
+                                [
+                                'user_id' => $user_id,
+                                'store_id' => $store_id,
+                                
+                                'currency' => $currency,
+                                'status' => "pending",
+                                'ordered_at' => Carbon::now(),
+                                'payment_method'=>'',
+                                'updated_at' => Carbon::now(),
+                                'initial_date' => Carbon::now(),
+                                'confirmation_response' => '[]',
+                                'buyer_email' => '',
+                                'buyer_mobile' => '',
+                                'payment_amount' => $product->original_price,
+                                ]
+
+
+                            );
+
+                            if($new_order->id>0)
+                            {
+                                //update product
+                                $product->sales_count=$product->sales_count+1;
+                                $product->stock_item=$product->stock_item-1;
+                                $product->save();
+                                Log::debug('Product ID update Stock sucess '.$product->id);
+                            
+                            } */
+
+
+
+                            
+                        }
+
+
+                        
+
+                       /*  PunbotCommentsFBLive::create(array(
+
+                            'comment_id' => $comment['id'],
+                            'message' => $comment['message'],
+                            'created_at' => $comment['created_time'],
+                            'post_id' => $post_id,
+                           
+                            
+
+                        )); */
+
+                        //Temporarily save to json file
+                        /* $comment_new= PunbotCommentsFBLive::firstOrCreate(
+
+                            ['comment_id' => $comment['id']],
+                            [
+
+                            'message' => $comment['message'],
+                            'created_at' => Carbon::now(),
+                            'post_id' => $post_id,
+                            
+                            
+                            ]
+                        ); */
+
+                        $filename=$post_id.'.json';
+                        $contents = json_encode($comment);
+                        //$this->smai_save_comments_json($filename,$contents);
+
+
+
+
+
+              }
+
+              //insert Check if Firebase has collection
+              $this->insertStockToFirebase($collection_firebase,$products_firebase);
+
+
+
+            
+
+
+
+
+
+
+        
+           } 
+           
+          
+       }
+
+
+       /*  $insert_ecommerce_data =array
+        (
+          'user_id' => $user_id,
+          'store_id' => $store_id,
+          'subscriber_id' => $subscriber_id,
+          'currency' => $currency,
+          'status' => "pending",
+          'ordered_at' => Carbon::now(),
+          'payment_method'=>'',
+          'updated_at' => $curdate,
+          'initial_date' => $curdate,
+          'confirmation_response' => '[]',
+          'buyer_email' => $buyer_email,
+          'buyer_mobile' => $buyer_phone
+        ); */
+   
+    }
+
+   public function smai_save_comments_json($filename,$contents)
+   {
+
+            //$filename = 'file.json';
+            //$contents = 'new content';
+
+            if (Storage::exists($filename)) {
+                // File exists, open and decode its contents
+                $existingContents = json_decode(Storage::get($filename), true);
+                
+                // Push new content to the existing array
+                $existingContents[] = $contents;
+                
+                // Encode the updated contents
+                $updatedContents = json_encode($existingContents);
+                
+                // Save the updated contents back to the file
+                Storage::put($filename, $updatedContents);
+                Log::debug('File exists, open and decode its contents '.$filename);
+                
+                //$path = Storage::disk('local')->getAdapter()->applyPathPrefix($filename);
+                //$path =  $this->assertFileExists(Storage::disk("local")->getPath().$filename);
+                //Log::info($path);
+
+            } else {
+                // File does not exist, create it and put the new content
+                Storage::put($filename, json_encode([$contents]));
+                Log::debug('File does not exist, create it and put the new content '.$filename);
+            }  
+
+    }
+
+    public function insertStockToFirebase($collection,$products)
+{
+   // $factory = (new Factory)->withServiceAccount(__DIR__.'/google-service-account.json');
+  // $factory = (new Factory)->withServiceAccount(__DIR__.'/FirebaseKey.json');
+   
+
+   $factory=NULL;
+
+   if($factory==NULL)
+   $firebase = DB::connection('punbot_firebase');
+   else
+   $firebase=$factory;
+
+        if($this->checkAndCreateCollection($collection) < 1)
+        {
+        $database = $firebase->createDatabase();
+
+            $productsRef = $database->getReference($collection);
+
+            /* $products = [
+                ['id' => 1, 'name' => 'Product 1', 'qty' => 10],
+                ['id' => 2, 'name' => 'Product 2', 'qty' => 20],
+                ['id' => 3, 'name' => 'Product 3', 'qty' => 30],
+                ['id' => 4, 'name' => 'Product 4', 'qty' => 40],
+                ['id' => 5, 'name' => 'Product 5', 'qty' => 50],
+            ]; */
+
+            foreach ($products as $product)
+            {
+                $productsRef->push($product);
+            }
+
+        }
+        else
+        {
+            Log::debug('Collection '.$collection.' already exists.');
+        }
+}
+
+
+function checkAndCreateCollection($collectionName) 
+{
+    //$firebase = (new Factory)->withServiceAccount('./path/to/serviceAccount.json');
+    //$firebase = (new Factory)->withServiceAccount(__DIR__.'/FirebaseKey.json');
+    $firebase=DB::connection('punbot_firebase');
+    $database = $firebase->createDatabase();
+
+    $reference = $database->getReference($collectionName);
+    $snapshot = $reference->getSnapshot();
+
+    if(!$snapshot->exists()) {
+        // If no data, create the collection with default data.
+        $defaultData = ['key' => 'value']; // Change this with your default data
+        $updatedDocRef = $database->getReference($collectionName)->set($defaultData);
+
+        Log::debug("".$collectionName." collection has been created.");
+        return 1;
+    }
+    else {
+        Log::debug("".$collectionName." collection already exists.");
+        return 0;
+    }
+}
 
 
 }

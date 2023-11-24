@@ -39,7 +39,7 @@ class HomeController extends Controller
         // check if website is closed
         $this->close_check();
 
-        Log::debug('test root doc stepback'.$_SERVER["DOCUMENT_ROOT"]);
+        //Log::debug('test root doc stepback'.$_SERVER["DOCUMENT_ROOT"]);
 
 
     }

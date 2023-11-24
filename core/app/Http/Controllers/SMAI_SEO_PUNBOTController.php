@@ -124,7 +124,7 @@ class SMAI_SEO_PUNBOTController extends Controller
       $t_now = date('Y-m-d H:i:s');
     
     
-      $insert = $conn_smart->prepare("INSERT  INTO $lang_table (key_lang, desc_value, desc_en_value, created_at, translated ) VALUES(?,?,?,?,?)");
+      $insert = $conn_smart->prepare("INSERT IGNORE INTO $lang_table (key_lang, desc_value, desc_en_value, created_at, translated ) VALUES(?,?,?,?,?)");
     
      if( count($lang_key_array)>0)
      {
@@ -133,22 +133,25 @@ class SMAI_SEO_PUNBOTController extends Controller
     
       for($i=0;$i<count($lang_key_array); $i++)
       {
+        if($lang_desc_array[$i]==NULL)
+        $lang_desc_array[$i]='';
     
-        $insert->execute(array( $lang_key_array[$i] , $lang_desc_array[$i] , $lang_desc_array[$i], $t_now ,0));
-        echo "<br><br>!!!!!!!!!! Insert Smart Content Lang  success of ".$i."  ".$lang_key_array[$i];
-    
+          $insert->execute(array( $lang_key_array[$i] , $lang_desc_array[$i] , $lang_desc_array[$i], $t_now ,0));
+          //echo "<br><br>!!!!!!!!!! Insert Smart Content Lang  success of ".$i."  ".$lang_key_array[$i];
+          $lang_ins=1;
       }
     
         
       
       } catch(PDOException $e) {
-        echo "<br><br>!!!!!!!!!! Insert Smart Content Lang failed of !!!!!!!!!!!!!!!!!!! ".$i;
-        echo '<br><br> Error: ' . $e->getMessage().'<br><br>';
+        $lang_ins=0;
+        //echo "<br><br>!!!!!!!!!! Insert Smart Content Lang failed of !!!!!!!!!!!!!!!!!!! ".$i;
+        //echo '<br><br> Error: ' . $e->getMessage().'<br><br>';
       }
     
     }
     
-    
+    return $lang_ins;
     
     }
     
