@@ -3227,9 +3227,14 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         else
             $upFromWhere = NULL;
 
+            if (isset($request->upByWhom))
+            $upByWhom = $request->upByWhom;
+            else
+            $upByWhom = NULL;
+
         Log::info($user_email);
 
-        $update_profile_user = new SMAIUpdateProfileController($request, $user_id, $user_email, $whatup, $upFromWhere);
+        $update_profile_user = new SMAIUpdateProfileController($request, $user_id, $user_email, $whatup, $upFromWhere,$upByWhom);
 
         if (in_array("BioReset", $whatup))
         {

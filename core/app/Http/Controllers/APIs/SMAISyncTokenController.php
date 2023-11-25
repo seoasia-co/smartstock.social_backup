@@ -3245,7 +3245,8 @@ if($params_json1['prompt']!='SKIP')
                 $message->output = $output;
                 $message->hash = Str::random(256);
                 $message->credits = $this->total_used_tokens;
-                $message->words = 0;
+                //bug fix already fix
+                $message->words = $this->total_used_tokens;
                 $UserOpenai_saved = $message->save();
 
                 if (!$UserOpenai_saved) {

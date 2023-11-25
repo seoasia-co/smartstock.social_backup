@@ -101,6 +101,7 @@ class SMAIUpdateProfileController extends Controller
     protected $hash_password;
     protected $skip_update_pss = 0;
     protected $upFromWhere = NULL;
+    protected $upByWhom = NULL;
     protected $plus_new_images_token;
     protected $plus_new_words_token;
     protected $bio_template_id;
@@ -110,13 +111,17 @@ class SMAIUpdateProfileController extends Controller
     // request as an attribute of the controllers
 
 
-    public function __construct($request_update = NULL, $user_id = NULL, $user_email = NULL, $whatup = NULL, $upFromWhere = NULL)
+    public function __construct($request_update = NULL, $user_id = NULL, $user_email = NULL, $whatup = NULL, $upFromWhere = NULL,$upByWhom=NULL)
     {
 
 
         $this->plus_new_images_token = 0;
         $this->plus_new_words_token = 0;
         $this->upFromWhere = $upFromWhere;
+        $this->upByWhom = $upByWhom;
+
+        Log::debug('Debug upFromWhere in construct '. $this->upFromWhere);
+        Log::debug('Debug upByWhom in construct '. $this->upByWhom);
 
         //freetrial images and words
         $plan_main=Plan::where('id',8)->first();
@@ -768,11 +773,11 @@ class SMAIUpdateProfileController extends Controller
                 
                 $current_main_plan_id    = $current_main_plan_array['plan_id'];
                 $current_main_plan_expire = $current_main_plan_array['expire'];
-                $current_bio_plan_id = $current_main_plan_array['main_plan_id'];
+                $current_bio_plan_id = $current_main_plan_array['bio_plan_id'];
 
                 $Main_Plan_from_DB=Plan::where('id',$current_main_plan_id)->first();
                 $Main_Plan_from_DB_package_type=$Main_Plan_from_DB->package_type;
-                $Bio_plan_should_be=$Main_Plan_from_DB->bio_plan_id;
+                $Bio_plan_should_be=$Main_Plan_from_DB->bio_id;
 
                 Log::debug('Debug Bio Plan from Plan Table Setting '.$Bio_plan_should_be);
                 Log::debug('Debug Bio Plan from users DB '.$current_bio_plan_id); 
@@ -2354,6 +2359,7 @@ class SMAIUpdateProfileController extends Controller
              // set to 0 if no yet added and set to 1 if added when token_downgraded==1 and token_upgraded==1 that mean time to reset
             $check_main_plan = Plan::where('id', $userdata['plan'])->orderBy('id', 'asc')->first();
             $main_plan_id = $check_main_plan->id;
+            $correct_bio_plan=$check_main_plan->bio_id;
 
             if($main_plan_id==8 || $main_plan_id==0)
             {
@@ -2398,6 +2404,8 @@ class SMAIUpdateProfileController extends Controller
             $mobile_cur_plan=$check_main_plan->mobile_id;
             $sync_cur_plan=$check_main_plan->sync_id;
 
+            //remove 'bio_plan' => $userdata['plan'], because it was recheked before this step
+            //and $userdata['plan'] is the plan_id of MainCoIn not Bio
             if($use_update_core_users_plans_backup==1)
             {
                   if($package_type_main=='bundle')
@@ -2407,7 +2415,7 @@ class SMAIUpdateProfileController extends Controller
                         'design_plan' => $design_cur_plan,
                         'mobile_plan' => $mobile_cur_plan,
                         'sync_plan' => $sync_cur_plan,
-                        'bio_plan' => $userdata['plan'],
+                         'bio_plan' => $correct_bio_plan, 
                     );
 
                    }
@@ -3454,6 +3462,8 @@ class SMAIUpdateProfileController extends Controller
         $token_after = $token_array['remaining_words'] + $token_array['remaining_images'];
         $openai_record = NULL;
 
+
+
         
 
         if ($sync_token >= 0) {
@@ -3467,6 +3477,7 @@ class SMAIUpdateProfileController extends Controller
 
 
                 //if($chatGPT_catgory==)
+
               
                 
 
@@ -3519,6 +3530,61 @@ class SMAIUpdateProfileController extends Controller
 
             else{
 
+                
+                if($this->upFromWhere=='main_coin' && $this->upByWhom=='admin')
+                {
+                    Log::debug('Debug upByWhom in Log Token '. $this->upByWhom);
+                    $chatGPT_catgory='AdminManualUpdate';
+                    $from='main_coin';
+
+                    //find usage from last token log
+                    if($usage==NULL)
+                    {
+                       $token_log=TokenLogs::where('user_id',$user_id)->orderBy('id', 'desc')->first();
+                       $token_log_before=$token_log->token_after;
+                       $usage=$token_after-$token_log_before;
+                       
+                       if($usage<0)
+                       $usage=abs($usage);
+                    }
+                }
+
+                if($chatGPT_catgory =='Images_SocialPost')
+                {
+                    $token_log=TokenLogs::where('user_id',$user_id)->orderBy('id', 'desc')->first();
+                    $token_log_before=$token_log->token_after;
+                    $token_image_before=$token_log->token_image_after;
+                    $token_all_diff=$token_after-$token_log_before;
+                    $usage=$token_all_diff;
+                    
+                    if($usage<0)
+                    $usage=abs($usage);
+
+                    $token_before_image= $token_before_image+$usage;
+                    $token_before=$token_before+$usage;
+
+
+
+                }
+
+                if($chatGPT_catgory =='Images_Design')
+                {
+                    $token_log=TokenLogs::where('user_id',$user_id)->orderBy('id', 'desc')->first();
+                    $token_log_before=$token_log->token_after;
+                    $token_image_before=$token_log->token_image_after;
+                    $token_all_diff=$token_after-$token_log_before;
+                    $usage=$token_all_diff;
+                    
+                    if($usage<0)
+                    $usage=abs($usage);
+
+                    $token_before_image= $token_before_image+$usage;
+                    $token_before=$token_before+$usage;
+
+                }
+
+
+                
 
                 $log_data = array(
 
@@ -3615,14 +3681,88 @@ class SMAIUpdateProfileController extends Controller
             
              $where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
 
-             $where_payment_bundle_from->bio_token_sync=1;
-             $where_payment_bundle_from->main_token_sync=1;
-             $where_payment_bundle_from->save();
+                    if($where_payment_bundle_from->bio_token_sync==NULL || $where_payment_bundle_from->bio_token_sync<1)
+                    {
+                    $where_payment_bundle_from->bio_token_sync=1;
+                    $where_payment_bundle_from->main_token_sync=1;
+                    
 
-             $Mainuser=UserMain::where('id',$user_id)->first();
-             $Mainuser->token_upgraded=1;
-             $Mainuser->save();
+                    $Mainuser=UserMain::where('id',$user_id)->first();
+                    $Mainuser->token_upgraded=1;
+                    
+                    //add reset 1st time Bio Plan here
+                    //for example images_per_month_limit
+                    //words_per_month_limit
+                    //synthesized_characters_per_month_limit
+                    //transcriptions_per_month_limit
+                    // pull from BioPlan->settings
+                    $user_main_plan_id=$Mainuser->plan;
+                    $user_bio_plan=PlanBio::where('main_plan_id',$user_main_plan_id)->first();
+                    $user_bio_plan_id=$user_bio_plan->plan_id;
+                    
+                    $start_bio_images_per_month_limit= $this->get_bio_plan_settings('images_per_month_limit', $user_bio_plan_id);
+                    Log::debug('Start Bio Images Per Month Limit : '.$start_bio_images_per_month_limit);
+                    $start_bio_words_per_month_limit= $this->get_bio_plan_settings('words_per_month_limit', $user_bio_plan_id);
+                    Log::debug('Start Bio Words Per Month Limit : '.$start_bio_words_per_month_limit);
+                    $start_bio_synthesized_characters_per_month_limit= $this->get_bio_plan_settings('synthesized_characters_per_month_limit', $user_bio_plan_id);
+                    Log::debug('Start Bio Synthesized Characters Per Month Limit : '.$start_bio_synthesized_characters_per_month_limit);
+                    $start_bio_transcriptions_per_month_limit= $this->get_bio_plan_settings('transcriptions_per_month_limit', $user_bio_plan_id);
+                    Log::debug('Start Bio Transcriptions Per Month Limit : '.$start_bio_transcriptions_per_month_limit);
 
+                    $stat_bio_chats_per_month_limit= $this->get_bio_plan_settings('chats_per_month_limit', $user_bio_plan_id);
+
+                    $Biouser=UserBio::where('user_id',$user_id)->first();
+
+                    if($stat_bio_chats_per_month_limit!=NULL)
+                    $Biouser->chats_per_month_limit=$stat_bio_chats_per_month_limit;
+
+
+                    if($start_bio_images_per_month_limit!=NULL)
+                        $Biouser->images_per_month_limit=$start_bio_images_per_month_limit;
+                    
+                    if($start_bio_words_per_month_limit!=NULL)
+                        $Biouser->words_per_month_limit=$start_bio_words_per_month_limit;
+
+                    if($start_bio_synthesized_characters_per_month_limit!=NULL)
+                    $Biouser->synthesized_characters_per_month_limit=$start_bio_synthesized_characters_per_month_limit;
+
+                        if($start_bio_transcriptions_per_month_limit!=NULL)
+                        $Biouser->transcriptions_per_month_limit=$start_bio_transcriptions_per_month_limit;
+
+                     //double check if Bio Plan is not NULL
+                     if($Biouser->plan_id==NULL || $Biouser->plan_id != $user_bio_plan_id)
+                     $Biouser->plan_id=$user_bio_plan_id;
+
+                     if($Mainuser->bio_plan==NULL || $Mainuser->bio_plan != $user_bio_plan_id)
+                     $Mainuser->bio_plan=$user_bio_plan_id;
+
+                     if($Biouser->plan_id==0)
+                     $Biouser->plan_id='free';
+
+                     //next double check expiration date
+                     $current_bio_plan_expire=$Biouser->plan_expiration_date;
+                     $user_plan_expire_from_main=$Mainuser->expired_date;
+                     Log::debug('Current Time of Expired inside Plan Token _Centralize in Main '.$user_plan_expire_from_main);
+                     Log::debug('Time of Expired inside Plan Token _Centralize in Bio '.$current_bio_plan_expire);
+                     $current_bio_plan_expire_date = $current_bio_plan_expire ? Carbon::parse($current_bio_plan_expire)->toDateString() : null;
+                     $user_plan_expire_from_main_date = $user_plan_expire_from_main ? Carbon::parse($user_plan_expire_from_main)->toDateString() : null;
+
+                    if($current_bio_plan_expire_date!=$user_plan_expire_from_main_date)
+                    $Biouser->plan_expiration_date=$user_plan_expire_from_main;
+
+                    if($user_plan_expire_from_main_date==NULL)
+                    {
+                        $Biouser->plan_expiration_date=$where_payment_bundle_from->ends_at;
+                        $Mainuser->expired_date=$where_payment_bundle_from->ends_at;
+                    }
+
+                
+                        $Biouser->save();
+                        //end reset 1st time Bio Plan here
+                        $Mainuser->save();
+                        //save token_upgraded=1 to UserMain after update token
+                        $where_payment_bundle_from->save();
+                    }
 
            }
 
@@ -3781,8 +3921,22 @@ class SMAIUpdateProfileController extends Controller
 
     }
 
-    //GET Bio plan_settings
-    function get_bio_users_plan_settings($key, $value = "", $user_id = 0)
+    //GET Bio plan_settings from Plan_ID
+    public function get_bio_plan_settings($key, $plan_id)
+    {
+        $BioPlan = PlanBio::where('plan_id', $plan_id)->first();
+    
+        if($BioPlan){
+            $BioPlan_settings = json_decode($BioPlan->settings, true);
+            if(array_key_exists($key, $BioPlan_settings)){
+                return $BioPlan_settings[$key];
+            }
+        }
+    
+        return null;
+    }
+
+    public function get_bio_users_plan_settings($key, $value = "", $user_id = 0)
     {
 
 
@@ -4659,6 +4813,9 @@ class SMAIUpdateProfileController extends Controller
                 foreach($userbio_data as $userbio)
                 {
                     //find old Bio setting value
+
+                    if($userbio->plan_settings!=NULL)
+                    {
                     $userbio_plan=json_decode($userbio->plan_settings,true);
 
                     $old_transcriptions_per_month_limit=$userbio_plan['transcriptions_per_month_limit'];
@@ -4666,6 +4823,17 @@ class SMAIUpdateProfileController extends Controller
                     $old_words_per_month_limit=$userbio_plan['words_per_month_limit'];
                     $old_documents_per_month_limit=$userbio_plan['documents_per_month_limit'];
                     $old_chats_per_month_limit=$userbio_plan['chats_per_month_limit'];
+
+                    }
+                    else
+                    {
+                        $old_transcriptions_per_month_limit=$userbio->transcriptions_per_month_limit;
+                        $old_images_per_month_limit=$userbio->images_per_month_limit;
+                        $old_words_per_month_limit=$userbio->words_per_month_limit;
+                        $old_documents_per_month_limit=$userbio->documents_per_month_limit;
+                        $old_chats_per_month_limit=$userbio->chats_per_month_limit;
+                    }
+
 
                     //find user plan id
                     $userbio_plan_id=$userbio->plan_id;
@@ -4730,13 +4898,26 @@ class SMAIUpdateProfileController extends Controller
 
             if($userbio_data1->plan_settings==NULL || $userbio_data1->plan_settings=='' || $userbio_data1->plan_settings==null || Str::length($userbio_data1->plan_settings)<10)
             {
-                $user_bio_plan_id=$userbio_data1->plan_id;
-                Log::debug('userbio_data1->plan_settings is NULL ');
-                $bio_user_setting_from_plan=PlanBio::where('plan_id',$user_bio_plan_id)->first();
-               
-                $userbio_data1->plan_settings=$bio_user_setting_from_plan->settings;
-                $userbio_data1->save();
-                Log::debug('userbio_data1->plan_settings is NULL and save new value success from plan ');
+
+                if($userbio->words_per_month_limit!=NULL)
+                {
+                    $old_transcriptions_per_month_limit=$userbio->transcriptions_per_month_limit;
+                    $old_images_per_month_limit=$userbio->images_per_month_limit;
+                    $old_words_per_month_limit=$userbio->words_per_month_limit;
+                    $old_documents_per_month_limit=$userbio->documents_per_month_limit;
+                    $old_chats_per_month_limit=$userbio->chats_per_month_limit;
+                }
+                else
+                {
+
+                    $user_bio_plan_id=$userbio_data1->plan_id;
+                    Log::debug('userbio_data1->plan_settings is NULL ');
+                    $bio_user_setting_from_plan=PlanBio::where('plan_id',$user_bio_plan_id)->first();
+                    $userbio_data1->plan_settings=$bio_user_setting_from_plan->settings;
+                    $userbio_data1->save();
+                    Log::debug('userbio_data1->plan_settings is NULL and save new value success from plan ');
+                    $userbio_plan=json_decode($userbio_data1->plan_settings,true);  
+                }
             }
             else
             {
@@ -4764,10 +4945,13 @@ class SMAIUpdateProfileController extends Controller
             //bug if want to update plan_settings more than 1 time or many times 
             //then read old value that effect the numbers of usage of user
             //like images_per_month_limit,words_per_month_limit,synthesized_characters_per_month_limit,transcriptions_per_month_limit
+            if( !isset($old_images_per_month_limit))
+            {
             $old_images_per_month_limit=$userbio_plan['images_per_month_limit'];
             $old_words_per_month_limit=$userbio_plan['words_per_month_limit'];
             $old_documents_per_month_limit=$userbio_plan['documents_per_month_limit'];
             $old_chats_per_month_limit=$userbio_plan['chats_per_month_limit'];
+            }
 
 
 
@@ -4782,6 +4966,8 @@ class SMAIUpdateProfileController extends Controller
             $userbio_plan_id=intval($userbio_plan_id)+100;
 
             Log::debug('Debug FOund Reset each Bio user from Main ID  ' . $user_id.' and plan id '.$userbio_plan_id);
+             //use this opprotunity to update plan id in MainUser and BIoUsers and Expiratin date
+
 
             $new_plan=PlanBio::where('plan_id',$userbio_plan_id)->first();
             
@@ -4803,6 +4989,23 @@ class SMAIUpdateProfileController extends Controller
 
             //case use BackUp data from Main
             $usermain_data = UserMain::where('id', $user_id)->first();
+            
+            //use this opprotunity to update plan id in MainUser and BIoUsers and Expiratin date
+            if($usermain_data->bio_plan != $userbio_plan_id)
+            {
+                $usermain_data->bio_plan=$userbio_plan_id;
+                $usermain_data->save();
+                Log::debug('Debug FOund Reset each Bio user from Main  ' . $user_id.' and plan id '.$userbio_plan_id.' and update plan id in MainUser to '.$usermain_data->bio_plan);
+            }
+
+            //recheck if userBio plan is same as MainUser plan from plan settings
+            if($userbio_data->plan_id != $userbio_plan_id)
+            {
+                $userbio_data->plan_id=$userbio_plan_id;
+                //$userbio_data->save();
+
+            }
+
             $new_plan_settings['words_per_month_limit']=$usermain_data->remaining_words;
             $new_plan_settings['images_per_month_limit']=$usermain_data->remaining_images;
 

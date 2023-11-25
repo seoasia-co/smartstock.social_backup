@@ -204,11 +204,14 @@ class SMAISyncPlanController extends Controller
         Log::debug('case bio_db and Bio with Expired');
         $user_plan=$user->plan_id;
         $user_plan_expire=$user->plan_expiration_date;
+        $user_bio_plan=$user->plan_id;
         }
         else
         {
             Log::debug('case bio_db and Bio with no Expired');
-        $user_plan=$user->plan;
+            $user_plan=$user->plan;
+            $user_bio =UserBio::where('user_id', '=', $user_id)->orderBy('user_id','asc')->first();
+            $user_bio_plan=$user_bio->plan_id;
         }
         Log::info('SMAI_Check_Universal_UserPlans: User found in '.$database.' database with '.$platform.' platform and plan and Expired is '.$user_plan.' and '.$user_plan_expire);
 
@@ -234,6 +237,7 @@ class SMAISyncPlanController extends Controller
             "design_plan_id" => $user_design_plan,
             "sync_plan_id" => $user_sync_plan,
             "main_plan_id" => $user_main_plan,
+            "bio_plan_id" => $user_bio_plan,
 
 
 
