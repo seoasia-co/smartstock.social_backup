@@ -51,7 +51,8 @@ return [
              */
 
             //'credentials' => env('FIREBASE_CREDENTIALS', env('GOOGLE_APPLICATION_CREDENTIALS')),
-            'credentials' => json_decode(file_get_contents(env('FIREBASE_CREDENTIALS')), true),
+            /* 'credentials' => json_decode(file_get_contents(env('FIREBASE_CREDENTIALS')), true), */
+           
             /*
              * ------------------------------------------------------------------------
              * Firebase Auth Component

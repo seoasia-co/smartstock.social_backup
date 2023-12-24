@@ -42,6 +42,9 @@ class UserBioOpenai extends Model
         'slug' ,
         'storage' ,
         'main_user_openai_id',
+        'created_at' ,
+        'updated_at' ,
+        'origin_user_openai_id' ,
     
     
     ];

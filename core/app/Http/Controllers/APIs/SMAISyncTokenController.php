@@ -89,6 +89,9 @@ use Illuminate\Support\Arr;
 use function PHPUnit\Framework\lessThanOrEqual;
 
 use App\Http\Controllers\APIs\SMAIUpdateProfileController;
+use App\Http\Controllers\MainController;
+use App\Models\PostSmartSocial;
+use App\Models\Media_files;
 
 //use File;
 /* for update Token and chatGTP usage including Log history of chat GPT data */
@@ -340,6 +343,10 @@ class SMAISyncTokenController extends Controller
             { 
 
             //create chat_id only in Initiate
+            //define where's chat come from
+
+            Log::debug('Debug $this_chat_id Global ' . $this->chat_id);
+            Log::debug('Debug $chat_id Local ' . $chat_id);
 
             if($chat_id!=NULL)
             $this->chat_id = $chat_id;
@@ -348,6 +355,9 @@ class SMAISyncTokenController extends Controller
             $this->chat_id=$this->find_chat_id($from);
 
             else if($from=='main_coin' && $this->chat_id==NULL)
+            $this->chat_id=$this->find_chat_id($from);
+
+            else if($from=='MobileAppV2' && $this->chat_id==NULL)
             $this->chat_id=$this->find_chat_id($from);
 
             else 
@@ -367,10 +377,16 @@ class SMAISyncTokenController extends Controller
                 $this->chat_main_id=$chat_main_id ;
             }
 
-
+             if(isset($this->chat_main_id))
              Log::debug('!!!!!! Debug $chat_main_id !!!!!' . $this->chat_main_id);
+             
              if($this->chat_main_id==NULL)
-             $this->chat_main_id=$params_json1['chat_main_id'];
+             {
+                if(isset($params_json1['chat_main_id']) && $params_json1['chat_main_id']>0)
+                $this->chat_main_id=$params_json1['chat_main_id'];
+                else
+                $this->chat_main_id=$this->create_new_chat_main_id($from,$user_id,$this->chat_id);
+             }
 
         }
 
@@ -3746,6 +3762,59 @@ if($params_json1['prompt']!='SKIP')
 
     }
 
+    //working send to /social
+    public function SMAI_UpdateGPT_Social($user_id, $main_openai_id,$type=NULL)
+    {
+
+        //get post detail from main_openai
+        $main_coin_openai = UserOpenai::where('id', $main_openai_id)->first();
+       
+        if($type=='image')
+        {
+            $description=$main_coin_openai->input;
+
+   
+        }
+        else
+        {
+            $description=$main_coin_openai->output;
+        }
+
+        //add new post to social timeline
+        $post = new PostSmartSocial();
+        $post->user_id = $user_id;
+        $post->publisher = 'post';
+        $post->publisher_id = $user_id;
+        $post->post_type = "general";
+        $post->privacy = "private";
+        $post->tagged_user_ids = json_encode(array());
+        $post->description =$description;
+        $post->status = 'active';
+        $post->user_reacts = json_encode(array());
+        $post->shared_user = json_encode(array());
+        $time = time();
+        $post->created_at = $time;
+        $post->updated_at = $time;
+        $post->smai_log_from = $this->platform;
+        $post->smai_log_type = $this->chatGPT_catgory;
+        $post->main_user_openai_id = $main_openai_id;
+        $post->origin_user_openai_id = $main_openai_id;
+        $post->save();
+        $done = $post->id; // get the ID
+
+        if($type=='image')
+        {
+            $file_name=$main_coin_openai->output;
+            $media_file_data = array('user_id' => $user_id, 'post_id' => $done, 'file_name' => $file_name, 'file_type' => 'image', 'privacy' => 'private');
+            $media_file_data['created_at'] = time();
+            $media_file_data['updated_at'] = $media_file_data['created_at'];
+            Media_files::create($media_file_data);
+        }
+        
+
+
+    }
+
 
 //Done
     public function SMAI_Check_DigitalAsset_UserColumn($user_id, $key, $database)
@@ -4906,7 +4975,25 @@ if($params_json1['prompt']!='SKIP')
                 $entry->response = $response;
                 
                 $entry->save();
-            }
+
+                //Fix Social timeline
+
+                            if($main_message_id != NULL) {
+                 
+
+                                $entry_timeline = DB::connection('social_db')->table('posts')->where('main_user_openai_id', $main_message_id)->first();
+                            
+                                if($entry_timeline->description == NULL) {
+                                    DB::connection('social_db')->table('posts')
+                                        ->where('main_user_openai_id', $main_message_id)
+                                        ->update(['description' => $entry->output]);
+                                }
+                            }
+                        
+                   
+                        
+
+             }
         }
 
         //back to Update Tokens remaining_words in APIsController
@@ -5151,6 +5238,17 @@ if($params_json1['prompt']!='SKIP')
 
                    }
 
+                   if($from=='MobileAppV2')
+                   {
+
+                   Log::debug('!!!!!! Debug fine MobileAppV2 ChatID in Function !!!!!' );
+                   // $chat_id_find=UserOpenaiChatMobile::where('chat_id',$this->chat_main_id)->first();
+                     $db='mobile_db';
+                     $table='willdev_user_chat';
+                     $column='id';
+
+                   }
+
                    $chat_id_find=DB::connection($db)->table($table)->where($column,$this->chat_main_id)->first();
                  
                   
@@ -5354,6 +5452,94 @@ if($params_json1['prompt']!='SKIP')
             $entry->words = $usage;
             $entry->main_user_openai_id = $main_message_id;
             $entry->save();
+
+
+
+         }
+
+
+         public function create_new_chat_main_id($from,$user_id,$chat_id)
+         {
+            if($from=='bio')
+            {
+                $db='bio_db';
+                $table='chats';
+                $column='chat_id_mobile';
+            }
+            else if($from=='main_coin')
+            {
+                $db='main_db';
+                $table='user_openai_chat';
+                $column='id';
+            }
+            else if($from=='MobileAppV2')
+            {
+                $db='mobile_db';
+                $table='willdev_user_chat';
+                $column='id';
+            }
+            else if($from=='SyncNodeJS')
+            {
+                $db='sync_db';
+                $table='user_openai_chat';
+                $column='id';
+            }
+            else if($from=='Design')
+            {
+                $db='digitalasset_db';
+                $table='user_openai_chat';
+                $column='id';
+            }
+            else if($from=='SocialPost')
+            {
+                $db='main_db';
+                $table='sp_user_openai_chat';
+                $column='id';
+            }
+            else if($from=='Bio')
+            {
+                $db='bio_db';
+                $table='chats';
+                $column='chat_id_mobile';
+            }
+            else
+            {
+                $db='main_db';
+                $table='user_openai_chat';
+                $column='chat_id';
+            }
+
+            if($from=='MobileAppV2')
+            {
+              
+               $category = OpenaiGeneratorChatCategory::where('id', 1)->firstOrFail();
+               $chat = new UserOpenaiChatMobile();
+               $chat->user_id = $user_id;
+               $chat->openai_chat_category_id = $category->id;
+               $chat->title = $category->name . ' Chat';
+               $chat->total_credits = 0;
+               $chat->total_words = 0;
+               $chat->chat_id = $chat_id;
+               $chat->save();
+       
+               $openai_chat_id=$chat->id;
+
+               //update user_openai_chat_id in user_openai_chat_message_mobile
+               $chat_messages=UserOpenaiChatMessageMobile::where('chat_id',$chat_id)->get();
+               foreach($chat_messages as $chat_message)
+               {
+                   $chat_message->user_openai_chat_id=$openai_chat_id;
+                   $chat_message->save();
+               }
+
+
+
+            }
+        
+
+
+             return $openai_chat_id;
+
 
 
 

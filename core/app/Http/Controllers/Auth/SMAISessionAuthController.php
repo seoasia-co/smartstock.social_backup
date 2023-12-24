@@ -867,6 +867,42 @@ class SMAISessionAuthController extends Controller
     }
 
 
+
+    public function freetrial_social($request,$user_id)
+    {
+        if(isset($request->username))
+        $username_ins=$request->username;
+        else
+        {
+        $username_ins=$request->email;
+        }
+
+        if($request->name!= NULL)
+        {
+        $name_ins=$request->name;
+        } 
+        else
+        {
+           $name_form_email=explode("@",$request->email); 
+           $name_ins=$name_form_email[0];
+        }
+
+        $userdata = [
+            'id' => $user_id,
+            'name' => $name_ins,
+            'email' => $request->email,
+            'username' => $username_ins,
+            'password' => $this->hash_password,
+            'user_role' => 'general',
+        ];
+
+        if($this->check_old_user('social_db','users',$request->email) < 1)  
+          {
+        $insert_id  = DB::connection('social_db')->table('users')->insert($userdata);
+          }
+    }
+
+
     public function freetrial_bio($request,$user_id)
     {
 

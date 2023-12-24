@@ -1,3 +1,8 @@
+<?php
+
+exit();
+
+?>
 <meta charset="utf-8"/>
 <title>@yield('title')</title>
 <meta name="description" content="{{ Helper::GeneralSiteSettings("site_desc_".@Helper::currentLanguage()->code) }}"/>

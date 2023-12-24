@@ -610,7 +610,11 @@ class SMAIUpdateProfileController extends Controller
                     if($this->check_old_user_id('seo_db', 'users', $user_id) < 1)
                     $login_session_bio->freetrial_seo($request_update, $user_id, $raw_password);
 
+                    if($this->check_old_user_id('punbot_db', 'users', $user_id) < 1)
                     $login_session_bio->freetrial_punbot($request_update, $user_id, $raw_password);
+
+                    if($this->check_old_user_id('social_db', 'users', $user_id) < 1)
+                    $login_session_bio->freetrial_social($request_update, $user_id, $raw_password);
                 }
 
                 $login_session_bio->db_session_create($user_id, $session_php);
@@ -766,9 +770,11 @@ class SMAIUpdateProfileController extends Controller
 
 
                 }
-                //Sync PLan that Buy from MainCOIn
-                else if($this->upFromWhere=='main_coin')
-                {
+
+                //case 2
+                //!important Sync PLan that Buy from MainCOIn
+             else if($this->upFromWhere=='main_coin')
+             {
                 $current_main_plan_array = $new_checkuserplan->SMAI_Check_Universal_UserPlans($user_id,'main_db','main_coin');
                 
                 $current_main_plan_id    = $current_main_plan_array['plan_id'];
@@ -913,27 +919,30 @@ class SMAIUpdateProfileController extends Controller
 
 
                 }
-                else{
-                    Log::error('!!!!!Platform not Found then Exit!!!!!!!!!!!!');
-                    exit();
-                }
-                
+                //end !important case of sync plan from main coin or bio
+                        else{
+                            Log::error('!!!!!Platform not Found then Exit!!!!!!!!!!!!');
+                            exit();
+                        }
+                        
 
-                $main_user_from_realtime=UserMain::where('id',$user_id)->first();
-                $downgraded_token=$main_user_from_realtime->token_downgraded;
-                $upgraded_token=$main_user_from_realtime->token_upgraded;
+                        $main_user_from_realtime=UserMain::where('id',$user_id)->first();
+                        $downgraded_token=$main_user_from_realtime->token_downgraded;
+                        $upgraded_token=$main_user_from_realtime->token_upgraded;
 
-                if(!isset($current_main_plan))
-                $current_main_plan=$main_user_from_realtime->plan;
+                        if(!isset($current_main_plan))
+                        $current_main_plan=$main_user_from_realtime->plan;
 
-               
-                if( ($current_main_plan==0 || $current_main_plan==8) && $downgraded_token==0)
-                {
-                    $userdata_main=array(
-                        'plan' => 8
-                    );
-                    $this->up_plan_main_coin($userdata_main, $user_id, $user_email);
-                }
+                        // case 3 ถ้าMain Plan เป็น 0 หรือ 8 และยังไม่ได้ downgrade ให้ downgrade ทุก platform
+                        //!important this is the trigger for downgrade Main and It's bundle platform
+                        if( ($current_main_plan==0 || $current_main_plan==8) && $downgraded_token==0)
+                        {
+                            $userdata_main=array(
+                                'plan' => 8
+                            );
+                            $this->up_plan_main_coin($userdata_main, $user_id, $user_email);
+                            //bug after above should update $downgraded_token=1
+                        }
 
 
 
@@ -3417,8 +3426,15 @@ class SMAIUpdateProfileController extends Controller
         unset($token_array['image_left']);
 
 
-        // CRM default remaining_words
 
+
+
+        //Social network of SmartContentAI in Main.marketing default remaining_words
+        $db = "social_db";
+        $table = "users";
+        $social_token = $this->update_column_all($token_array, $user_id, $user_email, $db, $table);
+
+        // CRM default remaining_words
 
         $db = "crm_db";
         $table = "tblleads";
@@ -3541,7 +3557,12 @@ class SMAIUpdateProfileController extends Controller
                     if($usage==NULL)
                     {
                        $token_log=TokenLogs::where('user_id',$user_id)->orderBy('id', 'desc')->first();
+                       
+                       if(isset($token_log->token_after))
                        $token_log_before=$token_log->token_after;
+                       else
+                       $token_log_before=0;
+                       
                        $usage=$token_after-$token_log_before;
                        
                        if($usage<0)
@@ -3583,8 +3604,69 @@ class SMAIUpdateProfileController extends Controller
 
                 }
 
+                /* if($chatGPT_catgory =='DocText_SmartContentCoIn_ArticleGen_Wizard')
+                {
 
-                
+                    $tokens_log=TokenLogs::where('user_id',$user_id)->orderBy('id', 'desc')->first();
+                    $tokens_log_before=$tokens_log->token_after;
+
+                    $tokens_text_before=$tokens_log->token_text_after;
+                    $tokens_all_diff=$token_after-$tokens_log_before;
+
+                    $tokens_before_image =$tokens_log->token_image_before;
+                    $tokens_after_image =$tokens_log->token_image_after;
+
+                    //need to del $usage of article final wizard
+                    $usage_keyword_title_outline=$tokens_all_diff-$usage;
+                    
+                    if($usage_keyword_title_outline<0)
+                    $usage_keyword_title_outline=abs($usage_keyword_title_outline);
+
+
+                    //$token_before_text= $token_before_text+$usage_keyword_title_outline;
+
+                    $log_keyword_title_outline_data = array(
+
+                        'user_openai_id' => NULL,
+                        'user_openai_chat_id' => NULL,
+                        'amount' => $usage_keyword_title_outline,
+                        'platform' => $from,
+                        'token_before' => $tokens_log_before,
+                        'token_after' => $tokens_log_before+$usage_keyword_title_outline,
+                        'user_id' => $user_id,
+                        'type' => $chatGPT_catgory,
+                        'token_text_before' => $token_before_text,
+                        'token_text_after' => $tokens_text_before+$usage_keyword_title_outline,
+                        'token_image_before' => $tokens_before_image,
+                        'token_image_after' =>  $tokens_after_image,
+        
+        
+                    );
+
+                    $log_token_keyword_title_outline = TokenLogs::create( $log_keyword_title_outline_data);
+                    $log_token_keyword_title_outline_id=$log_token_keyword_title_outline->id;
+
+
+                    $token_before=$tokens_log_before+$usage_keyword_title_outline;
+                    $token_after=$token_before+$usage;
+                    $token_before_text=$tokens_text_before+$usage_keyword_title_outline;
+                    $token_after_text=$token_before_text+$usage;
+
+                    if($token_array['remaining_words']!=$token_after_text)
+                    {
+                        Log::debug('Debug !!!!!!!!!!!!!! token_array[remaining_words] in Log Token not equal to it should be '. $token_array['remaining_words']);
+                        Log::debug('Debug but token_after_text in Log Token is '. $token_after_text);  
+                        $token_array['remaining_words']=$token_after_text;  
+                    }
+                    else
+                    {
+                        Log::debug('Debug token_array[remaining_words] in Log Token is equal to it should be '. $token_array['remaining_words']);
+                        Log::debug('Debug and token_after_text in Log Token is '. $token_after_text);  
+                    }
+
+
+                } */
+
 
                 $log_data = array(
 
@@ -4707,50 +4789,57 @@ class SMAIUpdateProfileController extends Controller
 
             }
 
-            $user_data_db=UserMain::where('id',$user_id)->first();
-            $remaining_images=$user_data_db->remaining_images;
-        $remaining_words=$user_data_db->remaining_words;
-        //$user_email = $user_data_db->email;
+                $user_data_db=UserMain::where('id',$user_id)->first();
+                $remaining_images=$user_data_db->remaining_images;
+                $remaining_words=$user_data_db->remaining_words;
+                //$user_email = $user_data_db->email;
 
-        $old_reamaining_word=$user_data_db->remaining_words;
-        $old_reamaining_image=$user_data_db->remaining_images;
-           
-            $token_update_type="text";
+                $old_reamaining_word=$user_data_db->remaining_words;
+                $old_reamaining_image=$user_data_db->remaining_images;
+            
+                $token_update_type="text";
 
-            if($from=='bio')
-            $chatGPT_catgory='Chat_SmartBio';
-           
-            if($from=='main_coin')
-            $chatGPT_catgory='Chat_Default AI Chat Bot';
+                if($from=='bio')
+                $chatGPT_catgory='Chat_SmartBio';
+            
+                if($from=='main_coin')
+                $chatGPT_catgory='Chat_Default AI Chat Bot';
 
-            $usage=$message->credits;
+                if($from=='MobileAppV2')
+                $chatGPT_catgory='Chat_mobilepp';
 
-            $remaining_words-=$usage;
+                $usage=$message->credits;
 
-            $token_array= array(
-                
-                'remaining_images' => $remaining_images,
-                'remaining_words' => $remaining_words,
-            );
+                $remaining_words-=$usage;
 
-            if($from=='bio')
-            $log_chat_bio_array=$this->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory, $token_update_type);
+                $token_array= array(
+                    
+                    'remaining_images' => $remaining_images,
+                    'remaining_words' => $remaining_words,
+                );
 
-           if($log_chat_bio_array['log_token_id']!=NULL || $log_chat_bio_array['log_token_plus_id']!=NULL || $log_chat_bio_array['log_token_plus_id2']!=NULL)
-           {
+                if($from=='bio')
+                $log_chat_bio_array=$this->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory, $token_update_type);
 
-               $message->token_synced=1;
-               $message->save();
-               Log::debug('Success Log Token Found log_token_id '.$log_chat_bio_array['log_token_id']);
-               Log::debug('Success Log Token Found log_token_plus_id '.$log_chat_bio_array['log_token_plus_id']);
-               Log::debug('Success Log Token Found log_token_plus_id2 '.$log_chat_bio_array['log_token_plus_id2']);
-           }
-           else
-           {
-               Log::debug('Not Found log_token_id '.$log_chat_bio_array['log_token_id']);
-               Log::debug('Not Found log_token_plus_id '.$log_chat_bio_array['log_token_plus_id']);
-               Log::debug('Not Found log_token_plus_id2 '.$log_chat_bio_array['log_token_plus_id2']);
-           }
+                if($from=='MobileAppV2')
+                $log_chat_bio_array=$this->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory, $token_update_type);
+
+
+            if($log_chat_bio_array['log_token_id']!=NULL || $log_chat_bio_array['log_token_plus_id']!=NULL || $log_chat_bio_array['log_token_plus_id2']!=NULL)
+            {
+
+                $message->token_synced=1;
+                $message->save();
+                Log::debug('Success Log Token Found log_token_id '.$log_chat_bio_array['log_token_id']);
+                Log::debug('Success Log Token Found log_token_plus_id '.$log_chat_bio_array['log_token_plus_id']);
+                Log::debug('Success Log Token Found log_token_plus_id2 '.$log_chat_bio_array['log_token_plus_id2']);
+            }
+            else
+            {
+                Log::debug('Not Found log_token_id '.$log_chat_bio_array['log_token_id']);
+                Log::debug('Not Found log_token_plus_id '.$log_chat_bio_array['log_token_plus_id']);
+                Log::debug('Not Found log_token_plus_id2 '.$log_chat_bio_array['log_token_plus_id2']);
+            }
           
 
 
@@ -5179,7 +5268,7 @@ class SMAIUpdateProfileController extends Controller
 
     public function socialpost_permission_update_user($user_id,$plan_id)
     {
-        if($plan_id==0)
+        if($plan_id==0 || $plan_id==NULL)
         $plan_id=1;
 
         Log::debug('Success fix Plan ID bug'.$plan_id);
@@ -5208,6 +5297,40 @@ class SMAIUpdateProfileController extends Controller
            $team_id =  DB::connection('main_db')->table('sp_team')
            ->where('owner',$user_id)
             ->update($save_team);
+
+            //updated user downgraded
+            $check_planupdated = DB::connection('main_db')->table('sp_users')->where('id',$user_id)->first();
+            $plan = $check_planupdated->plan ;
+            if($plan==0 || $plan==1 || ($plan < (int)($plan_id)) )
+            {
+                $user_main= UserMain::where('id',$user_id)->first();
+                $user_main->token_downgraded=1;
+                $user_main->token_upgraded=0;
+                //$user_main->save();
+                if($user_main->save()) {
+                    // Save was successful
+                    Log::debug( 'User Downgrade!!!!! was saved successfully');
+                } else {
+                    // Save failed
+                    Log::debug('User Downgrade!!!!!  save operation failed');
+                }
+            }
+
+            if( $plan > (int)($plan_id) )
+            {
+                $user_main= UserMain::where('id',$user_id)->first();
+                $user_main->token_upgraded=1;
+                $user_main->token_downgraded=0;
+                //$user_main->save();
+                if($user_main->save()) {
+                    // Save was successful
+                    Log::debug( 'User Upgrade!!!!! was saved successfully');
+                } else {
+                    // Save failed
+                    Log::debug('User Upgrade!!!!!  save operation failed');
+                }
+            }
+
 
             return $team_id ;
     

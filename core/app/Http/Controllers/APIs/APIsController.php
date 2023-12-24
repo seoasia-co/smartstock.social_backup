@@ -61,6 +61,13 @@ use Kreait\Firebase\ServiceAccount;
 use DB;
 use PDO;
 
+use App\Models\DigitalAsset_UserOpenai;
+use App\Models\SP_UserOpenai;
+use App\Models\UserSyncNodeJSOpenai ;
+use App\Models\Mobile_UserOpenai;
+use App\Models\UserBioOpenai;
+
+
 
 
 class APIsController extends Controller
@@ -2741,6 +2748,15 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
            else
            $prompt = NULL;
 
+           if (isset($params->post_type))
+           $post_type =$params->post_type;
+           else if (isset($params['post_type']))
+           $post_type = $params['post_type'];
+           else
+           $post_type = NULL;
+
+           Log::debug('Found post Type : '.$post_type);
+
 
 
         Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!! ');   
@@ -2750,6 +2766,210 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         Log::debug('$params smaisync_tokens from APIsController : ' . info(print_r($params, true)));
         Log::info(print_r($params, true));
         Log::debug('User ID log in smaisync_tokens in Main APIsController from Digital_Asset : ' . $user_id);
+ 
+        //lastest Article Generator
+    if($post_type=='ai_article_wizard_generator')
+    {
+
+        $user_data_db=UserMain::where('id',$user_id)->first();
+        $remaining_images=$user_data_db->remaining_images;
+        $remaining_words=$user_data_db->remaining_words;
+        $user_email = $user_data_db->email;
+
+        $old_reamaining_word=$user_data_db->remaining_words;
+        $old_reamaining_image=$user_data_db->remaining_images;
+
+        if(isset($usage) && $usage>0)
+        $token_update_type="text";
+        else
+        $token_update_type="both";
+
+        $token_array= array(
+            
+            'remaining_images' => $remaining_images,
+            'remaining_words' => $remaining_words,
+        );
+
+        if (isset($params->usage_keywords))
+        $usage_keywords =$params->usage_keywords;
+        else if (isset($params['usage_keywords']))
+        $usage_keywords = $params['usage_keywords'];
+        else
+        $usage_keywords = NULL;
+
+
+              if (isset($params->usage_titles))
+              $usage_titles =$params->usage_titles;
+              else if (isset($params['usage_titles']))
+              $usage_titles = $params['usage_titles'];
+              else
+              $usage_titles = NULL;
+
+
+              if (isset($params->usage_outlines))
+              $usage_outlines =$params->usage_outlines;
+              else if (isset($params['usage_outlines']))
+              $usage_outlines = $params['usage_outlines'];
+              else
+              $usage_outlines = NULL;
+
+
+
+       
+        /*  if($post_type=='ai_article_wizard_generator' && $usage_keywords>0)
+        {
+            $chatGPT_catgory_keyword='DocText_SmartContentCoIn_ArticleGen_Keywords';
+            Log::debug('Case DocText_SmartContentCoIn_ArticleGen_Keywords');
+
+
+
+            $token_update_type="text";
+            if($usage_keywords!=NULL && isset($usage_keywords))
+            {
+             $new_token_centralize_keyword=NEW SMAIUpdateProfileController();
+             $new_token_centralize_keyword->update_token_centralize($user_id,$user_email,$token_array,$usage_keywords,$from,$old_reamaining_word,$old_reamaining_image,$chatGPT_catgory_keyword,$token_update_type);
+            }
+
+        }  */
+
+       /*   if($post_type=='ai_article_wizard_generator' &&  $usage_titles>0)
+        {
+            $chatGPT_catgory_title='DocText_SmartContentCoIn_ArticleGen_Title';
+            Log::debug('Case DocText_SmartContentCoIn_ArticleGen_Title');
+
+            
+
+              $token_update_type="text";
+            if($usage_titles!=NULL && isset($usage_titles))
+            {
+             $new_token_centralize_title=NEW SMAIUpdateProfileController();
+             $new_token_centralize_title->update_token_centralize($user_id,$user_email,$token_array,$usage_titles,$from,$old_reamaining_word,$old_reamaining_image,$chatGPT_catgory_title,$token_update_type);
+            }
+
+        }  */
+
+       
+        /*  if($post_type=='ai_article_wizard_generator' && $usage_outlines>0)
+        {
+             $chatGPT_catgory_outline='DocText_SmartContentCoIn_ArticleGen_Outlines';
+              Log::debug('Case DocText_SmartContentCoIn_ArticleGen_Outlines');
+
+         
+
+            $token_update_type="text";
+            if($usage_outlines!=NULL && isset($usage_outlines))
+            {
+             $new_token_centralize_outline=NEW SMAIUpdateProfileController();
+             $new_token_centralize_outline->update_token_centralize($user_id,$user_email,$token_array,$usage_outlines,$from,$old_reamaining_word,$old_reamaining_image, $chatGPT_catgory_outline,$token_update_type);
+            }
+
+
+        }  */
+
+
+        if($post_type=='ai_article_wizard_generator' && $chatGPT_catgory=='DocText_SmartContentCoIn_ArticleGen_Wizard')
+        {
+          
+           Log::debug('Case DocText_SmartContentCoIn_ArticleGen_Wizard');
+
+            //1. do short cut clone from main useropenai
+            //2. sync token centralize
+            if (isset($params->main_useropenai_message_id))
+            $openai_main_id =$params->main_useropenai_message_id;
+            else if (isset($params['main_useropenai_message_id']))
+            $openai_main_id = $params['main_useropenai_message_id'];
+            else
+            $openai_main_id = NULL; 
+
+
+            $entry = UserOpenai::find($openai_main_id); // retrieves an existing record by id
+
+            $arr = $entry->toArray();
+            unset($arr['id']);
+            unset($arr['file_size']); 
+            // do the same for any other keys you want to exclude
+
+            // Clone to UserDesign
+            $entryDesign = new DigitalAsset_UserOpenai;
+            $entryDesign->fill($arr);
+
+            if(isset($entryDesign->main_user_openai_id))
+            $entryDesign->main_user_openai_id=$openai_main_id;
+
+            if(isset($entryDesign->origin_user_openai_id))
+            $entryDesign->origin_user_openai_id=$openai_main_id;
+
+            $entryDesign->save();
+
+            // Clone to SocialPost
+            $entrySocialPost = new SP_UserOpenai;
+            $entrySocialPost->fill($arr);
+
+            if(isset($entrySocialPost->main_user_openai_id))
+            $entrySocialPost->main_user_openai_id=$openai_main_id;
+
+            if(isset($entrySocialPost->origin_user_openai_id))
+            $entrySocialPost->origin_user_openai_id=$openai_main_id;
+
+            $entrySocialPost->save();
+
+
+            // Clone to Sync
+            $entrySync = new UserSyncNodeJSOpenai;
+            $entrySync->fill($arr);
+
+            if(isset($entrySync->main_user_openai_id))
+            $entrySync->main_user_openai_id=$openai_main_id;
+
+            if(isset($entrySync->origin_user_openai_id))
+            $entrySync->origin_user_openai_id=$openai_main_id;
+
+            $entrySync->save();
+
+            // Clone to MobileAppV2
+            $entryMobileAppV2 = new Mobile_UserOpenai;
+            $entryMobileAppV2->fill($arr);
+
+            if(isset($entryMobileAppV2->main_user_openai_id))
+            $entryMobileAppV2->main_user_openai_id=$openai_main_id;
+
+            if(isset($entryMobileAppV2->origin_user_openai_id))
+            $entryMobileAppV2->origin_user_openai_id=$openai_main_id;
+
+            $entryMobileAppV2->save();
+
+            // Clone to Bio
+            $entryBio = new UserBioOpenai;
+            $entryBio->fill($arr);
+            $entryBio->template_id=11;
+            $entryBio-> type=11;
+            $entryBio->name=Str::limit($arr['input'],50);
+            $entryBio->content=$arr['output'];
+            $entryBio->words=$arr['credits'];
+
+            if(isset($entryBio->main_user_openai_id))
+            $entryBio->main_user_openai_id=$openai_main_id;
+
+            if(isset($entryBio->origin_user_openai_id))
+            $entryBio->origin_user_openai_id=$openai_main_id;
+
+            $entryBio->save();
+
+           
+            if($usage!=NULL && isset($usage))
+           {
+            $new_token_centralize=NEW SMAIUpdateProfileController();
+            $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array,$usage,$from,$old_reamaining_word,$old_reamaining_image,$chatGPT_catgory,$token_update_type);
+           }
+
+       
+           
+
+
+        }
+
+    }
+
 
 
         /*  if($prompt=='SKIP' && $model_gpt=='SKIP')
@@ -2851,12 +3071,15 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
             //$image_array['img_height']
             $new_update_main_image->imageOutput_save_Bio($user_id,$prompt, $number_of_images,$path_array,$image_array,$main_image_id);
            
+             
 
 
             //save image to SocialPost OpenAI
             if(Str::contains($chatGPT_catgory,'SocialPost')==false)
             $new_update_main_image->imageOutput_save_SocialPost($user_id,$prompt, $number_of_images,$path_array,$image_array,$main_image_id);
             
+            //save image to Timline Social
+            $new_update_main_image->SMAI_UpdateGPT_Social($user_id, $main_image_id,$type='image');
 
 
             //save image to Design OpenAI
@@ -2912,10 +3135,21 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         Log::debug(' Check main_message_id Before next Step '.$main_message_id );
        
         Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+
+        
+      
         
         
         //update DEsign
         $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data_req, $params,$from,$main_message_id);
+
+        //update Social Post Timeline
+        if(isset($chatGPT_catgory))
+        $lowerchatGPT_catgory= strtolower($chatGPT_catgory);
+
+       //save to Social Timeline
+        if(Str::contains($lowerchatGPT_catgory,'chat')==false && $chatGPT_catgory!= NULL)
+        $new_update_digitalasset->SMAI_UpdateGPT_Social($user_id, $main_message_id,$type='text');
 
 
 
@@ -3026,7 +3260,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
            
            
-            if($usage!=NULL && isset($usage))
+            if($usage!=NULL && isset($usage) && $chatGPT_catgory!='DocText_SmartContentCoIn_ArticleGen_Wizard')
            {
             $new_token_centralize=NEW SMAIUpdateProfileController();
             $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array,$usage,$from,$old_reamaining_word,$old_reamaining_image,$chatGPT_catgory,$token_update_type);
@@ -3287,6 +3521,53 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
 
     }
+
+    public function smai_seo_user_cron_wp_email_share_posts(Request $request)
+    {
+        if(isset($request->siteid))
+        $website_id=$request->siteid;
+
+        if(isset($request->Keyword))
+        $keywords = $request->Keyword;
+
+        if(isset($request->Keyword_en))
+        $keywords_en = $request->Keyword_en;
+
+        if(isset($request->post_category))
+        $post_category=$request->post_category;
+
+        if(isset($request->user_id))
+        $user_id = $request->user_id;
+
+
+        $description = $keywords ;
+        $creativity = 1;
+        $number_of_results = 1;
+        $tone_of_voice = 0;
+        $maximum_length = 2000;
+
+        if(isset($request->Keyword_Lang))
+        $language = $request->Keyword_Lang;
+        else
+        $language = "en";
+
+
+        if(isset($request->Keyword_en))
+        $keywords_en = $request->Keyword_en;
+        else
+        $keywords_en = $keywords;
+
+        $user_id=$request->user_id;
+
+        //find keyword URL for add to keyword href
+        $new_smai_seo_fnc=NEW SMAI_SEO_PUNBOTController(); 
+        $keywords_url = $new_smai_seo_fnc->get_cur_keywordlink($website_id,$keywords,NULL);
+        
+
+         
+
+    }
+
 
     public function smai_seo_user_create_cron_posts(Request $request)
     {
