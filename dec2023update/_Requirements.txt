@@ -1,0 +1,13 @@
+You will need to make sure your server meets the following requirements:
+
+- PHP >= 8.1
+- BCMath PHP Extension
+- Ctype PHP Extension
+- Fileinfo PHP extension
+- JSON PHP Extension
+- Mbstring PHP Extension
+- OpenSSL PHP Extension
+- PDO PHP Extension
+- Tokenizer PHP Extension
+- XML PHP Extension
+- cURL PHP Extension

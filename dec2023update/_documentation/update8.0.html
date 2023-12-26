@@ -1,0 +1,68 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<head lang="en">
+    <meta http-equiv="content-type" content="text/html;charset=utf-8">
+    <title>How to update to SmartEnd 8.0.0</title>
+    <!-- Framework CSS -->
+    <link rel="stylesheet" href="assets/blueprint-css/screen.css" type="text/css" media="screen, projection">
+    <link rel="stylesheet" href="assets/blueprint-css/print.css" type="text/css" media="print">
+    <!--[if lt IE 8]>
+    <link rel="stylesheet" href="assets/blueprint-css/ie.css" type="text/css" media="screen, projection"><![endif]-->
+    <link rel="stylesheet" href="assets/blueprint-css/plugins/fancy-type/screen.css" type="text/css"
+          media="screen, projection">
+    <style type="text/css" media="screen">
+        p, table, hr, .box {
+            margin-bottom: 25px;
+        }
+
+        .box p {
+            margin-bottom: 10px;
+        }
+        .red{
+            color: red;
+        }
+    </style>
+</head>
+
+
+<body>
+<div class="container">
+    <h1 class="center">&ldquo;How to Update to SmartEnd v8.0.0&rdquo;</h1>
+    <br>
+    <h3>Important Note:</h3>
+    <p class="red">- You need to know that any custom updates you have made by yourself will be deleted if you install this update.<br>
+        - You need to install <a href="update7.0.html">update of version 7.0.0</a> first if your version is older than version 7.0.0.</p>
+
+    <h3>1. Database Update</h3>
+    <ul>
+        <li>Backup you Database to use it in case of any trouble.</li>
+        <li>Download & Extract <a href="http://smartfordesign.net/smartend/updates/update8.zip">this file for DB SQL Updates</a>.</li>
+        <li>Import SQL file to your old DB from PhpMyAdmin.</li>
+        <li><strong>Note:</strong> For versions Older than 7.0.0 <a href="http://smartfordesign.net/smartend/updates/update7.zip">Install this DB Update</a> first.</li>
+    </ul>
+    <br>
+    <h3>2. Project Files Update</h3>
+    <ul>
+        <li>Backup all of your Project file to use it in case of any trouble.</li>
+        <li>Replace all files by the new version except
+            <ul>
+                <li>/uploads</li>
+                <li>/core/.env</li>
+            </ul>
+        </li>
+        <li>Rename this file "/core/storage/_installed" To "installed".</li>
+        <li>Open your website, you may need to press "Ctrl+F5" to refresh website in your browser.</li>
+        <li>After update check new features and settings in your dashboard.</li>
+        <li>If you face any trouble, you can get in touch via <a href="mailto:support@smartfordesign.com">support@smartfordesign.com</a>.
+        </li>
+    </ul>
+    <br>
+    <br>
+
+    <hr>
+    <p class="append-bottom alt large"><strong>MMondi</strong></p>
+    <p><a href="index.html">Go To Table of Contents</a></p>
+
+    <hr class="space">
+</div><!-- end div .container -->
+</body>
+</html>
