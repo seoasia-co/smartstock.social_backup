@@ -117,7 +117,16 @@ class SMAISyncPlanController extends Controller
         {
             Log::debug('case mobileapp_db and MobileAppV2 with no Expired');
         $user_mobile =UserMobile::where('id', '=', $user_id)->orderBy('id','asc')->first();
-        $user_mobile_plan=$user_mobile->plan;
+        
+            if(isset($user_mobile->plan))
+            $user_mobile_plan=$user_mobile->plan;
+            else
+            {
+            $user_mobile_plan=0;
+            //$user_mobile->plan=0;
+            //$user_mobile->save();
+
+            }
         }
 
         // user plan from Design table users

@@ -107,6 +107,7 @@ class SMAIUpdateProfileController extends Controller
     protected $bio_template_id;
     public $freetrial_plan_images;
     public $freetrial_plan_words;
+    protected $clear_token;
 
     // request as an attribute of the controllers
 
@@ -136,6 +137,15 @@ class SMAIUpdateProfileController extends Controller
         Log::info($user_id);
         Log::info($whatup);
         Log::info($upFromWhere);
+
+        $main_user = UserMain::where('id', $user_id)->first();
+
+        if (isset($main_user->remaining_words))
+            $remaining_words_at_start = $main_user->remaining_words;
+        else
+            $remaining_words_at_start = 0;
+
+        Log::debug('Debug remaining_words_at_start ' . $remaining_words_at_start);
 
         if (isset($request_update->data))
             Log::info($request_update->data);
@@ -555,6 +565,8 @@ class SMAIUpdateProfileController extends Controller
 
                 if (isset($request_update['data'][0]['raw_password']))
                     $raw_password = $request_update['data'][0]['raw_password'];
+                else
+                    $raw_password ='';
 
                 //create session login
                 $user_bio_id = $user_id;
@@ -626,6 +638,8 @@ class SMAIUpdateProfileController extends Controller
                 //Sync PLan that Buy from Bio
                 if($this->upFromWhere=='bio')
                 {
+                    $main_user_at_middle=UserMain::where('id',$user_id)->first();
+
                     $current_bio_plan_array = $new_checkuserplan->SMAI_Check_Universal_UserPlans($user_id,'bio_db','Bio');
                     $current_bio_plan_id = $current_bio_plan_array['plan_id'];
                     $current_bio_plan_expire = $current_bio_plan_array['expire'];
@@ -637,7 +651,8 @@ class SMAIUpdateProfileController extends Controller
 
                     Log::debug('Debug Main Plan from Setting '.$main_plan_should_be);
                     Log::debug('Debug Main Plan from DB '.$current_main_plan);  
-                    
+                    Log::debug('Debug Bio Plan TYpe from DB '.$BIo_Plan_from_DB_package_type);
+
                     $have_to_fix_main_plan=0;
                         if($main_plan_should_be==$current_main_plan)
                         {
@@ -669,6 +684,9 @@ class SMAIUpdateProfileController extends Controller
 
                         if( ( $current_main_plan!=$main_plan_should_be || $have_to_fix_main_plan>0  )  && $BIo_Plan_from_DB_package_type=='bundle' )
                         {
+                         
+                            if($current_main_plan!=$main_plan_should_be)
+                            $have_to_fix_main_plan=1;
                         
                             //recheck if Main Plan is freeplan then update plan to main_plan_should_be
                             if($main_plan_should_be==0 || $main_plan_should_be=='0' || $main_plan_should_be==8 || $main_plan_should_be=='8' || $have_to_fix_main_plan>0 )
@@ -773,8 +791,38 @@ class SMAIUpdateProfileController extends Controller
 
                 //case 2
                 //!important Sync PLan that Buy from MainCOIn
-             else if($this->upFromWhere=='main_coin')
+             else if($this->upFromWhere=='main_coin' || Str::contains(strtolower($this->upFromWhere), 'main_coin') || Str::contains(strtolower($this->upFromWhere), 'maincoin'))
              {
+                //fixed bug case plan id in Main is not 0 or 8 but Subscription not found
+                //fixed added Subscription status is active or trialing
+                $main_subscription=SubscriptionMain::where('user_id', $user_id)->where('stripe_status', 'active')->orWhere('stripe_status','trialing')->first();
+                if( isset($main_subscription->id))
+                {
+                    if($main_subscription->id>0 && $main_subscription->id!=8)
+                    {
+                        if($main_subscription->stripe_status!='active' && $main_subscription->stripe_status!='trialing')
+                        {
+                            Log::debug('Debug Case Plan ID in Main is not 0 or 8 but Subscription not found');
+                            $main_users=UserMain::where('id',$user_id)->first();
+                            $main_users->plan=8;
+                            $main_users->token_downgraded=0;
+                            $main_users->save();
+                        }
+                    }
+                   
+                }
+                else
+                {
+                    Log::debug('Debug in Else Case Plan ID in Main is not 0 or 8 but Subscription not found');
+                        $main_users=UserMain::where('id',$user_id)->first();
+                        $main_users->plan=8;
+                        $main_users->token_downgraded=0;
+                        $main_users->save();
+
+                }
+                
+                
+
                 $current_main_plan_array = $new_checkuserplan->SMAI_Check_Universal_UserPlans($user_id,'main_db','main_coin');
                 
                 $current_main_plan_id    = $current_main_plan_array['plan_id'];
@@ -816,19 +864,28 @@ class SMAIUpdateProfileController extends Controller
 
                 }
 
-                if( ( $current_bio_plan_id!=$Bio_plan_should_be || $have_to_fix_bio_plan>0  )  && $Main_Plan_from_DB_package_type=='bundle' )
+                Log::debug('Debug Main Plan from DB TYpe '.$Main_Plan_from_DB_package_type);
+                if( ( $current_bio_plan_id != $Bio_plan_should_be || $have_to_fix_bio_plan>0  )  && $Main_Plan_from_DB_package_type=='bundle' )
                 {
-                   
+                   Log::debug('Debug Case Bio Plan have to be fix to '.$Bio_plan_should_be);
+                   $have_to_fix_bio_plan=2;
+
                     //recheck if Main Plan is freeplan then update plan to main_plan_should_be
                     if($Bio_plan_should_be==0 || $Bio_plan_should_be=='0' || $Bio_plan_should_be=='free' || $have_to_fix_bio_plan>0 )
                     {
 
                       Log::debug('Pass to Update new BIo plan to '.$Bio_plan_should_be);
 
-                      if($have_to_fix_bio_plan>0)
+                      if($have_to_fix_bio_plan==1)
                       {
-                        Log::debug('Pass to Update new bio plan to '.$Bio_plan_should_be.' because of Expired Date');
+                        Log::debug('Pass to Update new bio plan to '.$Bio_plan_should_be.' because of Expired Date ');
                       }
+
+                      if($have_to_fix_bio_plan==2)
+                      Log::debug('Pass to Update new bio plan to '.$Bio_plan_should_be.' because of Plan ID ');
+
+                      
+
 
                             //plan main_coin
                         /* if (isset($request['remaining_words_plus']))
@@ -934,13 +991,18 @@ class SMAIUpdateProfileController extends Controller
                         $current_main_plan=$main_user_from_realtime->plan;
 
                         //recheck active subscription from main_coin
-                        $current_active_subscription = SubscriptionMain::where('user_id', $user_id)->where('stripe_status', 'active')->first();
+                        $current_active_subscription = SubscriptionMain::where('user_id', $user_id)->where('stripe_status', 'active')->orWhere('stripe_status','trialing')->first();
+                        $bio_user=UserBio::where('user_id',$user_id)->first();
+                        $current_bio_plan=$bio_user->plan_id;
                         if ($current_active_subscription) {
                             $current_main_plan = $current_active_subscription->plan_id;
+                            Log::debug('Debug Main Plan from DB after condition reset Plan and Token '.$current_main_plan);
                         }
                         else
                         {
-                            if($current_main_plan>0)
+                            //It should exept case of main plan is come from Bio bundle
+                            Log::debug('Debug Main Plan Else Case from DB after condition reset Plan and Token '.$current_main_plan);
+                            if($current_main_plan>0 && $current_bio_plan!=4)
                             {
                                 $current_main_plan=0;
                             }
@@ -962,8 +1024,18 @@ class SMAIUpdateProfileController extends Controller
                             $main_user_from_realtime=UserMain::where('id',$user_id)->first();
                             $current_main_token=$main_user_from_realtime->remaining_words + $main_user_from_realtime->remaining_images;
                             $current_main_golden_token=$main_user_from_realtime->golden_tokens;
+
                             if($current_main_token>$current_main_golden_token)
                             {
+                                $reset_token=0;
+                                $old_reamaining_images=$main_user_from_realtime->remaining_images;
+                                $old_reamaining_words=$main_user_from_realtime->remaining_words;
+                                $token_delete_img=$main_user_from_realtime->remaining_images;
+
+                                Log::debug('Debug Main Images Token from DB before condition current_main_token>current_main_golden_token reset Token '.$old_reamaining_images);
+                                Log::debug('Debug Main Words Token from DB before condition current_main_token>current_main_golden_token reset Token '.$old_reamaining_words);
+                                //record Token Log
+                               
                                 $main_user_from_realtime->remaining_words=0;
                                 $main_user_from_realtime->remaining_images=0;
 
@@ -971,12 +1043,47 @@ class SMAIUpdateProfileController extends Controller
                                 $main_user_from_realtime->token_downgraded=1;
 
                                 $main_user_from_realtime->plan=8;
+                                $reset_token=1;
 
 
-                                if($main_user_from_realtime->save())
-                                {
+                                
+                                    
                                     Log::debug('Reset normal Token to 0 success because of downgrade main Plan to 8 or 0');
-                                }
+                                        if( $reset_token==1) {
+                                            // Save was successful
+                                            //$SMAI_Update_Profile_Token_obj= new self();
+                                            Log::debug( 'User Downgrade!!!!! in Golden condition was saved successfully and send Token Log save');
+                                            $this->record_token_log('image','reset','main_coin',$user_id,'PlanDowngrade_Main',$token_delete_txt=0);
+                                            $this->record_token_log('text','reset','main_coin',$user_id,'PlanDowngrade_Main',$token_delete_img);
+                                            if($main_user_from_realtime->save())
+                                            {
+                                            Log::debug( 'User Downgrade!!!!! Golden condition was saved successfully after  Token Log save');
+                                            }
+                                            else
+                                            {
+                                                    $updated = DB::connection('main_db')
+                                                    ->table('users')
+                                                    ->where('id', $user_id)
+                                                    ->update([
+                                                        'remaining_words' => 0,
+                                                        'remaining_images' => 0
+                                                    ]);
+                        
+                                                        if ($updated > 0) {
+                                                            // the row was updated
+                                                            Log::debug( 'User Downgrade!!!!! Golden condition Token log was saved successfully in back up DB way ');
+                                                        } else {
+                                                            // the row was not updated
+                                                               $main_user_from_realtime->remaining_words=0;
+                                                               $main_user_from_realtime->remaining_images=0;
+                                                               $main_user_from_realtime->save();
+                                                        }
+                                            }
+                                        } else {
+                                            // Save failed
+                                            Log::debug('User Downgrade!!!!! Golden condition save operation failed after 3 times try');
+                                        }
+                                
                             }
 
 
@@ -2015,7 +2122,9 @@ class SMAIUpdateProfileController extends Controller
                 Log::debug('Yessss!!!!!! It is Triple confirmed this Token process while upgrading plan in Bio');
                 
                 $this->plus_new_images_token = $plus_remaining_images;
+                Log::debug('Bio Plan Sync Total plus words from Bio after send Centralize'.$plus_remaining_words);
                 $this->plus_new_words_token = $plus_remaining_words;
+                Log::debug('Bio Plan Sync Total plus words from MainCoIn after send Centralize'.$plus_bio_remaining_words);
 
             } else {
                 $this->plus_new_images_token = $plus_remaining_images;
@@ -2027,12 +2136,15 @@ class SMAIUpdateProfileController extends Controller
                 'remaining_words' => $userdata['remaining_words'],
                 'remaining_images' => $userdata['remaining_images'],
             );
+
+           // Log::debug('Before send Token Array to Centalize'. $token_array);
             $token_plus_array = array(
                 'plus_remaining_images' => $plus_remaining_images,
                 'plus_remaining_words' =>  $plus_remaining_words,
                 'plus_bio_remaining_images' => $plus_bio_remaining_images,
                 'plus_bio_remaining_words' =>  $plus_bio_remaining_words,
             );
+
 
             Log::debug('Before send Token plus and Token Array to Centalize');
             Log::info($token_array);
@@ -2502,7 +2614,8 @@ class SMAIUpdateProfileController extends Controller
             if($where_payment_bundle_from)
             {
                 $from_payment='SubscriptionMain';
-             Log::debug('FOund bundle subscription in Main then use it');
+                Log::debug('FOund bundle subscription in Main then use it');
+               
             }
             else{
                 $from_payment='SubscriptionBio';
@@ -2513,6 +2626,7 @@ class SMAIUpdateProfileController extends Controller
             $bio_token_synced=$where_payment_bundle_from->bio_token_sync;
             $main_token_synced=$where_payment_bundle_from->main_token_sync;
 
+            //bug now in main_coin is main_token_sync=0 so it should be 1 and update when in mail Paypal or Stripe is success
             if( $main_token_synced==0)
             {
                 $plus_remaining_images = $check_main_plan->total_images;
@@ -2522,6 +2636,7 @@ class SMAIUpdateProfileController extends Controller
                 $plus_remaining_images=0;
                 $plus_remaining_words=0;
             }
+            Log::debug('After checked $main_token_synced $plus_remaining_words in Main value is '.$plus_remaining_words);
 
             if( $bio_token_synced==0)
             {
@@ -2538,6 +2653,7 @@ class SMAIUpdateProfileController extends Controller
                 $plus_bio_remaining_images=0;
 
             }
+            Log::debug('After checked $bio_token_synced $plus_bio_remaining_words in Bio value is '.$plus_bio_remaining_words);
 
 
             //because this happending in Main so
@@ -2561,6 +2677,7 @@ class SMAIUpdateProfileController extends Controller
 
            if($case=='fix_bio_plan')
            {
+            Log::debug('Case fix_bio_plan');
                $plus_remaining_images = 0;
                $plus_remaining_words = 0;
                $plus_bio_remaining_images = 0;
@@ -2582,7 +2699,9 @@ class SMAIUpdateProfileController extends Controller
             if( $user_old_data->remaining_words <  $central_remaining->remaining_words+ $plus_remaining_words )
             {
                 $old_reamaining_word = $user_old_data->remaining_words ;
+                Log::debug('Old remaining words from MainCoIn '.$old_reamaining_word);
                 $old_reamaining_image = $user_old_data->remaining_images ;
+                Log::debug('Old remaining images from MainCoIn '.$old_reamaining_image);
                 $plus_remaining_images=0;
                 $plus_remaining_words=0;
                 //because the value from MainCoIn has already added token by package
@@ -2632,11 +2751,15 @@ class SMAIUpdateProfileController extends Controller
                 'plus_bio_remaining_words' =>  $plus_bio_remaining_words,
             );
 
+            Log::debug('Before send Token plus Array to Centralize ' . json_encode($token_array));
+
             //To Bio ,Main, Socialpost, Design,Mobile2 Sync
             $userdata_remaining_words = array(
                 'remaining_words' => $userdata['remaining_words'],
                 'remaining_images' => $userdata['remaining_images'],
             );
+
+            Log::debug('Before send  Token reamaining Array to Centalize'. json_encode($token_plus_array));
 
             //move this to centralize Token
             /* $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'main_db', 'users');
@@ -2765,8 +2888,20 @@ class SMAIUpdateProfileController extends Controller
 
         //plan mobile_new
         $usersync_old_data = UserMobile::where('id', $user_id)->orderBy('id', 'asc')->first();
+        
+        if(isset($usersync_old_data->words_left))
+        {
         $userdata['words_left'] = $usersync_old_data->words_left;
         $userdata['image_left'] = $usersync_old_data->image_left;
+        }else{
+            $userdata['words_left']=0;
+            $userdata['image_left']=0;
+           /*  $usersync_old_data->words_left=0;
+            $usersync_old_data->image_left=0;
+            $usersync_old_data->save(); */
+
+
+        }
 
         $userdata['words_left'] += $this->plus_new_words_token;
         $userdata['image_left'] += $this->plus_new_images_token;
@@ -2818,6 +2953,10 @@ class SMAIUpdateProfileController extends Controller
             //if all in $token_array sum != 0 then token_centralize 
          if(!isset($case))
          $case=NULL;
+
+         $main_user_check=UserMain::where('id',$user_id)->first();
+         $remaining_words_check=$main_user_check->remaining_words;
+         Log::debug('Before send Token Array to Centalize Remaining_word check '.$remaining_words_check);
 
            $this->plans_token_centralize($user_id, $user_email, $token_array, $usage = 0, $from = 'main_coin', $old_reamaining_word , $old_reamaining_image , $chatGPT_catgory = "PlanUpgrade_from_MainCoIn", $token_update_type = 'both',$expired,$design_plan_id,$token_plus_array,$from_payment,$case);
           
@@ -4574,7 +4713,7 @@ class SMAIUpdateProfileController extends Controller
 
        $chat_main_id_find=DB::connection($db)->table($table)->where($column,$chat_id)->first();
             
-
+       if(isset($chat_main_id_find->id))
        Log::debug('Fix Chat ID of chats : '.$chat_main_id_find->id);
              
        if(isset($chat_main_id_find->id) || isset($chat_main_id_find->chat_id))
@@ -5348,36 +5487,87 @@ class SMAIUpdateProfileController extends Controller
             //updated user downgraded and downgraded
             //bug What if? the $plan = $plan_id
             $check_planupdated = DB::connection('main_db')->table('sp_users')->where('id',$user_id)->first();
+            
+            //$plan is the plan before upgrade/downgrade of current user
+            //$plan_id is the plan after upgrade/downgrade of current user
+            //so $plan < (int)($plan_id it mean user upgrade because change to the higher number
+            //so $plan > (int)($plan_id it mean user downgrade because change to the lower number
+
             $plan = $check_planupdated->plan ;
-            if($plan==0 || $plan==1 || ($plan < (int)($plan_id)) )
+
+            $main_user_at_socialpost_update=UserMain::where('id',$user_id)->first();
+            $remaining_words_at_socialpostupdate=$main_user_at_socialpost_update->remaining_words;
+            Log::debug('Success fix Plan ID bug'.$plan_id.' and plan for SocialPost Database '.$remaining_words_at_socialpostupdate);
+
+            Log::debug('Success fix Plan ID bug'.$plan_id.' and plan for SocialPost Database '.$plan);
+
+
+            if($plan_id==0 || $plan_id==1 || ((int)$plan > (int)($plan_id)) )
             {
                 $user_main= UserMain::where('id',$user_id)->first();
                 $user_main->token_downgraded=1;
                 $user_main->token_upgraded=0;
+                $token_delete_img=$user_main->remaining_images;
                 //$user_main->save();
 
                 //reset token in case of no godern TOken
-                $user_main->remaining_words=0;
-                $user_main->remaining_images=0;
+                //record Token Log
+                $reset_token=0;
+                if($user_main->remaining_words>0 || $user_main->remaining_images>0)
+                {
+                    $user_main->remaining_words=0;
+                    $user_main->remaining_images=0;
+                    $reset_token=1;
+                }
 
-                if($user_main->save()) {
+                if( $reset_token==1) {
                     // Save was successful
-                    Log::debug( 'User Downgrade!!!!! was saved successfully');
+                    Log::debug( 'User Downgrade!!!!! was saved successfully and send Token Log save');
+
+                    $this->record_token_log('image','reset','main_coin',$user_id,'PlanDowngrade_Main',$token_delete_text=0);
+                    $this->record_token_log('text','reset','main_coin',$user_id,'PlanDowngrade_Main',$token_delete_img);
+                    if($user_main->save())
+                    {
+                    Log::debug( 'User Downgrade!!!!! was saved successfully after  Token Log save');
+                    }
+                    else
+                    {
+                            $updated = DB::connection('main_db')
+                            ->table('users')
+                            ->where('id', $user_id)
+                            ->update([
+                                'remaining_words' => 0,
+                                'remaining_images' => 0
+                            ]);
+
+                                if ($updated > 0) {
+                                    // the row was updated
+                                    Log::debug( 'User Downgrade!!!!! Token log was saved successfully in back up DB way ');
+                                } else {
+                                    // the row was not updated
+                                        $user_main->remaining_words=0;
+                                        $user_main->remaining_images=0;
+                                        $user_main->save();
+                                }
+                    }
                 } else {
                     // Save failed
-                    Log::debug('User Downgrade!!!!!  save operation failed');
+                    Log::debug('User Downgrade!!!!!  save operation failed after 3 times try');
                 }
             }
 
-            if( $plan > (int)($plan_id) )
+            if( (int)$plan < (int)($plan_id) )
             {
                 $user_main= UserMain::where('id',$user_id)->first();
                 $user_main->token_upgraded=1;
                 $user_main->token_downgraded=0;
+               
                 //$user_main->save();
                 if($user_main->save()) {
                     // Save was successful
+                    
                     Log::debug( 'User Upgrade!!!!! was saved successfully');
+                    Log::debug( 'User Upgrade!!!!! was saved successfully and Token remaining_words '.$user_main->remaining_words.' and remaining_images '.$user_main->remaining_images);
                 } else {
                     // Save failed
                     Log::debug('User Upgrade!!!!!  save operation failed');
@@ -5390,6 +5580,96 @@ class SMAIUpdateProfileController extends Controller
 
 
     }
+
+    public function record_rest_token_log($token_type)
+    {
+        if($token_type=='both')
+        {
+
+
+        }
+
+
+    }
+
+
+    public function record_token_log($token_type,$amount,$platform,$user_id,$log_type,$token_delete)
+    {
+        $clear_token=0;
+
+        if($token_type=='image')
+        {
+            $main_user=UserMain::where('id',$user_id)->first();
+            $old_reamaining_image=$main_user->remaining_images;
+            $old_reamaining_word=$main_user->remaining_words;
+            $old_reamaining_word-= $token_delete;
+
+            $token_log = new TokenLogs();
+            $token_log->type = $log_type;
+            $token_log->amount = $amount;
+            $token_log->platform=$platform;
+            $token_log->user_id=$user_id;
+
+            $token_log->token_before=$old_reamaining_image+$old_reamaining_word;
+            $token_log->token_image_before=$old_reamaining_image;
+            $token_log->token_text_before=$old_reamaining_word;
+
+            if($amount=='reset')
+            {
+            $token_log->amount=$old_reamaining_image;
+            $token_log->token_after=$token_log->token_before-$old_reamaining_image;
+            $token_log->token_image_after=0;
+            $token_log->token_text_after=$old_reamaining_word;
+            }
+          
+            else
+            {
+            $token_log->token_after=$token_log->token_before-$amount;
+            $token_log->token_image_after=$old_reamaining_image-$amount;
+            $token_log->token_text_after=$old_reamaining_word;
+            }
+            $token_log->save();
+        }
+
+        if($token_type=='text')
+        {
+
+            Log::debug('Debug Found token_type = text and amount '.$amount.' and token_delete '.$token_delete);
+            $main_user=UserMain::where('id',$user_id)->first();
+            $old_reamaining_image=$main_user->remaining_images;
+            //$old_reamaining_image-=$token_delete;
+
+            $old_reamaining_word=$main_user->remaining_words;
+            $token_log = new TokenLogs();
+            $token_log->type = $log_type;
+            $token_log->amount = $amount;
+            $token_log->platform=$platform;
+            $token_log->user_id=$user_id;
+
+            $token_log->token_before=$old_reamaining_image+$old_reamaining_word-$token_delete;
+            $token_log->token_image_before=$old_reamaining_image-$token_delete;
+            $token_log->token_text_before=$old_reamaining_word;
+
+            if($amount=='reset')
+            {
+            $token_log->amount=$old_reamaining_word;
+            $token_log->token_after=$token_log->token_before-$old_reamaining_word;
+            $token_log->token_image_after=$old_reamaining_image-$token_delete;
+            $token_log->token_text_after=0;
+            }
+          
+            else
+            {
+            $token_log->token_after=$token_log->token_before-$amount;
+            $token_log->token_image_after=$old_reamaining_image-$token_delete;
+            $token_log->token_text_after=$old_reamaining_word-$amount;
+            }
+            $token_log->save();
+        }
+       
+
+
+    } 
 
 
 
