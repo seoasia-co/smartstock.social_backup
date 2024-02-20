@@ -864,6 +864,94 @@ class Helper
 
     }
 
+    //Get response from CHAT GPT every version
+    static function parse_message_from_response_gpt($response) {
+        $message = "";
+        if (array_key_exists('choices', $response) && count($response['choices']) > 0){
+            if (array_key_exists('message', $response['choices'][0]) && array_key_exists('content', $response['choices'][0]['message'])){
+                $message = $response['choices'][0]['message']['content'];
+            } elseif (array_key_exists('delta', $response['choices'][0]) && array_key_exists('content', $response['choices'][0]['delta'])) {
+                $message = $response['choices'][0]['delta']['content'];
+            } 
+        }
+        return replace_new_line_chars($message);
+    }
+
+    static function parse_message_from_response_gpt_html($response) {
+        $message = "";
+        if (array_key_exists('choices', $response) && count($response['choices']) > 0){
+            if (array_key_exists('message', $response['choices'][0]) && array_key_exists('content', $response[''][0]['message'])){
+                $message = str_replace(["\r\n", "\r", "\n"], "<br/>", $response['choices'][0]['message']['content']);
+            } elseif (array_key_exists('delta', $response['choices'][0]) && array_key_exists('content', $response['choices'][0]['delta'])) {
+                $message = str_replace(["\r\n", "\r", "\n"], "<br/>", $response['choices'][0]['delta']['content']);
+            } 
+        }
+        return $message;
+    }
+
+    static function parse_messages_from_response_arr($response) {
+        $messages = [];
+        if (array_key_exists('choices', $response) && count($response['choices']) > 0){
+            foreach ($response['choices'] as $choice) {
+                if (array_key_exists('message', $choice) && array_key_exists('content', $choice['message'])){
+                    $messages[] = $choice['message']['content'];
+                } elseif (array_key_exists('delta', $choice) && array_key_exists('content', $choice['delta'])) {
+                    $messages[] = $choice['delta']['content'];
+                } 
+            }
+        }
+        return $messages;
+    }
+
+
+    static function parse_messages_from_response_arr_html($response) {
+        $messages = [];
+        if (array_key_exists('choices', $response) && count($response['choices']) > 0){
+            foreach ($response['choices'] as $choice) {
+                if (array_key_exists('message', $choice) && array_key_exists('content', $choice['message'])){
+                    $messages[] = str_replace(["\r\n", "\r", "\n"], "<br/>", $choice['message']['content']);
+                } elseif (array_key_exists('delta', $choice) && array_key_exists('content', $choice['delta'])) {
+                    $messages[] = str_replace(["\r\n", "\r", "\n"], "<br/>", $choice['delta']['content']);
+                } 
+            }
+        }
+        return $messages;
+    }
+
+    static function parse_messages_from_response_jsonarr_html($response) {
+        $messages = [];
+        if (array_key_exists('data', $response) && array_key_exists('choices', $response['data']) && count($response['data']['choices']) > 0){
+            foreach ($response['data']['choices'] as $choice) {
+                if (array_key_exists('message', $choice) && array_key_exists('content', $choice['message'])){
+                    $messages[] = str_replace(["\r\n", "\r", "\n"], "<br/>", $choice['message']['content']);
+                }
+                elseif (array_key_exists('delta', $choice) && array_key_exists('content', $choice['delta'])){
+                    $messages[] = str_replace(["\r\n", "\r", "\n"], "<br/>", $choice['delta']['content']);
+                } 
+            }
+        }
+        return $messages;
+    }
+
+    static function parse_messages_from_response_jsonarr($response) {
+        $messages = [];
+        if (array_key_exists('data', $response) && array_key_exists('choices', $response['data']) && count($response['data']['choices']) > 0) {
+            foreach ($response['data']['choices'] as $choice) {
+                if (array_key_exists('message', $choice) && array_key_exists('content', $choice['message'])) {
+                    $messages[] = $choice['message']['content'];
+                } elseif (array_key_exists('delta', $choice) && array_key_exists('content', $choice['delta'])) {
+                    $messages[] = $choice['delta']['content'];
+                }
+            }
+        }
+        return $messages;
+    }
+
+    static function remove_html($input){
+        return strip_tags($input);
+    }
+
+
 }
 
 ?>

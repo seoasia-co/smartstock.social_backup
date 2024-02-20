@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\APIs;
 
+
 use App\Http\Controllers\Controller;
 use App\Mail\NotificationEmail;
 use App\Models\AttachFile;
@@ -152,6 +153,7 @@ class SMAISyncTokenController extends Controller
     public $nameOfImage;
     public $image_origin_id;
     public $image_generator;
+    public $response_json_array;
     //public $token_usge;
 
     public function __construct($response = NULL, $usage = NULL, $chatGPT_catgory = NULL, $chat_id = NULL,$chat_main_id =NULL,$chat_name=NULL,$params=NULL,$user_id=NULL,$response_text=NULL,$main_useropenai_message_id=NULL)
@@ -291,6 +293,7 @@ class SMAISyncTokenController extends Controller
             $this->GPTModel=$this->response_text['model'];
 
             $json_array = json_decode($response, true);
+            $this->response_json_array=$json_array;
             Log::info($json_array);
 
             if (isset($json_array['model']))
@@ -1184,8 +1187,9 @@ class SMAISyncTokenController extends Controller
 
             } else {
 
+               //Test Swtich to Helper version
 
-                if ($settings->openai_default_model == 'gpt-3.5-turbo') {
+                /* if ($settings->openai_default_model == 'gpt-3.5-turbo') {
                     if (isset($response['choices'][0]['delta']['content'])) {
                         $message = $response['choices'][0]['delta']['content'];
                         $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
@@ -1290,123 +1294,130 @@ class SMAISyncTokenController extends Controller
                     }
 
                 }
+                */
+
+           // $message_arr=Helper::parse_messages_from_response_arr($this->response_json_array);
+           $message_arr=Helper::parse_messages_from_response_jsonarr_html($this->response_json_array);
+           
+            Log::debug('!!!!!!!! This is message_array message_array ');
+            Log::info($message_arr);
+            $return_message_array=[];
+            for($i=0; $i<count($message_arr); $i++)
+            {
+                        $message = $message_arr[$i];
+                        Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
+                        $messageFix = Helper::remove_html($message);
+                        $output .= $messageFix;
+                        $responsedText .= $message;
+                        $total_used_tokens += Helper::countWords($messageFix);
+
+                        $string_length = Str::length($messageFix);
+                        $needChars = 6000 - $string_length;
+                        $random_text = Str::random($needChars);
+                        //eof Test Swtich to Helper version
+                        
+
+                        if (is_array($params))
+                            $params_json = $params;
+                        else
+                            $params_json = json_decode($params, true);
+
+                        $keywords = '';
+                        $description = $params_json["prompt"];
+                        $creativity = 1;
+                        $number_of_results = 1;
+                        $tone_of_voice = 0;
+                        $maximum_length = 2000;
+                        $language = "en";
+                        $post_type = 'paragraph_generator';
+                        $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
+                    Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
+                    ";
 
 
-                if (is_array($params))
-                    $params_json = $params;
-                else
-                    $params_json = json_decode($params, true);
+                        // Save Users of Digital_Asset
+                        $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
+                        //$users = DB::connection('second_db')->table('users')->get();
 
-                $keywords = '';
-                $description = $params_json["prompt"];
-                $creativity = 1;
-                $number_of_results = 1;
-                $tone_of_voice = 0;
-                $maximum_length = 2000;
-                $language = "en";
-                $post_type = 'paragraph_generator';
-                $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
-            Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
-            ";
+                        $post = OpenAIGenerator::where('slug', $post_type)->first();
+                        $entry = new UserOpenai();
+                        $entry->title = 'New Workbook';
 
+                        if ($params_json1["model"] == 'whisper-1') {
+                            $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                        } else {
+                            $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                        }
 
-                // Save Users of Digital_Asset
-                $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
-                //$users = DB::connection('second_db')->table('users')->get();
+                        if ($params_json1["model"] == 'whisper-1') {
+                            $prompt = $description;
+                            $output = $response['text'];
+                        }
 
-                $post = OpenAIGenerator::where('slug', $post_type)->first();
-                $entry = new UserOpenai();
-                $entry->title = 'New Workbook';
+                        $response_arr = json_decode($response_bk, true);
 
-                if ($params_json1["model"] == 'whisper-1') {
-                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                } else {
-                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
-                }
+                        $entry->user_id = $user_id;
+                        $entry->openai_id = $post->id;
+                        $entry->input = $prompt;
+                        $entry->response = serialize(json_encode($response_arr));
+                        $entry->output = $output;
+                        $entry->hash = str()->random(256);
+                        $entry->credits = 0;
+                        $entry->words = 0;
+                        $entry->save();
 
-                if ($params_json1["model"] == 'whisper-1') {
-                    $prompt = $description;
-                    $output = $response['text'];
-                }
+                        //for socialpost caption
+                        $responsedText_backup =$entry->response;
 
-                $response_arr = json_decode($response_bk, true);
+                        $message_id = $entry->id;
+                    
+                        Log::debug('Message_ID of MainCoIn ' . $message_id);
+                        if($this->chat_id==NULL)
 
-                $entry->user_id = $user_id;
-                $entry->openai_id = $post->id;
-                $entry->input = $prompt;
-                $entry->response = serialize(json_encode($response_arr));
-                $entry->output = $output;
-                $entry->hash = str()->random(256);
-                $entry->credits = 0;
-                $entry->words = 0;
-                $entry->save();
+                        // Create UserOpenai Models belong to OpenAIGenerator Models
+                        $message = UserOpenai::whereId($message_id)->first();
+                        if ($params_json1["model"] == 'whisper-1') {
+                            $message->response = serialize(json_encode($response_arr));
 
-                //for socialpost caption
-                $responsedText_backup =$entry->response;
+                        } else {
+                            $message->response = $responsedText;
 
-                $message_id = $entry->id;
-               
-                Log::debug('Message_ID of MainCoIn ' . $message_id);
-                if($this->chat_id==NULL)
+                        }
+                        $message->output = $output;
+                        $message->hash = Str::random(256);
 
-                // Create UserOpenai Models belong to OpenAIGenerator Models
-                $message = UserOpenai::whereId($message_id)->first();
-                if ($params_json1["model"] == 'whisper-1') {
-                    $message->response = serialize(json_encode($response_arr));
-
-                } else {
-                    $message->response = $responsedText;
-
-                }
-                $message->output = $output;
-                $message->hash = Str::random(256);
-                $message->credits = $this->total_used_tokens;
-                $message->words = 0;
-                $UserOpenai_saved = $message->save();
-
-                if (!$UserOpenai_saved) {
-                    Log::debug('Save OpenAI Log Error ');
-                } else {
-                    Log::debug('Save UserOpenai Log Success ');
-                }
-
-                if ($message_id == $entry->id)
-                {
-                    $return_message_array=array(
-                        'message_id'=>$message_id,
-                        'total_used_tokens'=>$this->total_used_tokens,
-                    );
-                  
-                    return $return_message_array;
-
-                }
+                        if($this->total_used_tokens>0 && $this->total_used_tokens!=NULL)
+                        $message->credits = $this->total_used_tokens;
+                        else
+                        $message->credits = $total_used_tokens ;
 
 
-                //Update remaining  to users section
-                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-                    $total_used_tokens = $this->total_used_tokens;
+                        $message->words = 0;
+                        $UserOpenai_saved = $message->save();
 
-                //Update new remaining Tokens
-                $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
-                if ($user[0]->remaining_words != -1) {
-                    $user[0]->remaining_words -= $total_used_tokens;
-                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-                    // $user[0]->save();
-                    $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-                }
+                        if (!$UserOpenai_saved) {
+                            Log::debug('Save OpenAI Log Error ');
+                        } else {
+                            Log::debug('Save UserOpenai Log Success ');
+                        }
 
-                if ($user[0]->remaining_words < -1) {
-                    $user[0]->remaining_words = 0;
-                    // $user[0]->save();
-                    $new_remaining_words = 0;
-                    $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-                }
+                        if ($message_id == $entry->id)
+                        {
+                            $return_message_array[$i]=array(
+                                'message_id'=>$message_id,
+                                'total_used_tokens'=>$message->credits,
+                            );
+                        
+                            
+                            array_push($return_message_array, $return_message_array[$i]);
 
-                if ($user_update > 0)
-                    Log::debug('Update remaining at MainCoIn by + add $total_used_tokens to old remaining_words in users table in users Main success');
+                        }
 
-                //echo 'data: [DONE]';
-                //echo "\n\n";
+
+               }
+
+               //return back to APIsController after loop all $return_message_array
+               return $return_message_array;
 
 
             }
@@ -4113,8 +4124,25 @@ if($params_json1['prompt']!='SKIP')
 
                     if ($chatGPT_catgory == 'Images_Design' || $chatGPT_catgory == 'Images_SocialPost' )
                     {
-                        $image_url = $response['data'][0]['url'];
-                        $contents = $image_url;
+                        
+                        if(isset($response['data'][0]['url']))
+                        {
+                            $image_url = $response['data'][0]['url'];
+                            $contents = $image_url;
+                        }
+                        
+                        else if (
+                            isset($response['data']['data']) &&
+                            is_array($response['data']['data']) &&
+                            isset($response['data']['data'][0]['url'])
+                        ) {
+                            $image_url = $response['data']['data'][0]['url'];
+                            $contents = $image_url;
+                        } else {
+                            // Handle error, data is missing in the response
+                            $contents = "NO_IMAGE_URL_FOUND";
+                        }
+
                     }
                     else if($chatGPT_catgory == 'Images_Bio')
                     {
@@ -4568,7 +4596,12 @@ if($params_json1['prompt']!='SKIP')
             $size = $image_array['size'];
             $size_arr = explode("x", $size);
             $img_width = $size_arr[0];
+
+            if(isset($size_arr[1]))
             $img_height = $size_arr[1];
+            else
+            $img_height =$img_width;
+
            
             // change this 2 method to Update data not insert incase from Bio
             $this->imageOutput_save_Bio_self($user_id, $size, $path, $img_width, $img_height, $image_array, $prompt,$main_image_id);

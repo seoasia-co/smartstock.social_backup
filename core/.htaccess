@@ -1,8 +1,50 @@
-# Disable Directory listing
+
+# BEGIN WordPress
+# The directives (lines) between "BEGIN WordPress" and "END WordPress" are
+# dynamically generated, and should only be modified via WordPress filters.
+# Any changes to the directives between these markers will be overwritten.
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteBase /
+RewriteRule ^index\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+</IfModule>
+
+# END WordPress
+# SOFTACULOUS Block xmlrpc
+<files xmlrpc.php>
+	Require all denied
+</files>
+# SOFTACULOUS Block xmlrpc End
+
+# SOFTACULOUS Block .htaccess and .htpasswd
+<FilesMatch ^(?i:\.ht.*)$>
+	Require all denied
+</FilesMatch>
+# SOFTACULOUS Block .htaccess and .htpasswd End
+
+# SOFTACULOUS Block author scans
+RewriteEngine On
+RewriteBase /
+RewriteCond %{QUERY_STRING} (author=\d+) [NC]
+RewriteRule .* - [F]
+# SOFTACULOUS Block author scans End
+
+# SOFTACULOUS Block directory browsing
 Options -Indexes
-deny from all
-# block files which needs to be hidden, specify .example extension of the file
-<Files ~ "\.(env|json|config.js|md|gitignore|gitattributes|lock)$">
-    Order allow,deny
-    Deny from all
-</Files>
+# SOFTACULOUS Block directory browsing End
+
+# SOFTACULOUS Block access sensitive files
+<FilesMatch "^.*(((?:wp-config)\.(?:php|bak|swp))|php.ini|\.[hH][tT][aApP].*|((?:error_log|readme|license|changelog|-config|-sample)\.(?:php|md|log|txt|htm|html)))$">
+	Require all denied
+</FilesMatch>
+# SOFTACULOUS Block access sensitive files End
+
+# SOFTACULOUS Enable bot protection
+RewriteEngine on
+RewriteCond %{HTTP_USER_AGENT} (?:virusbot|spambot|evilbot|acunetix|BLEXBot|domaincrawler\.com|LinkpadBot|MJ12bot/v|majestic12\.co\.uk|AhrefsBot|TwengaBot|SemrushBot|nikto|winhttp|Xenu\s+Link\s+Sleuth|Baiduspider|HTTrack|clshttp|harvest|extract|grab|miner|python-requests) [NC]
+RewriteRule ^(.*)$ http://no.access/
+# SOFTACULOUS Enable bot protection End

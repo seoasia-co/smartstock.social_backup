@@ -3106,14 +3106,33 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
            Log::debug('debug return message array !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
            Log::info($main_message_array);
 
-           if(isset($main_message_array['message_id']))
-           $main_message_id=$main_message_array['message_id'];
-           
-           if($usage==NULL || !isset($usage))
-            {
-                if(isset($main_message_array['total_used_tokens']))
-                $usage=$main_message_array['total_used_tokens'];
-            }
+                if(count($main_message_array) > 1)
+                {
+                    for($i=0; $i < count($main_message_array);  $i++)
+                    {
+                        if(isset($main_message_array[$i]['message_id']))
+                        $main_message_id[$i]=$main_message_array[$i]['message_id'];
+
+                        if($usage==NULL || !isset($usage))
+                        {
+                                $usage=array();
+                                if(isset($main_message_array[$i]['total_used_tokens']))
+                                $usage[$i]=$main_message_array[$i]['total_used_tokens'];
+                        }
+                    }
+
+                }
+                else
+                {
+                        if(isset($main_message_array['message_id']))
+                        $main_message_id=$main_message_array['message_id'];
+                        
+                        if($usage==NULL || !isset($usage))
+                        {
+                                if(isset($main_message_array['total_used_tokens']))
+                                $usage=$main_message_array['total_used_tokens'];
+                        }
+                }
         }
         else
         {
@@ -3127,82 +3146,91 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         
         }
 
-        if(isset($main_message_id))
+        //bof of Sync $main_message_array to others platforms
+        if(isset($main_message_array) && count($main_message_array) > 0 )
         {
-        Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-
-        
-        Log::debug(' Check main_message_id Before next Step '.$main_message_id );
-       
-        Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-
-        
-      
-        
-        
-        //update DEsign
-        $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data_req, $params,$from,$main_message_id);
-
-        //update Social Post Timeline
-        if(isset($chatGPT_catgory))
-        $lowerchatGPT_catgory= strtolower($chatGPT_catgory);
-
-       //save to Social Timeline
-        if(Str::contains($lowerchatGPT_catgory,'chat')==false && $chatGPT_catgory!= NULL)
-        $new_update_digitalasset->SMAI_UpdateGPT_Social($user_id, $main_message_id,$type='text');
-
-
-
-        // if not called from SocialPost add extra update to MobileApp table
-
-        if ($from != 'MobileAppV2')
-            $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id, $usage, $data_req, $params,$from,$main_message_id);
-
-
-        // if not called from SocialPost add extra update to SocialPost SP table
-        $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id, $usage, $data_req, $params,$from,$main_message_id);
-
-        if ($from != 'bio' )
-        { 
-            if(Str::contains($chatGPT_catgory,'DocText_SocialPost')==true)
-             {
-               $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_id);
-             }
-            else if((Str::contains($chatGPT_catgory,'OtherSocialText_SmartBio')==false) && (Str::contains($chatGPT_catgory,'DocText')==false))
-            { 
-              $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_id);
-            }
-            else if(Str::contains($chatGPT_catgory,'DocText_SmartContentCoIn')==true )
+            //bof for Loop of $main_message_array
+            for($i=0; $i<count($main_message_array); $i++)
             {
+                Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
 
-              $new_update_digitalasset->Save_Bio_Documents($params, NULL,NULL,$user_id,$usage,$main_message_id);
+                
+                Log::debug(' Check main_message_id Before next Step '.$main_message_id[$i] );
+            
+                Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+
+                
+            
+                
+                
+                //update DEsign
+                $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data_req, $params,$from,$main_message_id[$i]);
+
+                //update Social Post Timeline
+                if(isset($chatGPT_catgory))
+                $lowerchatGPT_catgory= strtolower($chatGPT_catgory);
+
+                //save to Social Timeline
+                if(Str::contains($lowerchatGPT_catgory,'chat')==false && $chatGPT_catgory!= NULL)
+                $new_update_digitalasset->SMAI_UpdateGPT_Social($user_id, $main_message_id[$i],$type='text');
+
+
+
+                // if not called from SocialPost add extra update to MobileApp table
+
+                if ($from != 'MobileAppV2')
+                    $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id, $usage, $data_req, $params,$from,$main_message_id[$i]);
+
+
+                // if not called from SocialPost add extra update to SocialPost SP table
+                $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id, $usage, $data_req, $params,$from,$main_message_id[$i]);
+
+                if ($from != 'bio' )
+                { 
+                    if(Str::contains($chatGPT_catgory,'DocText_SocialPost')==true)
+                    {
+                    $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_id[$i]);
+                    }
+                    else if((Str::contains($chatGPT_catgory,'OtherSocialText_SmartBio')==false) && (Str::contains($chatGPT_catgory,'DocText')==false))
+                    { 
+                    $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_id[$i]);
+                    }
+                    else if(Str::contains($chatGPT_catgory,'DocText_SmartContentCoIn')==true )
+                    {
+
+                    $new_update_digitalasset->Save_Bio_Documents($params, NULL,NULL,$user_id,$usage,$main_message_id[$i]);
+
+                    }
+                    else{
+
+                    }
+            
+                }
+
+
+                if ($from != 'SyncNodeJS')
+                $new_update_digitalasset->SMAI_UpdateGPT_SyncNodeJS($user_id, $usage, $data_req, $params,$from,$main_message_id[$i]);
+
+            
+                    if ($from != 'main_marketing')
+                {
+                    // $new_update_digitalasset->SMAI_UpdateGPT_MainMarketing($user_id, $usage, $data_req, $params,$from);
+
+                }
+                        /* $response = [
+                            'code' => '1',
+                            'msg' => 'success'
+                        ];
+                        return response()->json($response, 201); */
+
+                        //$data_json = json_decode($data_req ,true);
 
             }
-            else{
-
-            }
-      
-        }
-
-
-        if ($from != 'SyncNodeJS')
-        $new_update_digitalasset->SMAI_UpdateGPT_SyncNodeJS($user_id, $usage, $data_req, $params,$from,$main_message_id);
-
-       
-            if ($from != 'main_marketing')
-        {
-            // $new_update_digitalasset->SMAI_UpdateGPT_MainMarketing($user_id, $usage, $data_req, $params,$from);
+            //eof for Loop of $main_message_array
 
         }
-        /* $response = [
-            'code' => '1',
-            'msg' => 'success'
-        ];
-        return response()->json($response, 201); */
+        //eof of Sync $main_message_array to others platforms
 
-        //$data_json = json_decode($data_req ,true);
-
-      }
 
 
     }
@@ -3240,31 +3268,65 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         }
         else{
 
-            Log::debug('Debug case None-Images GPT with usage '.$usage);
             
+            if (is_array($usage)) {
+                //case $main_message_array is $n > 1
+                    for($i=0; $i<count($main_message_array); $i++)
+                    {
+                        $usage[$i]=$main_message_array[$i]['total_used_tokens'];
+                        Log::debug('Debug case None-Images GPT with usage '.$usage[$i]);
+                    
+                        $remaining_words-=$usage[$i];
+    
+                        if(isset($usage[$i]) && $usage[$i]>0)
+                        $token_update_type="text";
+                        else
+                        $token_update_type="both";
+    
+                        $token_array= array(
+                            
+                            'remaining_images' => $remaining_images,
+                            'remaining_words' => $remaining_words,
+                        );
+    
+                    
+                    
+                            if($usage[$i]!=NULL && isset($usage[$i]) && $chatGPT_catgory!='DocText_SmartContentCoIn_ArticleGen_Wizard')
+                        {
+                            $new_token_centralize=NEW SMAIUpdateProfileController();
+                            $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array,$usage[$i],$from,$old_reamaining_word,$old_reamaining_image,$chatGPT_catgory,$token_update_type);
+                        }
 
-            $remaining_words-=$usage;
+                    }
 
 
 
-            if(isset($usage) && $usage>0)
-            $token_update_type="text";
-            else
-            $token_update_type="both";
+            }
+            else{
+                   //case $main_message_array is $n =1
+                    Log::debug('Debug case None-Images GPT with usage '.$usage);
+                    
+                    $remaining_words-=$usage;
 
-            $token_array= array(
+                    if(isset($usage) && $usage>0)
+                    $token_update_type="text";
+                    else
+                    $token_update_type="both";
+
+                    $token_array= array(
+                        
+                        'remaining_images' => $remaining_images,
+                        'remaining_words' => $remaining_words,
+                    );
+
                 
-                'remaining_images' => $remaining_images,
-                'remaining_words' => $remaining_words,
-            );
-
-           
-           
-            if($usage!=NULL && isset($usage) && $chatGPT_catgory!='DocText_SmartContentCoIn_ArticleGen_Wizard')
-           {
-            $new_token_centralize=NEW SMAIUpdateProfileController();
-            $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array,$usage,$from,$old_reamaining_word,$old_reamaining_image,$chatGPT_catgory,$token_update_type);
-           }
+                
+                    if($usage!=NULL && isset($usage) && $chatGPT_catgory!='DocText_SmartContentCoIn_ArticleGen_Wizard')
+                {
+                    $new_token_centralize=NEW SMAIUpdateProfileController();
+                    $new_token_centralize->update_token_centralize($user_id,$user_email,$token_array,$usage,$from,$old_reamaining_word,$old_reamaining_image,$chatGPT_catgory,$token_update_type);
+                }
+            }
 
         }
 
