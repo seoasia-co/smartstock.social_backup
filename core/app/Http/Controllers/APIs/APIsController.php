@@ -3150,21 +3150,16 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         if(isset($main_message_array) && count($main_message_array) > 0 )
         {
             //bof for Loop of $main_message_array
-            for($i=0; $i<count($main_message_array); $i++)
-            {
+            // Need not to loop because each of Platfrom has loop in itself
+             for($i=0; $i<count($main_message_array); $i++)
+             {
                 Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-
-                
                 Log::debug(' Check main_message_id Before next Step '.$main_message_id[$i] );
-            
                 Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
 
-                
-            
-                
                 
                 //update DEsign
-                $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data_req, $params,$from,$main_message_id[$i]);
+                $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data_req, $params,$from,$main_message_id[$i],$i);
 
                 //update Social Post Timeline
                 if(isset($chatGPT_catgory))
@@ -3179,26 +3174,26 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
                 // if not called from SocialPost add extra update to MobileApp table
 
                 if ($from != 'MobileAppV2')
-                    $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id, $usage, $data_req, $params,$from,$main_message_id[$i]);
+                    $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id, $usage, $data_req, $params,$from,$main_message_id[$i],$i);
 
 
                 // if not called from SocialPost add extra update to SocialPost SP table
-                $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id, $usage, $data_req, $params,$from,$main_message_id[$i]);
+                $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id, $usage, $data_req, $params,$from,$main_message_id[$i],$i);
 
                 if ($from != 'bio' )
                 { 
                     if(Str::contains($chatGPT_catgory,'DocText_SocialPost')==true)
                     {
-                    $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_id[$i]);
+                    $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_id[$i],$i);
                     }
                     else if((Str::contains($chatGPT_catgory,'OtherSocialText_SmartBio')==false) && (Str::contains($chatGPT_catgory,'DocText')==false))
                     { 
-                    $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_id[$i]);
+                    $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_id[$i],$i);
                     }
                     else if(Str::contains($chatGPT_catgory,'DocText_SmartContentCoIn')==true )
                     {
 
-                    $new_update_digitalasset->Save_Bio_Documents($params, NULL,NULL,$user_id,$usage,$main_message_id[$i]);
+                    $new_update_digitalasset->Save_Bio_Documents($params, NULL,NULL,$user_id,$usage,$main_message_id[$i],$i);
 
                     }
                     else{
@@ -3209,7 +3204,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
 
                 if ($from != 'SyncNodeJS')
-                $new_update_digitalasset->SMAI_UpdateGPT_SyncNodeJS($user_id, $usage, $data_req, $params,$from,$main_message_id[$i]);
+                $new_update_digitalasset->SMAI_UpdateGPT_SyncNodeJS($user_id, $usage, $data_req, $params,$from,$main_message_id[$i],$i);
 
             
                     if ($from != 'main_marketing')
@@ -3226,6 +3221,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
                         //$data_json = json_decode($data_req ,true);
 
             }
+
             //eof for Loop of $main_message_array
 
         }

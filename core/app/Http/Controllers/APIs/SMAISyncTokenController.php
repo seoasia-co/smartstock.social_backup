@@ -519,7 +519,7 @@ class SMAISyncTokenController extends Controller
     }
 
     //Working can not find the exactly Table that specific the remaining_words and images
-    public function SMAI_UpdateGPT_MainMarketing($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
+    public function SMAI_UpdateGPT_MainMarketing($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
     {
 
         $settings = $this->settings;
@@ -731,224 +731,125 @@ class SMAISyncTokenController extends Controller
             } else {
 
                 //save text Doc in others case that not Chat
-                if ($settings->openai_default_model == 'gpt-3.5-turbo') {
-                    if (isset($response['choices'][0]['delta']['content'])) {
-                        $message = $response['choices'][0]['delta']['content'];
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
 
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
+            
+            $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+           
+            Log::debug('!!!!!!!! This is message_array message_array ');
+            Log::info($message_arr);
+            $return_message_array=[];
+            for($i=0; $i<count($message_arr); $i++)
+            {
 
+                //if($i_arr!=NULL &&  $i==$i_arr)
+                if($i_arr==0)
+                {
+                            $message = $message_arr[$i];
+                            Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
+                            $messageFix = Helper::remove_html($message);
+                            $output = $messageFix;
+                            $responsedText = $message;
+                            $total_used_tokens += Helper::countWords($messageFix);
+    
+                            $string_length = Str::length($messageFix);
+                            $needChars = 6000 - $string_length;
+                            $random_text = Str::random($needChars);
+                            //eof Test Swtich to Helper version
 
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-
-                    } else {
-                        if (isset($response)) {
-
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                            }
-                        }
-
-                    }
-
-                } 
-
-             else if (Str::contains($this->GPTModel,'gpt-4-')) {
-                    if (isset($response['choices'][0]['message']['content'])) {
-                        $message = $response['choices'][0]['message']['content'];
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
-
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
+                            if (is_array($params))
+                                $params_json = $params;
+                            else
+                                $params_json = json_decode($params, true);
 
 
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-
-                    } else {
-                        if (isset($response)) {
-
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                            }
-                        }
-
-                    }
-
-                } 
-             
-                else {
-                    if (isset($response->choices[0]->text)) {
-                        $message = $response->choices[0]->text;
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
-
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
+                            $keywords = '';
+                            $description = $params_json["prompt"];
+                            $creativity = 1;
+                            $number_of_results = 1;
+                            $tone_of_voice = 0;
+                            $maximum_length = 2000;
+                            $language = "en";
+                            $post_type = 'paragraph_generator';
+                            $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
+                        Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
+                        ";
 
 
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
+                            // Save Users of Digital_Asset
+                            $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
+                            //$users = DB::connection('second_db')->table('users')->get();
 
 
-                    } else {
+                            $post = OpenAIGenerator::where('slug', $post_type)->first();
+                            $entry = new UserOpenai();
+                            $entry->title = 'New Workbook';
 
-                        if (isset($response)) {
-
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                            } else {
+                                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
                             }
 
-                        }
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $prompt = $description;
+                                $output = $response['text'];
+                            }
 
-                    }
+                            $response_arr = json_decode($response_bk, true);
 
-                }
+                            $entry->user_id = $user_id;
+                            $entry->openai_id = $post->id;
+                            $entry->input = $prompt;
+                            $entry->response = serialize(json_encode($response_arr));
+                            $entry->output = $output;
+                            $entry->hash = str()->random(256);
+                            $entry->credits = 0;
+                            $entry->words = 0;
+                            $entry->main_user_openai_id = $main_message_id;
+                            $entry->save();
+                        
+                            //for socialpost caption
+                            $responsedText_backup =$entry->response;
 
+                            $message_id = $entry->id;
 
-                if (is_array($params))
-                    $params_json = $params;
-                else
-                    $params_json = json_decode($params, true);
-
-
-                $keywords = '';
-                $description = $params_json["prompt"];
-                $creativity = 1;
-                $number_of_results = 1;
-                $tone_of_voice = 0;
-                $maximum_length = 2000;
-                $language = "en";
-                $post_type = 'paragraph_generator';
-                $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
-            Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
-            ";
-
-
-                // Save Users of Digital_Asset
-                $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
-                //$users = DB::connection('second_db')->table('users')->get();
+                            Log::debug('Message_ID of MainMarketing ' . $message_id);
 
 
-                $post = OpenAIGenerator::where('slug', $post_type)->first();
-                $entry = new UserOpenai();
-                $entry->title = 'New Workbook';
+                            // Create UserOpenai Models belong to OpenAIGenerator Models
+                            $message = UserOpenai::whereId($message_id)->first();
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $message->response = serialize(json_encode($response_arr));
 
-                if ($params_json1["model"] == 'whisper-1') {
-                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                } else {
-                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
-                }
+                            } else {
+                                $message->response = $responsedText;
 
-                if ($params_json1["model"] == 'whisper-1') {
-                    $prompt = $description;
-                    $output = $response['text'];
-                }
+                            }
+                            $message->output = $output;
+                            $message->hash = Str::random(256);
+                            $message->credits = $this->total_used_tokens;
+                            $message->words = 0;
+                            $UserOpenai_saved = $message->save();
 
-                $response_arr = json_decode($response_bk, true);
+                            if (!$UserOpenai_saved) {
+                                Log::debug('Save OpenAI Log Error ');
+                            } else {
+                                Log::debug('Save UserOpenai Log Success ');
+                            }
 
-                $entry->user_id = $user_id;
-                $entry->openai_id = $post->id;
-                $entry->input = $prompt;
-                $entry->response = serialize(json_encode($response_arr));
-                $entry->output = $output;
-                $entry->hash = str()->random(256);
-                $entry->credits = 0;
-                $entry->words = 0;
-                $entry->main_user_openai_id = $main_message_id;
-                $entry->save();
-               
-                //for socialpost caption
-                $responsedText_backup =$entry->response;
+                        // reset $output and $responsedText in each Loop
+                        //$output = str_replace($messageFix, '', $output);
+                        //$responsedText = str_replace($message, '', $responsedText);
+                        // reset $output and $responsedText in each Loop
+                  }
 
-                $message_id = $entry->id;
-
-                Log::debug('Message_ID of MainMarketing ' . $message_id);
-
-
-                // Create UserOpenai Models belong to OpenAIGenerator Models
-                $message = UserOpenai::whereId($message_id)->first();
-                if ($params_json1["model"] == 'whisper-1') {
-                    $message->response = serialize(json_encode($response_arr));
-
-                } else {
-                    $message->response = $responsedText;
-
-                }
-                $message->output = $output;
-                $message->hash = Str::random(256);
-                $message->credits = $this->total_used_tokens;
-                $message->words = 0;
-                $UserOpenai_saved = $message->save();
-
-                if (!$UserOpenai_saved) {
-                    Log::debug('Save OpenAI Log Error ');
-                } else {
-                    Log::debug('Save UserOpenai Log Success ');
-                }
-
-                //Update remaining  to users section
-                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-                    $total_used_tokens = $this->total_used_tokens;
-
-                //Update new remaining Tokens to user
-                $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
-                if ($user[0]->remaining_words != -1) {
-                    $user[0]->remaining_words -= $total_used_tokens;
-                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-                    // $user[0]->save();
-                    $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-                }
-
-                if ($user[0]->remaining_words < -1) {
-                    $user[0]->remaining_words = 0;
-                    // $user[0]->save();
-                    $new_remaining_words = 0;
-                    $user_update = DB::connection('main_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-                }
-
-                if ($user_update > 0)
-                    Log::debug('Update remaining at MainMarketing success by + add $total_used_tokens to old remaining_words in users table in Main ');
-
-                //echo 'data: [DONE]';
-                //echo "\n\n";
+               }
 
                 //EOF case none Chat
-            }
+                //eof Switch loop save OPEN AI Helper version
+
+               
+        }
             //EOF case Doc text or Chat Text
 
 
@@ -960,7 +861,7 @@ class SMAISyncTokenController extends Controller
     }
 
     //Done
-    public function SMAI_UpdateGPT_MainCoIn($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
+    public function SMAI_UpdateGPT_MainCoIn($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
     {
         if (is_array($params))
                 $params_json1 = $params;
@@ -1189,126 +1090,20 @@ class SMAISyncTokenController extends Controller
 
                //Test Swtich to Helper version
 
-                /* if ($settings->openai_default_model == 'gpt-3.5-turbo') {
-                    if (isset($response['choices'][0]['delta']['content'])) {
-                        $message = $response['choices'][0]['delta']['content'];
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
-
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
-
-
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-
-                    } else {
-                        if (isset($response)) {
-
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                            }
-                        }
-
-                    }
-
-                }
-                else if (Str::contains($this->GPTModel,'gpt-4-')) {
-                    if (isset($response['choices'][0]['message']['content'])) {
-                        $message = $response['choices'][0]['message']['content'];
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
-
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
-
-
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-
-                    } else {
-                        if (isset($response)) {
-
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                            }
-                        }
-
-                    }
-
-                } 
-                else {
-                    if (isset($response->choices[0]->text)) {
-                        $message = $response->choices[0]->text;
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
-
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
-
-
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-
-
-                    } else {
-
-                        if (isset($response)) {
-
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                            }
-
-                        }
-
-                    }
-
-                }
-                */
-
            // $message_arr=Helper::parse_messages_from_response_arr($this->response_json_array);
-           $message_arr=Helper::parse_messages_from_response_jsonarr_html($this->response_json_array);
+           $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
            
             Log::debug('!!!!!!!! This is message_array message_array ');
             Log::info($message_arr);
             $return_message_array=[];
             for($i=0; $i<count($message_arr); $i++)
             {
+                
                         $message = $message_arr[$i];
                         Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
                         $messageFix = Helper::remove_html($message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
+                        $output = $messageFix;
+                        $responsedText = $message;
                         $total_used_tokens += Helper::countWords($messageFix);
 
                         $string_length = Str::length($messageFix);
@@ -1413,6 +1208,11 @@ class SMAISyncTokenController extends Controller
 
                         }
 
+                        // reset $output and $responsedText in each Loop
+                        //$output = str_replace($messageFix, '', $output);
+                        //$responsedText = str_replace($message, '', $responsedText);
+                        // reset $output and $responsedText in each Loop
+
 
                }
 
@@ -1433,7 +1233,7 @@ class SMAISyncTokenController extends Controller
 
 
     //Done
-    public function SMAI_UpdateGPT_SocialPost($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
+    public function SMAI_UpdateGPT_SocialPost($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
     {
 
         if($from!=NULL)
@@ -1645,248 +1445,153 @@ if($params_json1['prompt']!='SKIP')
 
 
             } else {
-                if ($settings->openai_default_model == 'gpt-3.5-turbo') {
-                    if (isset($response['choices'][0]['delta']['content'])) {
-                        $message = $response['choices'][0]['delta']['content'];
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
+                //Switch to use Heler version
 
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
+ 
+                $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+           
+                Log::debug('!!!!!!!! This is message_array message_array ');
+                Log::info($message_arr);
+                $return_message_array=[];
 
-
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-
-                    } else {
-                        if (isset($response)) {
-
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
+            for($i=0; $i<count($message_arr); $i++)
+            {
+                    //if($i_arr!=NULL &&  $i==$i_arr)
+                    if($i_arr==0)
+                    {
+                                $message = $message_arr[$i];
+                                Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
+                                $messageFix = Helper::remove_html($message);
+                                $output = $messageFix;
+                                $responsedText = $message;
                                 $total_used_tokens += Helper::countWords($messageFix);
-
+        
                                 $string_length = Str::length($messageFix);
                                 $needChars = 6000 - $string_length;
                                 $random_text = Str::random($needChars);
-                            }
+                                //eof Test Swtich to Helper version
 
-                        }
-                    }
-                } 
-                else if (Str::contains($this->GPTModel,'gpt-4-')) {
-                    if (isset($response['choices'][0]['message']['content'])) {
-                        $message = $response['choices'][0]['message']['content'];
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
-
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
+                        if (is_array($params))
+                            $params_json = $params;
+                        else
+                            $params_json = json_decode($params, true);
 
 
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
+                        $keywords = '';
+                        $description = $params_json["prompt"];
+                        $creativity = 1;
+                        $number_of_results = 1;
+                        $tone_of_voice = 0;
+                        $maximum_length = 2000;
+                        $language = "en";
+                        $post_type = 'paragraph_generator';
+                        $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
+                    Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
+                    ";
+                        // Save Users of SocialPOst
+                        $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
+                        //$users = DB::connection('second_db')->table('users')->get();
 
-                    } else {
-                        if (isset($response)) {
+                        $post = OpenAIGenerator::where('slug', $post_type)->first();
+                        $entry = new SP_UserOpenai();
+                        $entry->title = 'New Workbook';
 
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                            }
+                        if ($params_json1["model"] == 'whisper-1') {
+                            $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                        } else {
+                            $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
                         }
 
-                    }
+                        if ($params_json1["model"] == 'whisper-1') {
+                            $prompt = $description;
+                            $output = $response['text'];
+                        }
 
-                } 
-                else {
-                    if (isset($response->choices[0]->text)) {
-                        $message = $response->choices[0]->text;
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
+                        $response_arr = json_decode($response_bk, true);
 
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
+                        $entry->user_id = $user_id;
+                        $entry->openai_id = $post->id;
+                        $entry->input = $prompt;
+                        $entry->response = serialize(json_encode($response_arr));
+                        $entry->output = $output;
+                        $entry->hash = str()->random(256);
+                        $entry->credits = 0;
+                        $entry->words = 0;
+                        $entry->main_user_openai_id = $main_message_id;
+                        $entry->save();
+                        Log::debug("Saving Loop ".$i." for output array ".$message_arr[$i]);
+
+                        
+
+                        //Log::debug('$response_arr OpenAIUserSP of SocialPost ' . $response_arr);
+                        //Log::debug('Entry OpenAIUserSP of SocialPost ' . $entry->response);
+                        // Log::debug(' Gobal $this->response_bk OpenAIUserSP of SocialPost ' . $this->response_bk);
+                        
+                        //for socialpost caption
+                        $responsedText_backup =$entry->response;
+                        Log::debug('responsedText_backup of SocialPost ' .$responsedText_backup);
+
+                        $message_id = $entry->id;
+                        Log::debug('Message_ID of SocialPost ' . $message_id);
+
+                    
+
+                        // Create UserOpenai Models belong to OpenAIGenerator Models
+                        $message = SP_UserOpenai::whereId($message_id)->first();
+                        if ($params_json1["model"] == 'whisper-1') {
+                            $message->response = serialize(json_encode($response_arr));
+
+                        } else {
+                            $message->response = $responsedText;
+
+                        }
+                        $message->output = $output;
+                        $message->hash = Str::random(256);
+                        $message->credits = $this->total_used_tokens;
+                        $message->words = 0;
 
 
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
+                        $UserOpenai_saved = $message->save();
 
-                    } else {
-
-                        if (isset($response)) {
-
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                            }
-
+                        if (!$UserOpenai_saved) {
+                            Log::debug('Save OpenAI Socialpost Log Error ');
+                        } else {
+                            Log::debug('Save SP_UserOpenai Log Success ');
                         }
 
 
+
+                        //Log::debug('before Skip Caption _Socialpost');
+                        if (Str::contains($chatGPT_catgory, 'Chat_') == false) {
+
+                            if(Str::length($this->response_text) >2 )
+                            $caption_save=$this->response_text;
+                            else if(Str::length($responsedText) >2 && $responsedText!= NULL)
+                            $caption_save=$responsedText_backup;
+                            else
+                            $caption_save=$responsedText;
+
+
+                            //add to SP_Captions for show in socialpost caption list
+                            //Log::debug('before insert Caption _Socialpost caption_text '.$caption_save);
+                            $caption_table = "sp_captions";
+                            $caption_database = "main_db";
+                            $this->SMAI_Ins_Eloq_openAI_Caption_Socialpost($description, $caption_save, $user_id, $message_id, $caption_database, $caption_table);
+
+
+                        }
+
+                        // reset $output and $responsedText in each Loop
+                        //$output = str_replace($messageFix, '', $output);
+                       // $responsedText = str_replace($message, '', $responsedText);
+                        // reset $output and $responsedText in each Loop
                     }
-                }
-
-                if (is_array($params))
-                    $params_json = $params;
-                else
-                    $params_json = json_decode($params, true);
-
-
-                $keywords = '';
-                $description = $params_json["prompt"];
-                $creativity = 1;
-                $number_of_results = 1;
-                $tone_of_voice = 0;
-                $maximum_length = 2000;
-                $language = "en";
-                $post_type = 'paragraph_generator';
-                $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
-            Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
-            ";
-                // Save Users of SocialPOst
-                $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
-                //$users = DB::connection('second_db')->table('users')->get();
-
-                $post = OpenAIGenerator::where('slug', $post_type)->first();
-                $entry = new SP_UserOpenai();
-                $entry->title = 'New Workbook';
-
-                if ($params_json1["model"] == 'whisper-1') {
-                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                } else {
-                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
-                }
-
-                if ($params_json1["model"] == 'whisper-1') {
-                    $prompt = $description;
-                    $output = $response['text'];
-                }
-
-                $response_arr = json_decode($response_bk, true);
-
-                $entry->user_id = $user_id;
-                $entry->openai_id = $post->id;
-                $entry->input = $prompt;
-                $entry->response = serialize(json_encode($response_arr));
-                $entry->output = $output;
-                $entry->hash = str()->random(256);
-                $entry->credits = 0;
-                $entry->words = 0;
-                $entry->main_user_openai_id = $main_message_id;
-                $entry->save();
-
-                
-
-                //Log::debug('$response_arr OpenAIUserSP of SocialPost ' . $response_arr);
-                //Log::debug('Entry OpenAIUserSP of SocialPost ' . $entry->response);
-               // Log::debug(' Gobal $this->response_bk OpenAIUserSP of SocialPost ' . $this->response_bk);
-                
-                //for socialpost caption
-                $responsedText_backup =$entry->response;
-                Log::debug('responsedText_backup of SocialPost ' .$responsedText_backup);
-
-                $message_id = $entry->id;
-                Log::debug('Message_ID of SocialPost ' . $message_id);
-
-               
-
-                // Create UserOpenai Models belong to OpenAIGenerator Models
-                $message = SP_UserOpenai::whereId($message_id)->first();
-                if ($params_json1["model"] == 'whisper-1') {
-                    $message->response = serialize(json_encode($response_arr));
-
-                } else {
-                    $message->response = $responsedText;
 
                 }
-                $message->output = $output;
-                $message->hash = Str::random(256);
-                $message->credits = $this->total_used_tokens;
-                $message->words = 0;
+                return true;
+                //eof for loop to save TextOpenAI 
 
-
-                $UserOpenai_saved = $message->save();
-
-                if (!$UserOpenai_saved) {
-                    Log::debug('Save OpenAI Socialpost Log Error ');
-                } else {
-                    Log::debug('Save SP_UserOpenai Log Success ');
-                }
-
-                //Update remaining  to users section
-                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-                    $total_used_tokens = $this->total_used_tokens;
-
-                //Log::debug('before update TOken numbers remaining_words');
-                // Save Users of Digital_Asset
-                //Update new remaining Tokens
-                $user = \DB::connection('main_db')->table('sp_users')->where('id', $user_id)->get();
-                Log::debug('User email test : ' . $user[0]->email);
-
-                if ($user[0]->remaining_words != -1) {
-                    $user[0]->remaining_words -= $total_used_tokens;
-                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-                    // $user[0]->save();
-                    $user_update = DB::connection('main_db')->update('update sp_users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-                }
-
-                if ($user[0]->remaining_words < -1) {
-                    $user[0]->remaining_words = 0;
-                    // $user[0]->save();
-                    $new_remaining_words = 0;
-                    $user_update = DB::connection('main_db')->update('update sp_users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-                }
-                if ($user_update > 0)
-                    Log::debug('Update remaining at Main Socialpost by + add $total_used_tokens to old remaining_words in table sp_users in success');
-
-                //echo 'data: [DONE]';
-                //echo "\n\n";
-
-
-            }
-
-            //Log::debug('before Skip Caption _Socialpost');
-            if (Str::contains($chatGPT_catgory, 'Chat_') == false) {
-
-                if(Str::length($this->response_text) >2 )
-                $caption_save=$this->response_text;
-                else if(Str::length($responsedText) >2 && $responsedText!= NULL)
-                $caption_save=$responsedText_backup;
-                else
-                $caption_save=$responsedText;
-
-
-                //add to SP_Captions for show in socialpost caption list
-                //Log::debug('before insert Caption _Socialpost caption_text '.$caption_save);
-                $caption_table = "sp_captions";
-                $caption_database = "main_db";
-                $this->SMAI_Ins_Eloq_openAI_Caption_Socialpost($description, $caption_save, $user_id, $message_id, $caption_database, $caption_table);
-
-
-            }
+        }
 
 
         } else {
@@ -1900,7 +1605,7 @@ if($params_json1['prompt']!='SKIP')
 
 
     //Done
-    public function SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
+    public function SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
     {
         // Update Token and usage
         $settings = $this->settings;
@@ -2128,232 +1833,132 @@ if($params_json1['prompt']!='SKIP')
 
             } else {
 
-                if ($settings->openai_default_model == 'gpt-3.5-turbo') {
-                    //Log::debug('Response in gpt-3.5-turbo SMAI_UpdateGPT_DigitalAsset from SMAIsyncController ');
-                    if (isset($response['choices'][0]['delta']['content'])) {
-                        $message = $response['choices'][0]['delta']['content'];
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
+                //Switch to Helper version
 
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
-
-                        Log::debug(' response_choices SMAI_UpdateGPT_DigitalAsset from SMAIsyncController : ' . info(print_r($response['choices'], true)));
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-
-                    } else {
-
-                        if (isset($response)) {
-
-
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                            }
-                        }
-                    }
-
-
-                } 
-                else if (Str::contains($this->GPTModel,'gpt-4-')) {
-                    if (isset($response['choices'][0]['message']['content'])) {
-                        $message = $response['choices'][0]['message']['content'];
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
-
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
-
-
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-
-                    } else {
-                        if (isset($response)) {
-
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                            }
-                        }
-
-                    }
-
-                } 
-                else {
-                    if (isset($response->choices[0]->text)) {
-                        $message = $response->choices[0]->text;
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
-
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
-
-                        Log::debug(' response_choices in else SMAI_UpdateGPT_DigitalAsset from SMAIsyncController : ' . info(print_r($response['choices'], true)));
-
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-
-                    } else {
-
-                        if (isset($response)) {
-
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                            }
-
-                        }
-                    }
-                }
 
                 //Log::info(print_r($response, true));
-
                 Log::debug('$params SMAI_UpdateGPT_DigitalAsset from SMAIsyncController : ' . info(print_r($params, true)));
-
                 //Log::debug('$params smaisync_tokens from APIsController : '.info(json_encode($params)));
                 Log::info(print_r($params, true));
+            
+                //Switch to Heler fnc
+                $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+           
+                Log::debug('!!!!!!!! This is message_array message_array ');
+                Log::info($message_arr);
+                $return_message_array=[];
+                for($i=0; $i<count($message_arr); $i++)
+                {
+                    //if($i_arr!=NULL &&  $i==$i_arr)
+                    if($i_arr==0)
+                    {
+                                $message = $message_arr[$i];
+                                Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
+                                $messageFix = Helper::remove_html($message);
+                                $output = $messageFix;
+                                $responsedText = $message;
+                                $total_used_tokens += Helper::countWords($messageFix);
+        
+                                $string_length = Str::length($messageFix);
+                                $needChars = 6000 - $string_length;
+                                $random_text = Str::random($needChars);
+                                //eof Test Swtich to Helper version
 
-                if (is_array($params))
-                    $params_json = $params;
-                else
-                    $params_json = json_decode($params, true);
+                            if (is_array($params))
+                                $params_json = $params;
+                            else
+                                $params_json = json_decode($params, true);
 
 
-                $keywords = '';
-                $description = $params_json["prompt"];
-                $creativity = 1;
-                $number_of_results = 1;
-                $tone_of_voice = 0;
-                $maximum_length = 2000;
-                $language = "en";
-                $post_type = 'paragraph_generator';
-                $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
-            Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
-            ";
+                            $keywords = '';
+                            $description = $params_json["prompt"];
+                            $creativity = 1;
+                            $number_of_results = 1;
+                            $tone_of_voice = 0;
+                            $maximum_length = 2000;
+                            $language = "en";
+                            $post_type = 'paragraph_generator';
+                            $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
+                        Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
+                        ";
 
-                // Save Users of Digital_Asset
-                $user = \DB::connection('digitalasset_db')->table('users')->where('id', $user_id)->get();
-                //$users = DB::connection('second_db')->table('users')->get();
+                            // Save Users of Digital_Asset
+                            $user = \DB::connection('digitalasset_db')->table('users')->where('id', $user_id)->get();
+                            //$users = DB::connection('second_db')->table('users')->get();
 
-                $post = OpenAIGenerator::where('slug', $post_type)->first();
-                $entry = new DigitalAsset_UserOpenai();
-                $entry->title = 'New Workbook';
+                            $post = OpenAIGenerator::where('slug', $post_type)->first();
+                            $entry = new DigitalAsset_UserOpenai();
+                            $entry->title = 'New Workbook';
 
-                if ($params_json1["model"] == 'whisper-1') {
+                            if ($params_json1["model"] == 'whisper-1') {
 
-                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                } else {
-                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                            } else {
+                                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                            }
+                            //$response = json_encode($response);
+
+                            Log::debug(' REsponse String');
+                            Log::info($response_bk);
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $prompt = $description;
+                                $output = $response['text'];
+                            }
+
+                            $response_arr = json_decode($response_bk, true);
+
+
+                            $entry->user_id = $user_id;
+                            $entry->openai_id = $post->id;
+                            $entry->input = $prompt;
+                            $entry->response = serialize(json_encode($response_arr));
+                            $entry->output = $output;
+                            $entry->hash = str()->random(256);
+                            $entry->credits = 0;
+                            $entry->words = 0;
+                            $entry->main_user_openai_id = $main_message_id;
+                            $entry->save();
+
+                            //for socialpost caption
+                            $responsedText_backup =$entry->response;
+
+                            $message_id = $entry->id;
+                            Log::debug('Message_ID of DigitalAsset Design ' . $message_id);
+
+                            //Log::info(print_r("Inserted new openai to ID " . $message_id, true));
+
+                            // Create UserOpenai Models belong to OpenAIGenerator Models
+                            $message = DigitalAsset_UserOpenai::whereId($message_id)->first();
+
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $message->response = serialize(json_encode($response_arr));
+
+                            } else {
+                                $message->response = $responsedText;
+
+                            }
+
+                            $message->output = $output;
+                            $message->hash = Str::random(256);
+                            $message->credits = $this->total_used_tokens;
+                            $message->words = 0;
+                            $UserOpenai_saved = $message->save();
+
+                            if (!$UserOpenai_saved) {
+                                Log::debug('Save OpenAI Design Log Error ');
+                            } else {
+                                Log::debug('Save DigitalAsset Log Success ');
+                            }
+
+                            // reset $output and $responsedText in each Loop
+                            //$output = str_replace($messageFix, '', $output);
+                            //$responsedText = str_replace($message, '', $responsedText);
+                            // reset $output and $responsedText in each Loop
+                    }
+
                 }
-                //$response = json_encode($response);
-
-                Log::debug(' REsponse String');
-                Log::info($response_bk);
-                if ($params_json1["model"] == 'whisper-1') {
-                    $prompt = $description;
-                    $output = $response['text'];
-                }
-
-                $response_arr = json_decode($response_bk, true);
-
-
-                $entry->user_id = $user_id;
-                $entry->openai_id = $post->id;
-                $entry->input = $prompt;
-                $entry->response = serialize(json_encode($response_arr));
-                $entry->output = $output;
-                $entry->hash = str()->random(256);
-                $entry->credits = 0;
-                $entry->words = 0;
-                $entry->main_user_openai_id = $main_message_id;
-                $entry->save();
-
-                //for socialpost caption
-                $responsedText_backup =$entry->response;
-
-                $message_id = $entry->id;
-                Log::debug('Message_ID of DigitalAsset Design ' . $message_id);
-
-                //Log::info(print_r("Inserted new openai to ID " . $message_id, true));
-
-                // Create UserOpenai Models belong to OpenAIGenerator Models
-                $message = DigitalAsset_UserOpenai::whereId($message_id)->first();
-
-                if ($params_json1["model"] == 'whisper-1') {
-                    $message->response = serialize(json_encode($response_arr));
-
-                } else {
-                    $message->response = $responsedText;
-
-                }
-
-                $message->output = $output;
-                $message->hash = Str::random(256);
-                $message->credits = $this->total_used_tokens;
-                $message->words = 0;
-                $UserOpenai_saved = $message->save();
-
-                if (!$UserOpenai_saved) {
-                    Log::debug('Save OpenAI Design Log Error ');
-                } else {
-                    Log::debug('Save DigitalAsset Log Success ');
-                }
-
-                //Update remaining  to users section
-                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-                    $total_used_tokens = $this->total_used_tokens;
-
-                //Update new remaining Tokens
-                $user = \DB::connection('digitalasset_db')->table('users')->where('id', $user_id)->get();
-                if ($user[0]->remaining_words != -1) {
-                    $user[0]->remaining_words -= $total_used_tokens;
-                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-                    // $user[0]->save();
-                    $user_update = DB::connection('digitalasset_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-                }
-
-                if ($user[0]->remaining_words < -1) {
-                    $user[0]->remaining_words = 0;
-                    // $user[0]->save();
-                    $new_remaining_words = 0;
-                    $user_update = DB::connection('digitalasset_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-                }
-
-                if ($user_update > 0)
-                    Log::debug('Update remaining at Design by + add $total_used_tokens to old remaining_words in users table in Design success');
-
-                //echo 'data: [DONE]';
-                //echo "\n\n";
-
+                //eof for loop Save Text OPEN AI data
+                return true;
 
             }
 
@@ -2368,7 +1973,7 @@ if($params_json1['prompt']!='SKIP')
     }
 
 //Done
-    public function SMAI_UpdateGPT_MobileApp($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
+    public function SMAI_UpdateGPT_MobileApp($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
     {
         $settings = $this->settings;
         $settings_two = $this->settings_two;
@@ -2575,214 +2180,120 @@ if($params_json1['prompt']!='SKIP')
 
             } else {
 
-
-                if ($settings->openai_default_model == 'gpt-3.5-turbo') {
-                    if (isset($response['choices'][0]['delta']['content'])) {
-                        $message = $response['choices'][0]['delta']['content'];
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
-
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
+                //Switch to Helper version
 
 
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
+                $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+           
+                Log::debug('!!!!!!!! This is message_array message_array ');
+                Log::info($message_arr);
+                $return_message_array=[];
 
-                    } else {
-                        if (isset($response)) {
-
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
+                for($i=0; $i<count($message_arr); $i++)
+                {
+                    //if($i_arr!=NULL &&  $i==$i_arr)
+                    if($i_arr==0)
+                    {
+                                $message = $message_arr[$i];
+                                Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
+                                $messageFix = Helper::remove_html($message);
+                                $output = $messageFix;
+                                $responsedText = $message;
                                 $total_used_tokens += Helper::countWords($messageFix);
-
+        
                                 $string_length = Str::length($messageFix);
                                 $needChars = 6000 - $string_length;
                                 $random_text = Str::random($needChars);
-                            }
+                                //eof Test Swtich to Helper version
 
-                        }
+                                if (is_array($params))
+                                    $params_json = $params;
+                                else
+                                    $params_json = json_decode($params, true);
+
+
+                                $keywords = '';
+                                $description = $params_json["prompt"];
+                                $creativity = 1;
+                                $number_of_results = 1;
+                                $tone_of_voice = 0;
+                                $maximum_length = 2000;
+                                $language = "en";
+                                $post_type = 'paragraph_generator';
+                                $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
+                            Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
+                            ";
+
+
+                                // Save Users of Mobile App
+                                $user = \DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->get();
+                                //$users = DB::connection('second_db')->table('users')->get();
+
+
+                                $post = OpenAIGenerator::where('slug', $post_type)->first();
+                                $entry = new Mobile_UserOpenai();
+                                $entry->title = 'New Workbook';
+
+                                if ($params_json1["model"] == 'whisper-1') {
+
+                                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                                } else {
+                                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                                }
+
+                                if ($params_json1["model"] == 'whisper-1') {
+                                    $prompt = $description;
+                                    $output = $response['text'];
+                                }
+
+
+                                $response_arr = json_decode($response_bk, true);
+                                $entry->user_id = $user_id;
+                                $entry->openai_id = $post->id;
+                                $entry->input = $prompt;
+                                $entry->response = serialize(json_encode($response_arr));
+                                $entry->output = $output;
+                                $entry->hash = str()->random(256);
+                                $entry->credits = 0;
+                                $entry->words = 0;
+                                $entry->main_user_openai_id = $main_message_id;
+                                $entry->save();
+
+                                //for socialpost caption
+                                $responsedText_backup =$entry->response;
+
+                                $message_id = $entry->id;
+                                Log::debug('Message_ID of MobileAppV2 ' . $message_id);
+
+                                // Create UserOpenai Models belong to OpenAIGenerator Models
+                                $message = Mobile_UserOpenai::whereId($message_id)->first();
+                                if ($params_json1["model"] == 'whisper-1') {
+                                    $message->response = serialize(json_encode($response_arr));
+
+                                } else {
+                                    $message->response = $responsedText;
+
+                                }
+                                $message->output = $output;
+                                $message->hash = Str::random(256);
+                                $message->credits = $this->total_used_tokens;
+                                $message->words = 0;
+                                $UserOpenai_saved = $message->save();
+
+                                if (!$UserOpenai_saved) {
+                                    Log::debug('Save OpenAI Mobile Log Error ');
+                                } else {
+                                    Log::debug('Save Mobile Log Success ');
+                                }
+
+                            // reset $output and $responsedText in each Loop
+                            //$output = str_replace($messageFix, '', $output);
+                            //$responsedText = str_replace($message, '', $responsedText);
+                            // reset $output and $responsedText in each Loop
                     }
                 }
-                else if (Str::contains($this->GPTModel,'gpt-4-')) {
-                    if (isset($response['choices'][0]['message']['content'])) {
-                        $message = $response['choices'][0]['message']['content'];
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
-
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
-
-
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-
-                    } else {
-                        if (isset($response)) {
-
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                            }
-                        }
-
-                    }
-
-                } 
-                else {
-                    if (isset($response->choices[0]->text)) {
-                        $message = $response->choices[0]->text;
-                        $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                        $output .= $messageFix;
-                        $responsedText .= $message;
-                        $total_used_tokens += Helper::countWords($messageFix);
-
-                        $string_length = Str::length($messageFix);
-                        $needChars = 6000 - $string_length;
-                        $random_text = Str::random($needChars);
-
-
-                        //echo 'data: ' . $messageFix . '/**' . $random_text . "\n\n";
-
-                    } else {
-                        if (isset($response)) {
-                            if (Str::length($this->postContent) > 0) {
-                                $message = trim($this->postContent);
-                                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
-                                $output .= $messageFix;
-                                $responsedText .= $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                            }
-
-                        }
-                    }
-                }
-
-                if (is_array($params))
-                    $params_json = $params;
-                else
-                    $params_json = json_decode($params, true);
-
-
-                $keywords = '';
-                $description = $params_json["prompt"];
-                $creativity = 1;
-                $number_of_results = 1;
-                $tone_of_voice = 0;
-                $maximum_length = 2000;
-                $language = "en";
-                $post_type = 'paragraph_generator';
-                $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
-            Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
-            ";
-
-
-                // Save Users of Mobile App
-                $user = \DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->get();
-                //$users = DB::connection('second_db')->table('users')->get();
-
-
-                $post = OpenAIGenerator::where('slug', $post_type)->first();
-                $entry = new Mobile_UserOpenai();
-                $entry->title = 'New Workbook';
-
-                if ($params_json1["model"] == 'whisper-1') {
-
-                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                } else {
-                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
-                }
-
-                if ($params_json1["model"] == 'whisper-1') {
-                    $prompt = $description;
-                    $output = $response['text'];
-                }
-
-
-                $response_arr = json_decode($response_bk, true);
-                $entry->user_id = $user_id;
-                $entry->openai_id = $post->id;
-                $entry->input = $prompt;
-                $entry->response = serialize(json_encode($response_arr));
-                $entry->output = $output;
-                $entry->hash = str()->random(256);
-                $entry->credits = 0;
-                $entry->words = 0;
-                $entry->main_user_openai_id = $main_message_id;
-                $entry->save();
-
-                //for socialpost caption
-                $responsedText_backup =$entry->response;
-
-                $message_id = $entry->id;
-                Log::debug('Message_ID of MobileAppV2 ' . $message_id);
-
-                // Create UserOpenai Models belong to OpenAIGenerator Models
-                $message = Mobile_UserOpenai::whereId($message_id)->first();
-                if ($params_json1["model"] == 'whisper-1') {
-                    $message->response = serialize(json_encode($response_arr));
-
-                } else {
-                    $message->response = $responsedText;
-
-                }
-                $message->output = $output;
-                $message->hash = Str::random(256);
-                $message->credits = $this->total_used_tokens;
-                $message->words = 0;
-                $UserOpenai_saved = $message->save();
-
-                if (!$UserOpenai_saved) {
-                    Log::debug('Save OpenAI Mobile Log Error ');
-                } else {
-                    Log::debug('Save Mobile Log Success ');
-                }
-                //Update remaining  to users section
-
-                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-                    $total_used_tokens = $this->total_used_tokens;
-
-                //Update new remaining Tokens
-                $user = \DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->get();
-                if ($user[0]->remaining_words != -1) {
-                    $user[0]->remaining_words -= $total_used_tokens;
-                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-                    // $user[0]->save();
-                    $user_update = DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-
-                }
-
-                if ($user[0]->remaining_words < -1) {
-                    $user[0]->remaining_words = 0;
-                    // $user[0]->save();
-                    $new_remaining_words = 0;
-                    $user_update = DB::connection('mobileapp_db')->update('update users set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-
-
-                }
-                if ($user_update > 0)
-                    Log::debug('Update remaining at MobileApp by + add $total_used_tokens to old remaining_words in users table in Mobileapp success');
-
-                //echo 'data: [DONE]';
-                //echo "\n\n";
+                //eof Switch for loop save OpenAI in Helper version
+                return true;
 
             }
 
@@ -2796,7 +2307,7 @@ if($params_json1['prompt']!='SKIP')
 
     }
 
-    public function SMAI_UpdateGPT_Bio($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
+    public function SMAI_UpdateGPT_Bio($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
     {
         $settings = $this->settings;
         $settings_two = $this->settings_two;
@@ -3069,8 +2580,9 @@ if($params_json1['prompt']!='SKIP')
             else 
             {
 
+               // Switch to Helper version
 
-                if ($settings->openai_default_model == 'gpt-3.5-turbo') {
+               /*  if ($settings->openai_default_model == 'gpt-3.5-turbo') {
                     if (isset($response['choices'][0]['delta']['content'])) {
                         $message = $response['choices'][0]['delta']['content'];
                         $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message);
@@ -3168,147 +2680,155 @@ if($params_json1['prompt']!='SKIP')
 
                         }
                     }
-                }
+                } */
 
-                if (is_array($params))
-                    $params_json = $params;
-                else
-                    $params_json = json_decode($params, true);
-
-
-                $keywords = '';
-                $description = $params_json["prompt"];
-                $creativity = 1;
-                $number_of_results = 1;
-                $tone_of_voice = 0;
-                $maximum_length = 2000;
-                $language = "en";
-                $post_type = 'paragraph_generator';
-                $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
-            Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
-            ";
-
-
-                // Save Users of Bio 
-                $user = \DB::connection('bio_db')->table('users')->where('user_id', $user_id)->get();
-                //$users = DB::connection('second_db')->table('users')->get();
-
-
-                $post = OpenAIGenerator::where('slug', $post_type)->first();
-                
-            //wait for fix bug to merge Template AI Docs
-                $entry = new UserBioOpenai();
-
-                Log::debug('Check if create AI Bio Doc success'.$entry->document_id);
-
-                $entry->title = 'New Workbook';
-                
-
-                if ($params_json1["model"] == 'whisper-1') {
-
-                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                } else {
-                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
-                }
-
-                if ($params_json1["model"] == 'whisper-1') {
-                    $prompt = $description;
-                    $output = $response['text'];
-                }
-
-
-                $response_arr = json_decode($response_bk, true);
-                $entry->user_id = $user_id;
-                $entry->openai_id = $post->id;
-                $entry->input = $prompt;
-                $entry->response = serialize(json_encode($response_arr));
-                $entry->output = $output;
-                $entry->hash = str()->random(256);
-                $entry->credits = 0;
-                $entry->words = 0;
-                $entry->main_user_openai_id = $main_message_id;
-                $entry->name = $entry->title;
-
-                if($this->chatGPT_catgory=='Text_Design' || $this->chatGPT_catgory=='DocText_SocialPost')
+                $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+           
+                Log::debug('!!!!!!!! This is message_array message_array ');
+                Log::info($message_arr);
+                $return_message_array=[];
+                for($i=0; $i<count($message_arr); $i++)
                 {
-                    $entry->template_id = 11;
-                    $entry->type = 11;
-                    $entry->template_category_id=2;
-                    $entry->content=$entry->output;
+                    //if($i_arr!=NULL &&  $i==$i_arr)
+                    if($i_arr==0)
+                    {
+                                $message = $message_arr[$i];
+                                Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
+                                $messageFix = Helper::remove_html($message);
+                                $output = $messageFix;
+                                $responsedText = $message;
+                                $total_used_tokens += Helper::countWords($messageFix);
+        
+                                $string_length = Str::length($messageFix);
+                                $needChars = 6000 - $string_length;
+                                $random_text = Str::random($needChars);
+                                //eof Test Swtich to Helper version
 
+                                if (is_array($params))
+                                    $params_json = $params;
+                                else
+                                    $params_json = json_decode($params, true);
+
+
+                                $keywords = '';
+                                $description = $params_json["prompt"];
+                                $creativity = 1;
+                                $number_of_results = 1;
+                                $tone_of_voice = 0;
+                                $maximum_length = 2000;
+                                $language = "en";
+                                $post_type = 'paragraph_generator';
+                                $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
+                            Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
+                            ";
+
+
+                                // Save Users of Bio 
+                                $user = \DB::connection('bio_db')->table('users')->where('user_id', $user_id)->get();
+                                //$users = DB::connection('second_db')->table('users')->get();
+
+
+                                $post = OpenAIGenerator::where('slug', $post_type)->first();
+                                
+                            //wait for fix bug to merge Template AI Docs
+                                $entry = new UserBioOpenai();
+
+                                Log::debug('Check if create AI Bio Doc success'.$entry->document_id);
+
+                                
+
+                                $entry->title = 'New Workbook';
+                                
+
+                                if ($params_json1["model"] == 'whisper-1') {
+
+                                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                                } else {
+                                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                                }
+
+                                if ($params_json1["model"] == 'whisper-1') {
+                                    $prompt = $description;
+                                    $output = $response['text'];
+                                }
+
+
+                                $response_arr = json_decode($response_bk, true);
+                                $entry->user_id = $user_id;
+                                $entry->openai_id = $post->id;
+                                $entry->input = $prompt;
+                                $entry->response = serialize(json_encode($response_arr));
+                                $entry->output = $output;
+                                $entry->hash = str()->random(256);
+                                $entry->credits = 0;
+                                $entry->words = 0;
+                                $entry->main_user_openai_id = $main_message_id;
+                                $entry->name = $entry->title;
+
+                                if($this->chatGPT_catgory=='Text_Design' || $this->chatGPT_catgory=='DocText_SocialPost')
+                                {
+                                    $entry->template_id = 11;
+                                    $entry->type = 11;
+                                    $entry->template_category_id=2;
+                                    $entry->content=$entry->output;
+
+                                }
+
+
+
+                                $entry->save();
+
+                                //for socialpost caption
+                                if($this->chatGPT_catgory=='Images_Design' || $this->platform=='design')
+                                $responsedText_backup =$entry->$output;
+                                else
+                                $responsedText_backup =$entry->response;
+
+                                if(isset($entry->id))
+                                $message_id = $entry->id;
+                                else
+                                $message_id =$entry->document_id ;
+
+                                Log::debug('Message_ID of Bio ' . $message_id);
+
+                                // Create UserOpenai Models belong to OpenAIGenerator Models
+                                $message = UserBioOpenai::where('document_id',$message_id)->first();
+                                
+                            // new update gpt-4-0613
+                            if(isset($message->response))
+                            {
+                                if ($params_json1["model"] == 'whisper-1') {
+                                    $message->response = serialize(json_encode($response_arr));
+
+                                } else {
+                                    $message->response = $responsedText;
+
+                                }
+                            }
+                                $message->output = $output;
+                                $message->hash = Str::random(256);
+                                $message->credits = $this->total_used_tokens;
+                                //bug fix already fix
+                                $message->words = $this->total_used_tokens;
+                                $UserOpenai_saved = $message->save();
+
+                                if (!$UserOpenai_saved) {
+                                    Log::debug('Save OpenAI Mobile Log Error ');
+                                } else {
+                                    Log::debug('Save Mobile Log Success ');
+                                }
+
+                            // reset $output and $responsedText in each Loop
+                            //$output = str_replace($messageFix, '', $output);
+                            //$responsedText = str_replace($message, '', $responsedText);
+                            // reset $output and $responsedText in each Loop
+
+
+                    }
+                            
                 }
-
-
-
-                $entry->save();
-
-                //for socialpost caption
-                if($this->chatGPT_catgory=='Images_Design' || $this->platform=='design')
-                $responsedText_backup =$entry->$output;
-                else
-                $responsedText_backup =$entry->response;
-
-                if(isset($entry->id))
-                $message_id = $entry->id;
-                else
-                $message_id =$entry->document_id ;
-
-                Log::debug('Message_ID of Bio ' . $message_id);
-
-                // Create UserOpenai Models belong to OpenAIGenerator Models
-                $message = UserBioOpenai::where('document_id',$message_id)->first();
-                
-               // new update gpt-4-0613
-               if(isset($message->response))
-               {
-                if ($params_json1["model"] == 'whisper-1') {
-                    $message->response = serialize(json_encode($response_arr));
-
-                } else {
-                    $message->response = $responsedText;
-
-                }
-               }
-                $message->output = $output;
-                $message->hash = Str::random(256);
-                $message->credits = $this->total_used_tokens;
-                //bug fix already fix
-                $message->words = $this->total_used_tokens;
-                $UserOpenai_saved = $message->save();
-
-                if (!$UserOpenai_saved) {
-                    Log::debug('Save OpenAI Mobile Log Error ');
-                } else {
-                    Log::debug('Save Mobile Log Success ');
-                }
-                //Update remaining  to users section
-
-                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-                    $total_used_tokens = $this->total_used_tokens;
-
-                //Update new remaining Tokens
-                $user = \DB::connection('bio_db')->table('users')->where('user_id', $user_id)->get();
-                if ($user[0]->remaining_words != -1) {
-                    $user[0]->remaining_words -= $total_used_tokens;
-                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-                    // $user[0]->save();
-                    $user_update = DB::connection('bio_db')->update('update users set remaining_words = ? where user_id = ?', array($new_remaining_words, $user_id));
-
-                }
-
-                if ($user[0]->remaining_words < -1) {
-                    $user[0]->remaining_words = 0;
-                    // $user[0]->save();
-                    $new_remaining_words = 0;
-                    $user_update = DB::connection('bio_db')->update('update users set remaining_words = ? where user_id = ?', array($new_remaining_words, $user_id));
-
-
-                }
-                if ($user_update > 0)
-                    Log::debug('Update remaining at MobileApp by + add $total_used_tokens to old remaining_words in users table in Mobileapp success');
-
-                //echo 'data: [DONE]';
-                //echo "\n\n";
+                //eof Switch for loop of helper version
+                return true;
 
             }
 
@@ -3320,7 +2840,7 @@ if($params_json1['prompt']!='SKIP')
       }
     }
 
-    public function SMAI_UpdateGPT_SyncNodeJs($user_id, $usage, $response, $params, $from, $main_message_id = NULL)
+    public function SMAI_UpdateGPT_SyncNodeJs($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
     {
         $settings = $this->settings;
         $settings_two = $this->settings_two;
@@ -3537,8 +3057,9 @@ if($params_json1['prompt']!='SKIP')
 
             } else {
 
+                //Switch to Helper version
 
-                if ($settings->openai_default_model == 'gpt-3.5-turbo') {
+               /*  if ($settings->openai_default_model == 'gpt-3.5-turbo') {
                     Log::debug('Debug after gpt-3.5-turbo');
                     if (isset($response['choices'][0]['delta']['content'])) {
                         $message = $response['choices'][0]['delta']['content'];
@@ -3644,122 +3165,126 @@ if($params_json1['prompt']!='SKIP')
 
                         }
                     }
-                }
+                } */
 
-                if (is_array($params))
-                    $params_json = $params;
-                else
-                    $params_json = json_decode($params, true);
-
-                Log::debug('Debug after NodeJs params_json');
-                $keywords = '';
-                $description = $params_json["prompt"];
-                $creativity = 1;
-                $number_of_results = 1;
-                $tone_of_voice = 0;
-                $maximum_length = 2000;
-                $language = "en";
-                $post_type = 'paragraph_generator';
-                $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
-            Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
-            ";
-
-
-                // Save Users of Mobile App
-                $user = \DB::connection('sync_db')->table('user')->where('id', $user_id)->get();
-                //$users = DB::connection('second_db')->table('users')->get();
-
-
-                $post = OpenAIGenerator::where('slug', $post_type)->first();
-                $entry = new UserSyncNodeJSOpenai();
-                $entry->title = 'New Workbook';
-
-                Log::debug('Check if create AI Doc success');
-
-                if(isset($params_json1["model"]))
+                $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+           
+                Log::debug('!!!!!!!! This is message_array message_array ');
+                Log::info($message_arr);
+                $return_message_array=[];
+                for($i=0; $i<count($message_arr); $i++)
                 {
-                    if ($params_json1["model"] == 'whisper-1') {
+                    //if($i_arr!=NULL &&  $i==$i_arr)
+                    if($i_arr==0)
+                    {
+                                $message = $message_arr[$i];
+                                Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
+                                $messageFix = Helper::remove_html($message);
+                                $output = $messageFix;
+                                $responsedText = $message;
+                                $total_used_tokens += Helper::countWords($messageFix);
+        
+                                $string_length = Str::length($messageFix);
+                                $needChars = 6000 - $string_length;
+                                $random_text = Str::random($needChars);
+                                //eof Test Swtich to Helper version
 
-                        $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                    } else {
-                        $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                            if (is_array($params))
+                                $params_json = $params;
+                            else
+                                $params_json = json_decode($params, true);
+
+                            Log::debug('Debug after NodeJs params_json');
+                            $keywords = '';
+                            $description = $params_json["prompt"];
+                            $creativity = 1;
+                            $number_of_results = 1;
+                            $tone_of_voice = 0;
+                            $maximum_length = 2000;
+                            $language = "en";
+                            $post_type = 'paragraph_generator';
+                            $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
+                        Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
+                        ";
+
+
+                            // Save Users of Mobile App
+                            $user = \DB::connection('sync_db')->table('user')->where('id', $user_id)->get();
+                            //$users = DB::connection('second_db')->table('users')->get();
+
+
+                            $post = OpenAIGenerator::where('slug', $post_type)->first();
+                            $entry = new UserSyncNodeJSOpenai();
+                            $entry->title = 'New Workbook';
+
+                            Log::debug('Check if create AI Doc success');
+
+                            if(isset($params_json1["model"]))
+                            {
+                                if ($params_json1["model"] == 'whisper-1') {
+
+                                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                                } else {
+                                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                                }
+                                
+
+                                if ($params_json1["model"] == 'whisper-1') {
+                                    $prompt = $description;
+                                    $output = $response['text'];
+                                }
+                            }
+
+
+                            Log::debug('Debug before response_arr');
+                            $response_arr = json_decode($response_bk, true);
+                            $entry->user_id = $user_id;
+                            $entry->openai_id = $post->id;
+                            $entry->input = $prompt;
+                            $entry->response = serialize(json_encode($response_arr));
+                            $entry->output = $output;
+                            $entry->hash = str()->random(256);
+                            $entry->credits = 0;
+                            $entry->words = 0;
+                            $entry->main_user_openai_id = $main_message_id;
+                            $entry->save();
+
+                            //for socialpost caption
+                            $responsedText_backup =$entry->response;
+
+                            $message_id = $entry->id;
+                            Log::debug('Message_ID of MobileAppV2 ' . $message_id);
+
+                            // Create UserOpenai Models belong to OpenAIGenerator Models
+                            $message = UserSyncNodeJSOpenai::whereId($message_id)->first();
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $message->response = serialize(json_encode($response_arr));
+
+                            } else {
+                                $message->response = $responsedText;
+
+                            }
+                            $message->output = $output;
+                            $message->hash = Str::random(256);
+                            $message->credits = $this->total_used_tokens;
+                            $message->words = 0;
+                            $UserOpenai_saved = $message->save();
+
+                            if (!$UserOpenai_saved) {
+                                Log::debug('Save OpenAI Mobile Log Error ');
+                            } else {
+                                Log::debug('Save Mobile Log Success ');
+                            }
+
+                            // reset $output and $responsedText in each Loop
+                            //$output = str_replace($messageFix, '', $output);
+                            //$responsedText = str_replace($message, '', $responsedText);
+                            // reset $output and $responsedText in each Loop
                     }
-                    
-
-                    if ($params_json1["model"] == 'whisper-1') {
-                        $prompt = $description;
-                        $output = $response['text'];
-                    }
-                }
-
-
-                Log::debug('Debug before response_arr');
-                $response_arr = json_decode($response_bk, true);
-                $entry->user_id = $user_id;
-                $entry->openai_id = $post->id;
-                $entry->input = $prompt;
-                $entry->response = serialize(json_encode($response_arr));
-                $entry->output = $output;
-                $entry->hash = str()->random(256);
-                $entry->credits = 0;
-                $entry->words = 0;
-                $entry->main_user_openai_id = $main_message_id;
-                $entry->save();
-
-                //for socialpost caption
-                $responsedText_backup =$entry->response;
-
-                $message_id = $entry->id;
-                Log::debug('Message_ID of MobileAppV2 ' . $message_id);
-
-                // Create UserOpenai Models belong to OpenAIGenerator Models
-                $message = UserSyncNodeJSOpenai::whereId($message_id)->first();
-                if ($params_json1["model"] == 'whisper-1') {
-                    $message->response = serialize(json_encode($response_arr));
-
-                } else {
-                    $message->response = $responsedText;
 
                 }
-                $message->output = $output;
-                $message->hash = Str::random(256);
-                $message->credits = $this->total_used_tokens;
-                $message->words = 0;
-                $UserOpenai_saved = $message->save();
-
-                if (!$UserOpenai_saved) {
-                    Log::debug('Save OpenAI Mobile Log Error ');
-                } else {
-                    Log::debug('Save Mobile Log Success ');
-                }
-                //Update remaining  to users section
-
-                if (isset($this->total_used_tokens) && $this->total_used_tokens > 0)
-                    $total_used_tokens = $this->total_used_tokens;
-
-                //Update new remaining Tokens
-                $user = \DB::connection('sync_db')->table('user')->where('id', $user_id)->get();
-                if ($user[0]->remaining_words != -1) {
-                    $user[0]->remaining_words -= $total_used_tokens;
-                    $new_remaining_words = $user[0]->remaining_words - $total_used_tokens;
-                    // $user[0]->save();
-                    $user_update = DB::connection('sync_db')->update('update user set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-
-                }
-
-                if ($user[0]->remaining_words < -1) {
-                    $user[0]->remaining_words = 0;
-                    // $user[0]->save();
-                    $new_remaining_words = 0;
-                    $user_update = DB::connection('sync_db')->update('update user set remaining_words = ? where id = ?', array($new_remaining_words, $user_id));
-
-
-                }
-                if ($user_update > 0)
-                    Log::debug('Update remaining at MobileApp by + add $total_used_tokens to old remaining_words in users table in Mobileapp success');
-
-                //echo 'data: [DONE]';
-                //echo "\n\n";
+                //eof for loop save OPENAI Text Switch to Helper version 
+                return true;
 
             }
 
@@ -3791,6 +3316,15 @@ if($params_json1['prompt']!='SKIP')
             $description=$main_coin_openai->output;
         }
 
+     
+       // $SocialPost=PostSmartSocial::where('main_user_openai_id',$main_openai_id)->first();
+        $SocialPost = PostSmartSocial::where('main_user_openai_id', $main_openai_id)->exists();
+
+if ($SocialPost) { 
+    Log::debug('The Social Timeline feed already found for main_openai_id '.$main_openai_id);
+}
+else {
+
         //add new post to social timeline
         $post = new PostSmartSocial();
         $post->user_id = $user_id;
@@ -3821,10 +3355,12 @@ if($params_json1['prompt']!='SKIP')
             $media_file_data['updated_at'] = $media_file_data['created_at'];
             Media_files::create($media_file_data);
         }
+
+    }
         
 
 
-    }
+ }
 
 
 //Done
@@ -5372,6 +4908,7 @@ if($params_json1['prompt']!='SKIP')
             $entry = new UserBioOpenai();
 
             Log::debug('Check if create AI Bio Doc success'.$entry->document_id);
+
 
             $entry->title = 'New Workbook';
 

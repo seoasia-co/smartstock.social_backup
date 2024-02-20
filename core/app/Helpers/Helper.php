@@ -865,6 +865,7 @@ class Helper
     }
 
     //Get response from CHAT GPT every version
+    //cover  raw $result  string i result only not json and return text
     static function parse_message_from_response_gpt($response) {
         $message = "";
         if (array_key_exists('choices', $response) && count($response['choices']) > 0){
@@ -877,6 +878,7 @@ class Helper
         return replace_new_line_chars($message);
     }
 
+    //cover  raw $result  string i result only not json and return html
     static function parse_message_from_response_gpt_html($response) {
         $message = "";
         if (array_key_exists('choices', $response) && count($response['choices']) > 0){
@@ -888,7 +890,7 @@ class Helper
         }
         return $message;
     }
-
+//cover  raw $result  array only not json and return text
     static function parse_messages_from_response_arr($response) {
         $messages = [];
         if (array_key_exists('choices', $response) && count($response['choices']) > 0){
@@ -903,7 +905,7 @@ class Helper
         return $messages;
     }
 
-
+     //cover  raw $result  array only not json and return html
     static function parse_messages_from_response_arr_html($response) {
         $messages = [];
         if (array_key_exists('choices', $response) && count($response['choices']) > 0){
@@ -918,6 +920,7 @@ class Helper
         return $messages;
     }
 
+     //cover  raw $result and json array only with Html
     static function parse_messages_from_response_jsonarr_html($response) {
         $messages = [];
         if (array_key_exists('data', $response) && array_key_exists('choices', $response['data']) && count($response['data']['choices']) > 0){
@@ -933,6 +936,7 @@ class Helper
         return $messages;
     }
 
+    //cover  raw $result and json array only
     static function parse_messages_from_response_jsonarr($response) {
         $messages = [];
         if (array_key_exists('data', $response) && array_key_exists('choices', $response['data']) && count($response['data']['choices']) > 0) {
@@ -943,6 +947,28 @@ class Helper
                     $messages[] = $choice['delta']['content'];
                 }
             }
+        }
+        return $messages;
+    }
+
+    //cover both raw $result and json array that spesific data[] json array value
+    static function parse_messages_from_response_jsonarr_html_cover($response) {
+        $messages = [];
+        if(array_key_exists('data', $response) && array_key_exists('choices', $response['data'])){
+            $choices = $response['data']['choices'];
+        } else if(array_key_exists('choices', $response)){
+            $choices = $response['choices'];
+        } else {
+            return $messages;
+        }
+        
+        foreach ($choices as $choice) {
+            if (array_key_exists('message', $choice) && array_key_exists('content', $choice['message'])){
+                $messages[] = str_replace(["\r\n", "\r", "\n"], "<br/>", $choice['message']['content']);
+            }
+            elseif (array_key_exists('delta', $choice) && array_key_exists('content', $choice['delta'])){
+                $messages[] = str_replace(["\r\n", "\r", "\n"], "<br/>", $choice['delta']['content']);
+            } 
         }
         return $messages;
     }
