@@ -974,6 +974,7 @@ class Helper
     }
 
     static function remove_html($input){
+        $input = html_entity_decode($input);
         return strip_tags($input);
     }
 

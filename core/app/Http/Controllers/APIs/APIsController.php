@@ -3151,7 +3151,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         {
 
             Log::debug('Now Start Sync $main_message_array');
-            
+
             //case Data and content created and send from Main_Coin 
             if(is_array($main_message_id)==false)
             {
@@ -3174,7 +3174,9 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
              for($i=0; $i<count($main_message_array); $i++)
              {
                 
-
+               
+                if(isset($main_message_array[$i]['message_id']))
+                {
                 Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
                 if (is_array($main_message_array[$i]['message_id'])) {
                     // if $main_message_array[$i]['message_id'] is an array
@@ -3250,6 +3252,10 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
                         return response()->json($response, 201); */
 
                         //$data_json = json_decode($data_req ,true);
+
+                        
+                }
+                //eof isset $main_message_array[$i]['message_id']
 
             }
 
