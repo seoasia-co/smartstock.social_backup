@@ -3147,19 +3147,50 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         }
 
         //bof of Sync $main_message_array to others platforms
-        if(isset($main_message_array) && count($main_message_array) > 0 )
+        if((isset($main_message_array) && count($main_message_array) > 0 ) || (isset($main_message_id) && is_array($main_message_id)==false && $main_message_id> 0 ) )
         {
+
+            Log::debug('Now Start Sync $main_message_array');
+            
+            //case Data and content created and send from Main_Coin 
+            if(is_array($main_message_id)==false)
+            {
+                $main_user_openai_docs=UserOpenAI::where('id',$main_message_id)->first();
+                $main_message_array=array(
+                    'message_id'=>$main_message_id,
+                    'total_used_tokens'=>$main_user_openai_docs->credits,
+                );
+                
+                //case Data and content created and send from Main_Coin 
+                $main_message_array[0]['message_id']=$main_message_id;
+                
+
+
+            }
+
+
             //bof for Loop of $main_message_array
             // Need not to loop because each of Platfrom has loop in itself
              for($i=0; $i<count($main_message_array); $i++)
              {
+                
+
                 Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-                Log::debug(' Check main_message_id Before next Step '.$main_message_id[$i] );
+                if (is_array($main_message_array[$i]['message_id'])) {
+                    // if $main_message_array[$i]['message_id'] is an array
+                    Log::debug('Check main_message_id Before next Step: '.print_r($main_message_array[$i]['message_id'], true)); 
+                } elseif (json_decode($main_message_array[$i]['message_id']) != null) {
+                    // if $main_message_array[$i]['message_id'] is a JSON
+                    Log::debug('Check main_message_id Before next Step: '.json_encode($main_message_array[$i]['message_id']));  
+                } else {
+                    // $main_message_array[$i]['message_id'] is neither an array nor a JSON
+                    Log::debug('Check main_message_id Before next Step: '.$main_message_array[$i]['message_id']);
+                }
                 Log::debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
 
                 
                 //update DEsign
-                $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data_req, $params,$from,$main_message_id[$i],$i);
+                $new_update_digitalasset->SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $data_req, $params,$from,$main_message_array[$i]['message_id'],$i);
 
                 //update Social Post Timeline
                 if(isset($chatGPT_catgory))
@@ -3167,33 +3198,33 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
                 //save to Social Timeline
                 if(Str::contains($lowerchatGPT_catgory,'chat')==false && $chatGPT_catgory!= NULL)
-                $new_update_digitalasset->SMAI_UpdateGPT_Social($user_id, $main_message_id[$i],$type='text');
+                $new_update_digitalasset->SMAI_UpdateGPT_Social($user_id, $main_message_array[$i]['message_id'],$type='text');
 
 
 
                 // if not called from SocialPost add extra update to MobileApp table
 
                 if ($from != 'MobileAppV2')
-                    $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id, $usage, $data_req, $params,$from,$main_message_id[$i],$i);
+                    $new_update_digitalasset->SMAI_UpdateGPT_MobileApp($user_id, $usage, $data_req, $params,$from,$main_message_array[$i]['message_id'],$i);
 
 
                 // if not called from SocialPost add extra update to SocialPost SP table
-                $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id, $usage, $data_req, $params,$from,$main_message_id[$i],$i);
+                $new_update_digitalasset->SMAI_UpdateGPT_SocialPost($user_id, $usage, $data_req, $params,$from,$main_message_array[$i]['message_id'],$i);
 
                 if ($from != 'bio' )
                 { 
                     if(Str::contains($chatGPT_catgory,'DocText_SocialPost')==true)
                     {
-                    $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_id[$i],$i);
+                    $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_array[$i]['message_id'],$i);
                     }
                     else if((Str::contains($chatGPT_catgory,'OtherSocialText_SmartBio')==false) && (Str::contains($chatGPT_catgory,'DocText')==false))
                     { 
-                    $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_id[$i],$i);
+                    $new_update_digitalasset->SMAI_UpdateGPT_Bio($user_id, $usage, $data_req, $params,$from,$main_message_array[$i]['message_id'],$i);
                     }
                     else if(Str::contains($chatGPT_catgory,'DocText_SmartContentCoIn')==true )
                     {
 
-                    $new_update_digitalasset->Save_Bio_Documents($params, NULL,NULL,$user_id,$usage,$main_message_id[$i],$i);
+                    $new_update_digitalasset->Save_Bio_Documents($params, NULL,NULL,$user_id,$usage,$main_message_array[$i]['message_id'],$i);
 
                     }
                     else{
@@ -3204,7 +3235,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
 
                 if ($from != 'SyncNodeJS')
-                $new_update_digitalasset->SMAI_UpdateGPT_SyncNodeJS($user_id, $usage, $data_req, $params,$from,$main_message_id[$i],$i);
+                $new_update_digitalasset->SMAI_UpdateGPT_SyncNodeJS($user_id, $usage, $data_req, $params,$from,$main_message_array[$i]['message_id'],$i);
 
             
                     if ($from != 'main_marketing')

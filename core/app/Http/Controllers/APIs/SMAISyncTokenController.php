@@ -1520,7 +1520,7 @@ if($params_json1['prompt']!='SKIP')
                         $entry->main_user_openai_id = $main_message_id;
                         $entry->save();
                         Log::debug("Saving Loop ".$i." for output array ".$message_arr[$i]);
-
+                     
                         
 
                         //Log::debug('$response_arr OpenAIUserSP of SocialPost ' . $response_arr);
@@ -1562,14 +1562,15 @@ if($params_json1['prompt']!='SKIP')
 
 
                         //Log::debug('before Skip Caption _Socialpost');
+                        //Bug still be wrong when create TextOpenAI From SmartBio
                         if (Str::contains($chatGPT_catgory, 'Chat_') == false) {
 
-                            if(Str::length($this->response_text) >2 )
-                            $caption_save=$this->response_text;
+                            if(Str::length($entry->output) >2 )
+                            $caption_save=$entry->output;
                             else if(Str::length($responsedText) >2 && $responsedText!= NULL)
                             $caption_save=$responsedText_backup;
                             else
-                            $caption_save=$responsedText;
+                            $caption_save=$output;
 
 
                             //add to SP_Captions for show in socialpost caption list
@@ -1841,7 +1842,14 @@ if($params_json1['prompt']!='SKIP')
                 //Log::debug('$params smaisync_tokens from APIsController : '.info(json_encode($params)));
                 Log::info(print_r($params, true));
             
-                //Switch to Heler fnc
+                //Switch to Heler fnc Digital asset work as the Master
+                //bugging start
+                if($this->platform=='main_coin')
+                {
+                  $message_arr=array();
+                  $message_arr[0]='';
+                }
+                else
                 $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
            
                 Log::debug('!!!!!!!! This is message_array message_array ');
@@ -1852,7 +1860,14 @@ if($params_json1['prompt']!='SKIP')
                     //if($i_arr!=NULL &&  $i==$i_arr)
                     if($i_arr==0)
                     {
+                                if($this->platform=='main_coin')
+                                {
+                                $message ='';
+                                $response_arr='';
+                                }
+                                else
                                 $message = $message_arr[$i];
+
                                 Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
                                 $messageFix = Helper::remove_html($message);
                                 $output = $messageFix;
@@ -1905,17 +1920,44 @@ if($params_json1['prompt']!='SKIP')
                                 $output = $response['text'];
                             }
 
-                            $response_arr = json_decode($response_bk, true);
-
-
+                           
                             $entry->user_id = $user_id;
                             $entry->openai_id = $post->id;
+
+                            if (is_array($prompt)) {
+                                $prompt = json_encode($prompt);
+                            }
+                            
+                            if (is_array($response_arr)) {
+                                $response_arr = json_encode($response_arr);
+                            }
+                            
+                            if (is_array($output)) {
+                                $output = json_encode($output);
+                            }
+
                             $entry->input = $prompt;
-                            $entry->response = serialize(json_encode($response_arr));
-                            $entry->output = $output;
+
+                            if( $this->platform=='main_coin' ||  (Str::contains($this->platform, 'main_coin')))
+                            {
+                               
+                                $main_message_id=$params_json["main_useropenai_message_id"];
+                                
+                           
+                            }
+                            else{
+                                $entry->response = $response_arr;
+                                $entry->output = $output;
+
+
+                            }
+
+             
+                            
                             $entry->hash = str()->random(256);
                             $entry->credits = 0;
                             $entry->words = 0;
+
                             $entry->main_user_openai_id = $main_message_id;
                             $entry->save();
 
@@ -2183,76 +2225,111 @@ if($params_json1['prompt']!='SKIP')
                 //Switch to Helper version
 
 
-                $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+
+              //$message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
            
-                Log::debug('!!!!!!!! This is message_array message_array ');
-                Log::info($message_arr);
-                $return_message_array=[];
-
-                for($i=0; $i<count($message_arr); $i++)
-                {
-                    //if($i_arr!=NULL &&  $i==$i_arr)
-                    if($i_arr==0)
-                    {
-                                $message = $message_arr[$i];
-                                Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
-                                $messageFix = Helper::remove_html($message);
-                                $output = $messageFix;
-                                $responsedText = $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-        
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                                //eof Test Swtich to Helper version
-
-                                if (is_array($params))
-                                    $params_json = $params;
-                                else
-                                    $params_json = json_decode($params, true);
-
-
-                                $keywords = '';
-                                $description = $params_json["prompt"];
-                                $creativity = 1;
-                                $number_of_results = 1;
-                                $tone_of_voice = 0;
-                                $maximum_length = 2000;
-                                $language = "en";
-                                $post_type = 'paragraph_generator';
-                                $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
-                            Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
-                            ";
-
-
-                                // Save Users of Mobile App
-                                $user = \DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->get();
-                                //$users = DB::connection('second_db')->table('users')->get();
-
-
-                                $post = OpenAIGenerator::where('slug', $post_type)->first();
-                                $entry = new Mobile_UserOpenai();
-                                $entry->title = 'New Workbook';
-
-                                if ($params_json1["model"] == 'whisper-1') {
-
-                                    $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                                } else {
-                                    $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
-                                }
-
-                                if ($params_json1["model"] == 'whisper-1') {
-                                    $prompt = $description;
-                                    $output = $response['text'];
-                                }
+               Log::debug('!!!!!!!! This is message_array message_array ');
+              
+               //bugging start SMAI after $message_arr=
+              if($this->platform=='main_coin')
+              {
+                $message_arr=array();
+                $message_arr[0]='';
+              }
+              else
+              $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+         
+              Log::debug('!!!!!!!! This is message_array message_array ');
+              Log::info($message_arr);
+              $return_message_array=[];
+              for($i=0; $i<count($message_arr); $i++)
+              {
+                  //if($i_arr!=NULL &&  $i==$i_arr)
+                  if($i_arr==0)
+                  {
+                              if($this->platform=='main_coin')
+                              {
+                              $message ='';
+                              $response_arr='';
+                              }
+                              else
+                              $message = $message_arr[$i];
+                              Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
+                              $messageFix = Helper::remove_html($message);
+                              $output = $messageFix;
+                              $responsedText = $message;
+                              $total_used_tokens += Helper::countWords($messageFix);
+      
+                              $string_length = Str::length($messageFix);
+                              $needChars = 6000 - $string_length;
+                              $random_text = Str::random($needChars);
+                              //eof Test Swtich to Helper version
+                          if (is_array($params))
+                              $params_json = $params;
+                          else
+                              $params_json = json_decode($params, true);
+                          $keywords = '';
+                          $description = $params_json["prompt"];
+                          $creativity = 1;
+                          $number_of_results = 1;
+                          $tone_of_voice = 0;
+                          $maximum_length = 2000;
+                          $language = "en";
+                          $post_type = 'paragraph_generator';
+                          $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
+                      Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
+                      ";
 
 
-                                $response_arr = json_decode($response_bk, true);
-                                $entry->user_id = $user_id;
-                                $entry->openai_id = $post->id;
-                                $entry->input = $prompt;
-                                $entry->response = serialize(json_encode($response_arr));
-                                $entry->output = $output;
+                         // Save Users of Mobile App
+                         $user = \DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->get();
+                         //$users = DB::connection('second_db')->table('users')->get();
+                         $post = OpenAIGenerator::where('slug', $post_type)->first();
+                         $entry = new Mobile_UserOpenai();
+                         $entry->title = 'New Workbook';
+
+
+                          if ($params_json1["model"] == 'whisper-1') {
+                              $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                          } else {
+                              $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                          }
+                          //$response = json_encode($response);
+
+                          Log::debug(' REsponse String');
+                          Log::info($response_bk);
+                          if ($params_json1["model"] == 'whisper-1') {
+                              $prompt = $description;
+                              $output = $response['text'];
+                          }
+                         
+                          $entry->user_id = $user_id;
+                          $entry->openai_id = $post->id;
+                          if (is_array($prompt)) {
+                              $prompt = json_encode($prompt);
+                          }
+                          
+                          if (is_array($response_arr)) {
+                              $response_arr = json_encode($response_arr);
+                          }
+                          
+                          if (is_array($output)) {
+                              $output = json_encode($output);
+                          }
+                          $entry->input = $prompt;
+                          if( $this->platform=='main_coin' ||  (Str::contains($this->platform, 'main_coin')))
+                          {
+                             
+                              $main_message_id=$params_json["main_useropenai_message_id"];
+                              
+                         
+                          }
+                          else{
+                              $entry->response = $response_arr;
+                              $entry->output = $output;
+                          }
+                            //eof bugging start SMAI after $message_arr=     
+                                
                                 $entry->hash = str()->random(256);
                                 $entry->credits = 0;
                                 $entry->words = 0;
@@ -3313,10 +3390,26 @@ if($params_json1['prompt']!='SKIP')
         }
         else
         {
+            if(isset($main_coin_openai->output))
             $description=$main_coin_openai->output;
+            else
+            $description='';
+
         }
 
      
+        if (is_array($main_openai_id)) {
+            // if $main_openai_id is an array
+            Log::debug('Check main_message_id Before next Step: '.print_r($main_openai_id, true)); 
+        } elseif (json_decode($main_openai_id) != null) {
+            // if $main_openai_id is a JSON
+            Log::debug(' Check main_message_id Before next Step '.json_encode($main_openai_id));  
+        } else {
+            // $main_openai_id is neither an array nor a JSON
+            Log::debug(' Check main_message_id Before next Step '.$main_openai_id);
+        }
+
+
        // $SocialPost=PostSmartSocial::where('main_user_openai_id',$main_openai_id)->first();
         $SocialPost = PostSmartSocial::where('main_user_openai_id', $main_openai_id)->exists();
 
@@ -3332,18 +3425,65 @@ else {
         $post->publisher_id = $user_id;
         $post->post_type = "general";
         $post->privacy = "private";
-        $post->tagged_user_ids = json_encode(array());
-        $post->description =$description;
-        $post->status = 'active';
+
+        /* $post->tagged_user_ids = serialize([1, 2, 3]);
+        $post->user_reacts = serialize(['like', 'love']);
+        $post->shared_user = serialize(['userA', 'userB']); */
+
+        /* $post->tagged_user_ids = json_encode([1, 2, 3]);
+        $post->user_reacts = json_encode(['like', 'love']);
+        $post->shared_user = json_encode(['userA', 'userB']); */
+       
+        //pattern3
+        /*  $post->tagged_user_ids = implode(',', array());
+        $post->user_reacts = implode(',', array());
+        $post->shared_user = implode(',', array()); */
+
+        //pattern1
+        /* $post->tagged_user_ids = json_encode(array());
         $post->user_reacts = json_encode(array());
-        $post->shared_user = json_encode(array());
+        $post->shared_user = json_encode(array());  */
+
+        //pattern2
+    /*  $post->tagged_user_ids = "[]";
+        $post->user_reacts = "[]";
+        $post->shared_user = "[]"; */
+
+        $smai_log_from=$this->platform;
+        $smai_log_type=$this->chatGPT_catgory;
+
+        if(is_array($smai_log_from)){
+            $smai_log_from = json_encode($smai_log_from);
+        }
+        
+        if(is_array($smai_log_type)){
+            $smai_log_type = json_encode($smai_log_type);
+        }
+        
+        $main_user_openai_id=$main_openai_id;
+       if(is_array($main_user_openai_id)){
+            $main_user_openai_id = json_encode($main_user_openai_id);
+        }
+        
+        $origin_user_openai_id= $main_openai_id;
+        if(is_array($origin_user_openai_id)){
+            $origin_user_openai_id = json_encode($origin_user_openai_id);
+        }
+
+        if(Str::length($description)>=2)
+        $post->description =$description;
+
+
+        $post->status = 'active';
+        
         $time = time();
         $post->created_at = $time;
         $post->updated_at = $time;
-        $post->smai_log_from = $this->platform;
-        $post->smai_log_type = $this->chatGPT_catgory;
-        $post->main_user_openai_id = $main_openai_id;
-        $post->origin_user_openai_id = $main_openai_id;
+        $post->smai_log_from = $smai_log_from;
+        $post->smai_log_type =  $smai_log_type;
+        $post->main_user_openai_id = $main_user_openai_id;
+        $post->origin_user_openai_id = $origin_user_openai_id;
+
         $post->save();
         $done = $post->id; // get the ID
 
@@ -4552,7 +4692,7 @@ else {
 
                                 $entry_timeline = DB::connection('social_db')->table('posts')->where('main_user_openai_id', $main_message_id)->first();
                             
-                                if($entry_timeline->description == NULL) {
+                                if(isset($entry_timeline) && is_null($entry_timeline->description)) {
                                     DB::connection('social_db')->table('posts')
                                         ->where('main_user_openai_id', $main_message_id)
                                         ->update(['description' => $entry->output]);

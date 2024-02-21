@@ -22,6 +22,12 @@ class PostSmartSocial extends Model
         'post_id', 'user_id', 'publisher', 'publisher_id', 'post_type', 'privacy', 'tagged_user_ids', 'feel_and_activity', 'location', 'description', 'user_reacts', 'status', 'created_at', 'updated_at'
     ];
 
+    protected $casts = [
+        'tagged_user_ids' => 'json',
+        'user_reacts' => 'json',
+        'shared_user' => 'json',
+    ];
+
     public function getUser(){
         return $this->belongsTo(User::class,'user_id');
     }
