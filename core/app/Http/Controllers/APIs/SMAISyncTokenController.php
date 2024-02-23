@@ -730,12 +730,26 @@ class SMAISyncTokenController extends Controller
 
             } else {
 
+                $save_to_where = "MainMarketing";
                 //save text Doc in others case that not Chat
 
-            
-            $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+                if($this->platform=='main_coin')
+                {
+                    try {
+                        $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+                        if(empty($message_arr)) 
+                            throw new Exception('Empty message array');
+                    } catch (Exception $e) {
+                        $message_arr = array();
+                        $message_arr[0] = '';
+                        
+                    }
+                    Log::info($message_arr);
+                }
+                else
+                $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
            
-            Log::debug('!!!!!!!! This is message_array message_array ');
+            Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
             Log::info($message_arr);
             $return_message_array=[];
             for($i=0; $i<count($message_arr); $i++)
@@ -745,6 +759,8 @@ class SMAISyncTokenController extends Controller
                 if($i_arr==0)
                 {
                             $message = $message_arr[$i];
+
+                            Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
                             Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
                             $messageFix = Helper::remove_html($message);
                             $output = $messageFix;
@@ -1088,18 +1104,21 @@ class SMAISyncTokenController extends Controller
 
             } else {
 
+                $save_to_where = "MainCoIn";
                //Test Swtich to Helper version
 
            // $message_arr=Helper::parse_messages_from_response_arr($this->response_json_array);
            $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
            
-            Log::debug('!!!!!!!! This is message_array message_array ');
+           Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
             Log::info($message_arr);
             $return_message_array=[];
             for($i=0; $i<count($message_arr); $i++)
             {
                 
                         $message = $message_arr[$i];
+
+                        Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
                         Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
                         $messageFix = Helper::remove_html($message);
                         $output = $messageFix;
@@ -1446,36 +1465,51 @@ if($params_json1['prompt']!='SKIP')
 
             } else {
 
+                $save_to_where = "SocialPost";
                 //Switch to use Heler version socialpost
 
 
                 //$message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
            
-            Log::debug('!!!!!!!! This is message_array message_array ');
+           // Log::debug('!!!!!!!! This is message_array message_array ');
             //bugging start
             if($this->platform=='main_coin')
             {
-                $message_arr=array();
-                $message_arr[0]='';
+                if($this->platform=='main_coin')
+                    {
+                        try {
+                            $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+                            if(empty($message_arr)) 
+                                throw new Exception('Empty message array');
+                        } catch (Exception $e) {
+                            $message_arr = array();
+                            $message_arr[0] = '';
+                            
+                        }
+                        Log::info($message_arr);
+                    }
             }
             else
             $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
         
-            Log::debug('!!!!!!!! This is message_array message_array ');
+            Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
             Log::info($message_arr);
+
             $return_message_array=[];
             for($i=0; $i<count($message_arr); $i++)
             {
                 //if($i_arr!=NULL &&  $i==$i_arr)
                 if($i_arr==0)
                 {
-                      if($this->platform=='main_coin')
+                      /* if($this->platform=='main_coin')
                       {
                       $message ='';
                       $response_arr='';
                       }
-                      else
+                      else */
                       $message = $message_arr[$i];
+                      
+                      Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
                       Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
                       $messageFix = Helper::remove_html($message);
                       $output = $messageFix;
@@ -1530,9 +1564,9 @@ if($params_json1['prompt']!='SKIP')
                       $prompt = json_encode($prompt);
                   }
                   
-                  if (is_array($response_arr)) {
+                  /* if (is_array($response_arr)) {
                       $response_arr = json_encode($response_arr);
-                  }
+                  } */
                   
                   if (is_array($output)) {
                       $output = json_encode($output);
@@ -1878,6 +1912,7 @@ if($params_json1['prompt']!='SKIP')
 
             } else {
 
+                $save_to_where = "Design";
                 //Switch to Helper version
 
 
@@ -1890,13 +1925,24 @@ if($params_json1['prompt']!='SKIP')
                 //bugging start
                 if($this->platform=='main_coin')
                 {
-                  $message_arr=array();
-                  $message_arr[0]='';
+                    if($this->platform=='main_coin')
+                    {
+                        try {
+                            $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+                            if(empty($message_arr)) 
+                                throw new Exception('Empty message array');
+                        } catch (Exception $e) {
+                            $message_arr = array();
+                            $message_arr[0] = '';
+                            
+                        }
+                        Log::info($message_arr);
+                    }
                 }
                 else
                 $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
            
-                Log::debug('!!!!!!!! This is message_array message_array ');
+                Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
                 Log::info($message_arr);
                 $return_message_array=[];
                 for($i=0; $i<count($message_arr); $i++)
@@ -1904,14 +1950,15 @@ if($params_json1['prompt']!='SKIP')
                     //if($i_arr!=NULL &&  $i==$i_arr)
                     if($i_arr==0)
                     {
-                                if($this->platform=='main_coin')
+                               /*  if($this->platform=='main_coin')
                                 {
                                 $message ='';
                                 $response_arr='';
                                 }
-                                else
+                                else */
                                 $message = $message_arr[$i];
 
+                                Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
                                 Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
                                 $messageFix = Helper::remove_html($message);
                                 $output = $messageFix;
@@ -1972,9 +2019,9 @@ if($params_json1['prompt']!='SKIP')
                                 $prompt = json_encode($prompt);
                             }
                             
-                            if (is_array($response_arr)) {
+                           /*  if (is_array($response_arr)) {
                                 $response_arr = json_encode($response_arr);
-                            }
+                            } */
                             
                             if (is_array($output)) {
                                 $output = json_encode($output);
@@ -2266,24 +2313,36 @@ if($params_json1['prompt']!='SKIP')
 
             } else {
 
+                $save_to_where = "MobileAppV2";
                 //Switch to Helper version
 
 
 
               //$message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
            
-               Log::debug('!!!!!!!! This is message_array message_array ');
+              Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
               
                //bugging start SMAI after $message_arr=
               if($this->platform=='main_coin')
               {
-                $message_arr=array();
-                $message_arr[0]='';
+                if($this->platform=='main_coin')
+                    {
+                        try {
+                            $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+                            if(empty($message_arr)) 
+                                throw new Exception('Empty message array');
+                        } catch (Exception $e) {
+                            $message_arr = array();
+                            $message_arr[0] = '';
+                            
+                        }
+                        Log::info($message_arr);
+                    }
               }
               else
               $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
          
-              Log::debug('!!!!!!!! This is message_array message_array ');
+              Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
               Log::info($message_arr);
               $return_message_array=[];
               for($i=0; $i<count($message_arr); $i++)
@@ -2291,13 +2350,15 @@ if($params_json1['prompt']!='SKIP')
                   //if($i_arr!=NULL &&  $i==$i_arr)
                   if($i_arr==0)
                   {
-                              if($this->platform=='main_coin')
+                            /*   if($this->platform=='main_coin')
                               {
                               $message ='';
                               $response_arr='';
                               }
-                              else
+                              else */
                               $message = $message_arr[$i];
+
+                              Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
                               Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
                               $messageFix = Helper::remove_html($message);
                               $output = $messageFix;
@@ -2353,9 +2414,9 @@ if($params_json1['prompt']!='SKIP')
                               $prompt = json_encode($prompt);
                           }
                           
-                          if (is_array($response_arr)) {
+                          /* if (is_array($response_arr)) {
                               $response_arr = json_encode($response_arr);
-                          }
+                          } */
                           
                           if (is_array($output)) {
                               $output = json_encode($output);
@@ -2701,11 +2762,12 @@ if($params_json1['prompt']!='SKIP')
             else 
             {
 
+                $save_to_where = "Bio";
                // Switch to Helper version SmartBio
 
                // $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
            
-                Log::debug('!!!!!!!! This is message_array message_array ');
+               Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
                
                 //bugging start
                if($this->platform=='main_coin')
@@ -2719,6 +2781,7 @@ if($params_json1['prompt']!='SKIP')
                         } catch (Exception $e) {
                             $message_arr = array();
                             $message_arr[0] = '';
+                            
                         }
                         Log::info($message_arr);
                     }
@@ -2733,7 +2796,7 @@ if($params_json1['prompt']!='SKIP')
                $response_decoded=$response_bk;
 
           
-               Log::debug('!!!!!!!! This is message_array message_array ');
+               Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
                Log::info($message_arr);
                $return_message_array=[];
                for($i=0; $i<count($message_arr); $i++)
@@ -2741,13 +2804,16 @@ if($params_json1['prompt']!='SKIP')
                    //if($i_arr!=NULL &&  $i==$i_arr)
                    if($i_arr==0)
                    {
-                               if($this->platform=='main_coin')
+                              /*  if($this->platform=='main_coin')
                                {
                                $message ='';
                                $response_arr='';
                                }
-                               else
+                               else */
+                               
                                $message = $message_arr[$i];
+
+                               Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
                                Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
                                $messageFix = Helper::remove_html($message);
                                $output = $messageFix;
@@ -2804,10 +2870,10 @@ if($params_json1['prompt']!='SKIP')
                                $prompt = json_encode($prompt);
                            }
                            
-                           if (is_array($response_arr)) {
+                           /* if (is_array($response_arr)) {
                                $response_arr = json_encode($response_arr);
                            }
-                           
+                            */
                            if (is_array($output)) {
                                $output = json_encode($output);
                            }
@@ -3122,21 +3188,33 @@ if($params_json1['prompt']!='SKIP')
 
             } else {
 
+                $save_to_where = "SyncNodeJS";
                 //Switch to Helper version Sync_db
 
                 //$message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
            
-                Log::debug('!!!!!!!! This is message_array message_array ');
+                Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
                 //bugging start
                 if($this->platform=='main_coin')
                 {
-                  $message_arr=array();
-                  $message_arr[0]='';
+                    if($this->platform=='main_coin')
+                    {
+                        try {
+                            $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+                            if(empty($message_arr)) 
+                                throw new Exception('Empty message array');
+                        } catch (Exception $e) {
+                            $message_arr = array();
+                            $message_arr[0] = '';
+                            
+                        }
+                        Log::info($message_arr);
+                    }
                 }
                 else
                 $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
            
-                Log::debug('!!!!!!!! This is message_array message_array ');
+                Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
                 Log::info($message_arr);
                 $return_message_array=[];
                 for($i=0; $i<count($message_arr); $i++)
@@ -3144,13 +3222,15 @@ if($params_json1['prompt']!='SKIP')
                     //if($i_arr!=NULL &&  $i==$i_arr)
                     if($i_arr==0)
                     {
-                                if($this->platform=='main_coin')
+                                /* if($this->platform=='main_coin')
                                 {
                                 $message ='';
                                 $response_arr='';
                                 }
-                                else
+                                else */
                                 $message = $message_arr[$i];
+
+                                Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
                                 Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
                                 $messageFix = Helper::remove_html($message);
                                 $output = $messageFix;
@@ -3204,9 +3284,9 @@ if($params_json1['prompt']!='SKIP')
                                 $prompt = json_encode($prompt);
                             }
                             
-                            if (is_array($response_arr)) {
+                           /*  if (is_array($response_arr)) {
                                 $response_arr = json_encode($response_arr);
-                            }
+                            } */
                             
                             if (is_array($output)) {
                                 $output = json_encode($output);
