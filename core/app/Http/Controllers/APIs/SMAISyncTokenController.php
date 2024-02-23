@@ -2706,14 +2706,32 @@ if($params_json1['prompt']!='SKIP')
                // $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
            
                 Log::debug('!!!!!!!! This is message_array message_array ');
-               //bugging start
+               
+                //bugging start
                if($this->platform=='main_coin')
                {
-                 $message_arr=array();
-                 $message_arr[0]='';
+                    if($this->platform=='main_coin')
+                    {
+                        try {
+                            $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+                            if(empty($message_arr)) 
+                                throw new Exception('Empty message array');
+                        } catch (Exception $e) {
+                            $message_arr = array();
+                            $message_arr[0] = '';
+                        }
+                        Log::info($message_arr);
+                    }
                }
                else
                $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+
+               Log::info($message_arr);
+               
+               
+               //$response_decoded=json_decode($response_bk,true);
+               $response_decoded=$response_bk;
+
           
                Log::debug('!!!!!!!! This is message_array message_array ');
                Log::info($message_arr);
@@ -2763,7 +2781,7 @@ if($params_json1['prompt']!='SKIP')
                             
                             //wait for fix bug to merge Template AI Docs
                             $entry = new UserBioOpenai();
-                            $entry->title = $description ;
+                            $entry->title = Str::limit($description, 50, $end = '...') ;
 
                            
                            if ($params_json1["model"] == 'whisper-1') {
@@ -2778,6 +2796,7 @@ if($params_json1['prompt']!='SKIP')
                                $prompt = $description;
                                $output = $response['text'];
                            }
+
                           
                            $entry->user_id = $user_id;
                            $entry->openai_id = $post->id;
@@ -5021,6 +5040,8 @@ else {
             {
                 Log::debug('Debug still found Main Template ID in Bio save Docs '. $this->main_template_id);
                 $template_ins=UserBioOpenaiTemplate::where('openai_id',$this->main_template_id)->first();
+
+                if(isset($template_ins->template_id))
                 Log::debug('Debug after Qry Main Template ID in Bio save Docs '. $template_ins->template_id);
                                
             }
@@ -5061,7 +5082,9 @@ else {
 
             }
             
+            if(isset($template_ins->template_id))
             $entry->template_id = $template_ins->template_id;
+        
             $entry->template_category_id  = $template_ins->template_category_id;
             $entry->name  = $entry->title;
             $entry->type  = $template_ins->template_id;

@@ -952,7 +952,9 @@ class Helper
     }
 
     //cover both raw $result and json array that spesific data[] json array value
-    static function parse_messages_from_response_jsonarr_html_cover($response) {
+
+   //work with none COde Text but when Code Text generator not working
+ /*        static function parse_messages_from_response_jsonarr_html_cover($response) {
         $messages = [];
         if(array_key_exists('data', $response) && array_key_exists('choices', $response['data'])){
             $choices = $response['data']['choices'];
@@ -971,11 +973,65 @@ class Helper
             } 
         }
         return $messages;
+    }  */
+  // New version with function call
+    static function parse_messages_from_response_jsonarr_html_cover($response) {
+        $messages = [];
+        $choices = [];
+    
+        if(array_key_exists('data', $response) && array_key_exists('choices', $response['data'])){
+            $choices = $response['data']['choices'];
+        } else if(array_key_exists('choices', $response)){
+            $choices = $response['choices'];
+        } else {
+            return $messages;
+        }
+    
+        foreach ($choices as $choice) {
+            if (array_key_exists('message', $choice) && array_key_exists('content', $choice['message'])){
+                $messages[] = str_replace(["\r\n", "\r", "\n"], "<br/>", $choice['message']['content']);
+            } 
+            elseif (array_key_exists('delta', $choice) && array_key_exists('content', $choice['delta'])){
+                $messages[] = str_replace(["\r\n", "\r", "\n"], "<br/>", $choice['delta']['content']);
+            } 
+            elseif (array_key_exists('functionCall', $choice)) {
+                // FunctionCall present. Extract data from here
+                $functionCall = $choice['functionCall'];
+                if(is_array($functionCall) && array_key_exists('content', $functionCall)) {
+                    $messages[] = str_replace(["\r\n", "\r", "\n"], "<br/>", $functionCall['content']);
+                }
+            } 
+        }
+        return $messages;
     }
 
     static function remove_html($input){
         $input = html_entity_decode($input);
         return strip_tags($input);
+    }
+
+    static public function rearrangeText($text, $lines = 10) {
+        // Removing new lines and splitting into words
+        $text = str_replace("\n", " ", $text);
+        $words = explode(" ", $text);
+    
+        $paragraphs = [];
+        $tempParagraph = '';
+    
+        foreach ($words as $word) {
+            if (count(explode("\n", $tempParagraph)) === $lines) {
+                array_push($paragraphs, $tempParagraph);
+                $tempParagraph = '';
+            }
+            $tempParagraph .= " " . $word;
+        }
+    
+        // If any content is left that did not make up a full line
+        if ($tempParagraph) {
+            array_push($paragraphs, $tempParagraph);
+        }
+    
+        return implode("\n\n", $paragraphs);
     }
 
 
