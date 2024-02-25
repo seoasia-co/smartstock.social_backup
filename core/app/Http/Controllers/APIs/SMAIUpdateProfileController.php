@@ -121,6 +121,10 @@ class SMAIUpdateProfileController extends Controller
         $this->upFromWhere = $upFromWhere;
         $this->upByWhom = $upByWhom;
 
+        //CHECK MAIN PLAN is still active
+        $user_main=UserMain::where('id',$user_id)->first();
+        Log::debug('Dubug checking current Main User PLan'.$user_main->plan);
+
         Log::debug('Debug upFromWhere in construct '. $this->upFromWhere);
         Log::debug('Debug upByWhom in construct '. $this->upByWhom);
 
@@ -174,6 +178,9 @@ class SMAIUpdateProfileController extends Controller
 
         $userdata = [];
 
+        $user_main=UserMain::where('id',$user_id)->first();
+        Log::debug('Dubug checking current Main User PLan LINE 182 '.$user_main->plan);
+
         // for check if column existing
         // $user_column_on= $this->checkColumnExist($column,$table,$db);
         /* $request_update = json_decode($request_update,true);
@@ -190,6 +197,10 @@ class SMAIUpdateProfileController extends Controller
 
         if (isset($request))
             Log::info($request);
+
+            $user_main=UserMain::where('id',$user_id)->first();
+            Log::debug('Dubug checking current Main User PLan LINE 202 '.$user_main->plan);
+    
 
 
         if (isset($whatup) && $whatup != NULL) {
@@ -337,6 +348,8 @@ class SMAIUpdateProfileController extends Controller
                          $this->openAICustomAddOrUpdateSave($ins_main_ai_docs_text_arr);
 
                     }
+                    $user_main=UserMain::where('id',$user_id)->first();
+                    Log::debug('Dubug checking current Main User PLan Line 348 '.$user_main->plan);
 
                     Log::debug('Debug prompt from DB ');
                     Log::info($bio_ai_docs_text->prompt);
@@ -631,12 +644,22 @@ class SMAIUpdateProfileController extends Controller
 
                 $login_session_bio->db_session_create($user_id, $session_php);
 
+                //Subscription CHECK
+                $current_active_subscription_main = SubscriptionMain::where('user_id', $user_id)->where("bio_token_sync",0)->where('stripe_status', 'active')->orWhere('stripe_status','trialing')->first();
+
+                $check_upFromMain=0;
+
+                if($current_active_subscription_main->id > 0)
+                $check_upFromMain=1;
+
+
                 //recheck user Plan
                 //$this->up_plan_bio($userdata, $user_id, $user_email);
                 $new_checkuserplan = new SMAISyncPlanController();
 
-                //Sync PLan that Buy from Bio
-                if($this->upFromWhere=='bio')
+                //Sync PLan that Buy from Bio ..... Stop to Buy from Bio
+                //if($this->upFromWhere=='bio')
+                if($this->upFromWhere=='bio_main_cancel_this_to_use_main_coin_only')
                 {
                     $main_user_at_middle=UserMain::where('id',$user_id)->first();
 
@@ -791,10 +814,12 @@ class SMAIUpdateProfileController extends Controller
 
                 //case 2
                 //!important Sync PLan that Buy from MainCOIn
-             else if($this->upFromWhere=='main_coin' || Str::contains(strtolower($this->upFromWhere), 'main_coin') || Str::contains(strtolower($this->upFromWhere), 'maincoin'))
+             if($check_upFromMain>0 || $this->upFromWhere=='main_coin' || Str::contains(strtolower($this->upFromWhere), 'main_coin') || Str::contains(strtolower($this->upFromWhere), 'maincoin'))
              {
                 //fixed bug case plan id in Main is not 0 or 8 but Subscription not found
                 //fixed added Subscription status is active or trialing
+                
+                //fixing bugging case 
                 $main_subscription=SubscriptionMain::where('user_id', $user_id)->where('stripe_status', 'active')->orWhere('stripe_status','trialing')->first();
                 if( isset($main_subscription->id))
                 {
@@ -811,15 +836,7 @@ class SMAIUpdateProfileController extends Controller
                     }
                    
                 }
-                else
-                {
-                    Log::debug('Debug in Else Case Plan ID in Main is not 0 or 8 but Subscription not found');
-                        $main_users=UserMain::where('id',$user_id)->first();
-                        $main_users->plan=8;
-                        $main_users->token_downgraded=0;
-                        $main_users->save();
 
-                }
                 
                 
 
@@ -994,19 +1011,13 @@ class SMAIUpdateProfileController extends Controller
                         $current_active_subscription = SubscriptionMain::where('user_id', $user_id)->where('stripe_status', 'active')->orWhere('stripe_status','trialing')->first();
                         $bio_user=UserBio::where('user_id',$user_id)->first();
                         $current_bio_plan=$bio_user->plan_id;
-                        if ($current_active_subscription) {
+
+                        //fixing bug no update Main from Bio 
+                        /* if ($current_active_subscription) {
                             $current_main_plan = $current_active_subscription->plan_id;
                             Log::debug('Debug Main Plan from DB after condition reset Plan and Token '.$current_main_plan);
-                        }
-                        else
-                        {
-                            //It should exept case of main plan is come from Bio bundle
-                            Log::debug('Debug Main Plan Else Case from DB after condition reset Plan and Token '.$current_main_plan);
-                            if($current_main_plan>0 && $current_bio_plan!=4)
-                            {
-                                $current_main_plan=0;
-                            }
-                        }
+                        } */
+                        
 
                         // case 3 ถ้าMain Plan เป็น 0 หรือ 8 และยังไม่ได้ downgrade ให้ downgrade ทุก platform
                         //!important this is the trigger for downgrade Main and It's bundle platform
@@ -1096,6 +1107,9 @@ class SMAIUpdateProfileController extends Controller
 
                             //golden_freeze_date is for the blue dimond token that will be freeze for 30 days or more for use later when any plan back to normal
                         }
+
+
+                        Log::debug('Debug Main Plan from DB after condition reset Plan and Token '.$current_main_plan);
 
 
 
@@ -1680,6 +1694,9 @@ class SMAIUpdateProfileController extends Controller
     
     public function up_profile_bio($userdata, $user_id, $user_email)
     {
+        $user_main=UserMain::where('id',$user_id)->first();
+        Log::debug('Dubug checking current Main User PLan Line 1967 '.$user_main->plan);
+
         Log::debug("Start update Bio Profile to all Platforms in up_profile_bio ");
 
 
@@ -1728,6 +1745,9 @@ class SMAIUpdateProfileController extends Controller
     // up_plan_series should devided to 3 major 1.Feature Sync 2.Token Sync 3.TimeSync
     public function up_plan_bio($userdata, $user_id, $user_email,$case=NULL)
     {
+        $user_main=UserMain::where('id',$user_id)->first();
+        Log::debug('Dubug checking current Main User PLan Line 1749 '.$user_main->plan);
+
 
         Log::debug("Start update Bio Profile to all Platforms in up_plan_bio ");
 
@@ -1737,6 +1757,8 @@ class SMAIUpdateProfileController extends Controller
                 'plan' => $userdata['plan'],
             );
 
+            $user_main=UserMain::where('id',$user_id)->first();
+            Log::debug('Dubug checking current Main User PLan Line 1761 '.$user_main->plan);
 
             // not working because each plan value not the same
             //$this->update_column_all($userdata_name,$user_id,$user_email);
@@ -1752,12 +1774,18 @@ class SMAIUpdateProfileController extends Controller
 
             $plan_before=UserMain::where('id',$user_id)->first();
             $plan_before_id=$plan_before->bio_plan;
+           
+            Log::debug('Dubug checking current Main User PLan Line 1778 '.$plan_before->plan);
 
 
-            if($plan_before_id==4 && $userdata_plan['plan']==0 && $userdata_plan['plan_id']==0)
-            $package_type_bio=='bundle';
+            $package_type_bio='single';
 
-            if($package_type_bio=='bundle')
+
+            //fixing big bug is below!!!!!!!!!!!!!!!!!!!
+            /* if($plan_before_id==4 && $userdata_plan['plan']==0 && $userdata_plan['plan_id']==0)
+            $package_type_bio=='bundle'; */
+
+         /*    if($package_type_bio=='bundle')
             {
             
                 if($socialpost_plan==0)
@@ -1767,7 +1795,7 @@ class SMAIUpdateProfileController extends Controller
             $this->socialpost_permission_update_user($user_id,$socialpost_plan);
             $this->update_column_all($userdata_plan, $user_id, $user_email, 'main_db', 'sp_users');
 
-            }
+            } */
 
             $main_coin_plan = $each_plan->main_plan_id;
             if ($main_coin_plan == 8) {
@@ -1783,8 +1811,10 @@ class SMAIUpdateProfileController extends Controller
 
 
             //Downgrade in case of reset to Freetrial Plan
-            if($plan_before_type->package_type =='bundle' && $userdata_plan['plan']==0 && $userdata_plan['plan_id']==0)
-            $package_type_bio=='bundle';
+            /* if($plan_before_type->package_type =='bundle' && $userdata_plan['plan']==0 && $userdata_plan['plan_id']==0)
+            $package_type_bio=='bundle'; */
+
+            $package_type_bio='single';
 
             if($package_type_bio=='bundle')
             {
@@ -1813,6 +1843,8 @@ class SMAIUpdateProfileController extends Controller
 
         }
 
+        $user_main=UserMain::where('id',$user_id)->first();
+        Log::debug('Dubug checking current Main User PLan Line 1847 '.$user_main->plan);
 
         //Bio ,Main, Socialpost, Design,Mobile2 Sync
         $user_old_data = UserBio::where('user_id', $user_id)->orderBy('user_id', 'asc')->first();
@@ -1830,6 +1862,10 @@ class SMAIUpdateProfileController extends Controller
           $user_old_data->plan_settings=$user_old_data_plan;
             $user_old_data->save();
 
+            $user_main=UserMain::where('id',$user_id)->first();
+            Log::debug('Dubug checking current Main User PLan Line 1866'.$user_main->plan);
+
+
         }
         else
         {
@@ -1841,6 +1877,10 @@ class SMAIUpdateProfileController extends Controller
             $user_old_data_plan = json_decode(trim($user_old_data->plan_settings, '"'), true);
            
         }
+
+        $user_main=UserMain::where('id',$user_id)->first();
+        Log::debug('Dubug checking current Main User PLan Line 1882 '.$user_main->plan);
+
 
         Log::debug('Found old data in Bio Plan update words_per_month_limit ' . $user_old_data_plan['words_per_month_limit']);
 
@@ -1857,6 +1897,8 @@ class SMAIUpdateProfileController extends Controller
         $user_old_data->remaining_words= $user_old_data_plan['words_per_month_limit'];
         $user_old_data->remaining_images= $user_old_data_plan['images_per_month_limit'];
 
+        $user_main=UserMain::where('id',$user_id)->first();
+        Log::debug('Dubug checking current Main User PLan Line 1901 '.$user_main->plan);
 
 
         //defind others old mobile old Main
@@ -1878,6 +1920,8 @@ class SMAIUpdateProfileController extends Controller
         $userdata['available_words'] = $user_old_data->available_words;
         $userdata['available_images'] = $user_old_data->available_images;
 
+        $user_main=UserMain::where('id',$user_id)->first();
+        Log::debug('Dubug checking current Main User PLan Line 1924 '.$user_main->plan);
         if (isset($userdata['remaining_words'])) {
 
            //because bio has plan call free save in plan_id
@@ -1887,9 +1931,14 @@ class SMAIUpdateProfileController extends Controller
 
             //select  plans table where plan_id = $users Bio plan_id
             $check_main_plan = PlanBio::where('plan_id', $userdata['plan'])->orderBy('plan_id', 'asc')->first();
-           
+            $user_main=UserMain::where('id',$user_id)->first();
+            Log::debug('Dubug checking current Main User PLan Line 1935 '.$user_main->plan);
+
             //this will return plan should be of main_plan_id
             $main_plan_id = $check_main_plan->main_plan_id;
+
+            $user_main=UserMain::where('id',$user_id)->first();
+        Log::debug('Dubug checking current Main User PLan Line 1941 '.$user_main->plan);
 
             //เนื่องจากเป็นการเรียกอัพเดทจาก Bio ซึ่งในตัวมันเองทำการ บวกToken ไปเรียบร้อยแล้ว
             //ดังนั้นเหลือ Token ที่มาจาก MainCoIn ที่ยังไม่ได้บวก 
@@ -1921,9 +1970,12 @@ class SMAIUpdateProfileController extends Controller
 
 
             );
+            $user_main=UserMain::where('id',$user_id)->first();
+        Log::debug('Dubug checking current Main User PLan Line 1974 '.$user_main->plan);
 
 
-            if( $userdata['plan']!=0 &&  $userdata['plan']!=8)
+        //Stop update main from Bio 
+      /*       if( $userdata['plan']!=0 &&  $userdata['plan']!=8)
             {
              $random_string = Str::random(10);
              $main_subscription=SubscriptionMain::updateOrCreate(
@@ -1967,11 +2019,16 @@ class SMAIUpdateProfileController extends Controller
                      }
                  }
  
-             }
+             } */
+             //Bug fixing Stop update Main from Bio
 
-            $this->update_column_all($user_main_plans_id, $user_id, $user_email, 'main_db', 'users');
+            //$this->update_column_all($user_main_plans_id, $user_id, $user_email, 'main_db', 'users');
            
             }
+
+            $user_main=UserMain::where('id',$user_id)->first();
+            Log::debug('Dubug checking current Main User PLan Line 2028 After if condition '.$user_main->plan);
+    
 
             
            //Sync Token section 
@@ -2057,17 +2114,20 @@ class SMAIUpdateProfileController extends Controller
             Log::debug('The Old remaining Main > Central maybe because  subscription already added Token reason and Maybe Error and this Sync happend outside upgrading in Main or someting Error!!!!!!!!!! ');
 
            }
+           $user_main=UserMain::where('id',$user_id)->first();
+           Log::debug('Dubug checking current Main User PLan Line 2116 '.$user_main->plan);
+   
 
 
 
 
-            if($case=='fix_main_plan')
+            /* if($case=='fix_main_plan')
             {
                 $plus_remaining_images = 0;
                 $plus_remaining_words = 0;
                 $plus_bio_remaining_images = 0;
                 $plus_bio_remaining_words = 0;
-            }
+            } */
 
 
 
@@ -2099,6 +2159,9 @@ class SMAIUpdateProfileController extends Controller
                 $old_reamaining_image = $user_old_data->remaining_images ;
             }
 
+            $user_main=UserMain::where('id',$user_id)->first();
+            Log::debug('Dubug checking current Main User PLan Line 2161 '.$user_main->plan);
+    
             
             Log::debug('Bio Plan Sync Total plus words from Bio before send Centralize'.$plus_remaining_words);
             Log::debug('Bio Plan Sync Total plus words from MainCoIn before send Centralize'.$plus_bio_remaining_words);
@@ -2131,6 +2194,10 @@ class SMAIUpdateProfileController extends Controller
                 $this->plus_new_words_token = $plus_remaining_words;
             }
 
+            $user_main=UserMain::where('id',$user_id)->first();
+            Log::debug('Dubug checking current Main User PLan Line 2196 '.$user_main->plan);
+    
+
 
             $token_array= array(
                 'remaining_words' => $userdata['remaining_words'],
@@ -2158,29 +2225,14 @@ class SMAIUpdateProfileController extends Controller
                 'remaining_images' => $userdata['remaining_images'],
             );
 
-            //move this to centralize Token
-
-            /* $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'main_db', 'users');
-
-            $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'main_db', 'sp_users');
-
-            $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'bio_db','users');
-
-            $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'digitalasset_db', 'users');
-
-            $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'mobileapp_db', 'users');
-
-            $userdata_remaining_words['gpt_words_limit'] = $userdata['remaining_words'];
-            $userdata_remaining_words['dalle_limit'] = $userdata['remaining_images'];
-
-            $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'sync_db', 'user');
-
-            unset($userdata_remaining_words['gpt_words_limit']);
-            unset($userdata_remaining_words['dalle_limit']); */
-
+            
             //move this to centralize Token
 
         }
+
+        $user_main=UserMain::where('id',$user_id)->first();
+        Log::debug('Dubug checking current Main User PLan Line 2232 '.$user_main->plan);
+
 
         //Separate all of these for each platform
 
@@ -2212,10 +2264,16 @@ class SMAIUpdateProfileController extends Controller
 
             // comment to move to  plans_token_centralize(); 
             // but not sure about plan expired
+            $user_main=UserMain::where('id',$user_id)->first();
+            Log::debug('Dubug checking current Main User PLan Line 2266'.$user_main->plan);
+    
 
             $this->update_column_all($userdata_main_plan_array, $user_id, $user_email, 'main_db', 'users');
 
 
+            $user_main=UserMain::where('id',$user_id)->first();
+            Log::debug('Dubug checking current Main User PLan Line 2273 '.$user_main->plan);
+    
 
             //Socialpost Expired date
             $expire_date_arr = array(
@@ -2617,11 +2675,12 @@ class SMAIUpdateProfileController extends Controller
                 Log::debug('FOund bundle subscription in Main then use it');
                
             }
-            else{
+            //Stop using Bio
+           /*  else{
                 $from_payment='SubscriptionBio';
                 $where_payment_bundle_from=SubscriptionBio::where('user_id',$user_id)->whereIn('plan_id', [4,4])->latest()->first();
 
-            }
+            } */
 
             $bio_token_synced=$where_payment_bundle_from->bio_token_sync;
             $main_token_synced=$where_payment_bundle_from->main_token_sync;
@@ -3246,6 +3305,8 @@ class SMAIUpdateProfileController extends Controller
 
 
         }
+
+
 
 
     }
@@ -3929,7 +3990,7 @@ class SMAIUpdateProfileController extends Controller
         {
 
 
-           if($from_payment=='SubscriptionBio')
+           /* if($from_payment=='SubscriptionBio')
            {
             $where_payment_bundle_from=SubscriptionBio::where('user_id',$user_id)->whereIn('plan_id', [4,4])->latest()->first();
 
@@ -3942,7 +4003,7 @@ class SMAIUpdateProfileController extends Controller
              $Biouser->save();
 
 
-           }
+           } */
 
            if($from_payment=='SubscriptionMain')
            {
@@ -3965,6 +4026,7 @@ class SMAIUpdateProfileController extends Controller
                     //transcriptions_per_month_limit
                     // pull from BioPlan->settings
                     $user_main_plan_id=$Mainuser->plan;
+
                     $user_bio_plan=PlanBio::where('main_plan_id',$user_main_plan_id)->first();
                     $user_bio_plan_id=$user_bio_plan->plan_id;
                     

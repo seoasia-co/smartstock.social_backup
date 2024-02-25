@@ -163,6 +163,7 @@ class SMAISyncPlanController extends Controller
         // user plan from Main table sp_users
         if($database=='main_db' && ($platform=='MainCoIn' || $platform=='maincoin' || $platform=='main_coin'))
         {
+            
             Log::debug('case main_db and MainCoIn with Expired');
             $user_main_plan=$user->plan;
             $user_plan_expire=$user->expired_date;

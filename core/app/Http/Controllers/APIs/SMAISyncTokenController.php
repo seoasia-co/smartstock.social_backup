@@ -2896,6 +2896,7 @@ if($params_json1['prompt']!='SKIP')
                                 $entry->main_user_openai_id = $main_message_id;
                                 $entry->name = $entry->title;
 
+                                //when Text from Design or Socialpost
                                 if($this->chatGPT_catgory=='Text_Design' || $this->chatGPT_catgory=='DocText_SocialPost')
                                 {
                                     $entry->template_id = 11;
@@ -2904,6 +2905,10 @@ if($params_json1['prompt']!='SKIP')
                                     $entry->content=$entry->output;
 
                                 }
+
+                                //fixed bug here for case Coding Text generator from Main_Coin
+                                if($this->chatGPT_catgory=='CodeGenerator_SmartContentCoIn')
+                                $entry->content=$message;
 
 
 
@@ -3245,6 +3250,7 @@ if($params_json1['prompt']!='SKIP')
                                 $params_json = $params;
                             else
                                 $params_json = json_decode($params, true);
+                            
                             $keywords = '';
                             $description = $params_json["prompt"];
                             $creativity = 1;
