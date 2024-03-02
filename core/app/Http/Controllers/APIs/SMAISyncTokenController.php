@@ -94,6 +94,8 @@ use App\Http\Controllers\MainController;
 use App\Models\PostSmartSocial;
 use App\Models\Media_files;
 
+use Exception;
+
 //use File;
 /* for update Token and chatGTP usage including Log history of chat GPT data */
 
@@ -103,7 +105,7 @@ class SMAISyncTokenController extends Controller
 
     /* Main Type of API from platforms GPT Category
     DocText_
-    Images_ 
+    Images_
     ------------------------------
     Platforms
 
@@ -126,7 +128,7 @@ class SMAISyncTokenController extends Controller
     design
 
 
-    
+
     */
 
     protected $client;
@@ -154,9 +156,11 @@ class SMAISyncTokenController extends Controller
     public $image_origin_id;
     public $image_generator;
     public $response_json_array;
+    public $raw_response;
+
     //public $token_usge;
 
-    public function __construct($response = NULL, $usage = NULL, $chatGPT_catgory = NULL, $chat_id = NULL,$chat_main_id =NULL,$chat_name=NULL,$params=NULL,$user_id=NULL,$response_text=NULL,$main_useropenai_message_id=NULL)
+    public function __construct($response = NULL, $usage = NULL, $chatGPT_catgory = NULL, $chat_id = NULL, $chat_main_id = NULL, $chat_name = NULL, $params = NULL, $user_id = NULL, $response_text = NULL, $main_useropenai_message_id = NULL)
     {
         Log::debug('Debug params in start SMAISyncTokenController constructor ');
         Log::info($params);
@@ -168,9 +172,9 @@ class SMAISyncTokenController extends Controller
         //$category = OpenaiGeneratorChatCategory::where('id', $request->category_id)->firstOrFail();
 
         if (is_array($params))
-        $params_json1 = $params;
+            $params_json1 = $params;
         else
-        $params_json1 = json_decode($params, true);
+            $params_json1 = json_decode($params, true);
 
         Log::debug('Debug params in SMAISyncTokenController constructor ');
         Log::info($params);
@@ -180,120 +184,106 @@ class SMAISyncTokenController extends Controller
         else
             $this->main_chat_category = 1;
 
-        if(isset($params_json1['chat_main_id']))
-        Log::debug(' Test Main ID of Chat '.$params_json1['chat_main_id']);
-        
-        if(isset($params_json1['chat_main_id']))
-        $this->chat_main_id=$params_json1['chat_main_id'];
+        if (isset($params_json1['chat_main_id']))
+            Log::debug(' Test Main ID of Chat ' . $params_json1['chat_main_id']);
 
-        if(isset($params_json1['main_template_id']))
-        {
-            Log::debug(' Main Template ID Docs '.$params_json1['main_template_id']);
-            
-            if($params_json1['main_template_id']>0)
-            $this->main_template_id=$params_json1['main_template_id'];
+        if (isset($params_json1['chat_main_id']))
+            $this->chat_main_id = $params_json1['chat_main_id'];
+
+        if (isset($params_json1['main_template_id'])) {
+            Log::debug(' Main Template ID Docs ' . $params_json1['main_template_id']);
+
+            if ($params_json1['main_template_id'] > 0)
+                $this->main_template_id = $params_json1['main_template_id'];
 
         }
 
-        if(isset($params_json1['image_origin_id']))
-        {  
+        if (isset($params_json1['image_origin_id'])) {
             //if source image ID was set
-            $this->image_origin_id=$params_json1['image_origin_id'];
+            $this->image_origin_id = $params_json1['image_origin_id'];
 
         }
 
 
+        if (isset($params_json1['image_generator'])) {
 
-        if(isset($params_json1['image_generator']))
-        {
-        
-        $this->image_generator=$params_json1['image_generator'];
+            $this->image_generator = $params_json1['image_generator'];
         }
 
 
+        if (isset($params_json1['main_useropenai_message_id'])) {
+            Log::debug(' Main UserOpenAI Docs ID Docs ' . $params_json1['main_useropenai_message_id']);
+            $this->main_openai_id = $params_json1['main_useropenai_message_id'];
 
-        if(isset($params_json1['main_useropenai_message_id']))
-        {
-            Log::debug(' Main UserOpenAI Docs ID Docs '.$params_json1['main_useropenai_message_id']);
-            $this->main_openai_id=$params_json1['main_useropenai_message_id'];
+            if ($this->main_template_id <= 0 || $this->main_template_id == NULL) {
+                $find_main_template = UserOpenai::where('id', $params_json1['main_useropenai_message_id'])->first();
+                $this->main_template_id = $find_main_template->openai_id;
 
-            if($this->main_template_id <= 0 || $this->main_template_id==NULL )
-            {
-                $find_main_template=UserOpenai::where('id', $params_json1['main_useropenai_message_id'])->first();
-                $this->main_template_id=$find_main_template->openai_id;
-                
             }
 
         }
 
-        if(isset($params_json1['platform']))
-        {
-        $from=$params_json1['platform'];
-        $this->platform=$params_json1['platform'];
+        if (isset($params_json1['platform'])) {
+            $from = $params_json1['platform'];
+            $this->platform = $params_json1['platform'];
         }
 
         if (isset($params_json1->gpt_category))
-        $this->chatGPT_catgory =$params_json1->gpt_category;
+            $this->chatGPT_catgory = $params_json1->gpt_category;
         else if (isset($params_json1['gpt_category']))
-        $this->chatGPT_catgory = $params_json1['gpt_category'];
+            $this->chatGPT_catgory = $params_json1['gpt_category'];
         else
-        $this->chatGPT_catgory = NULL;
+            $this->chatGPT_catgory = NULL;
 
 
-        Log::debug(' Check response_text from APIs in Contructor '.$response_text);
+        Log::debug(' Check response_text from APIs in Contructor ' . $response_text);
         if (isset($response)) {
 
-            
-            if ($response != NULL) 
-            $this->response_bk = $response;
+
+            if ($response != NULL)
+                $this->response_bk = $response;
             else
-            $this->response_bk=NULL;
+                $this->response_bk = NULL;
 
-            if(isset($response_text) && $response_text!=NULL)
-            {
-                Log::debug('Main ID main_user_openai_id ' .$main_useropenai_message_id);
+            if (isset($response_text) && $response_text != NULL) {
+                Log::debug('Main ID main_user_openai_id ' . $main_useropenai_message_id);
 
-            $this->response_text = $response_text;
-            $sp_check_fix=SP_UserOpenai::where('main_user_openai_id',$main_useropenai_message_id)->first();
-            
-            if(isset($sp_check_fix->id))
-            {
-              $parent_caption_id= $sp_check_fix->id;
-              $check_fix_caption=SP_UserCaption::where('parent_id',$parent_caption_id)->first();
-            }
-            
-                if(isset($check_fix_caption->wait_for_fix))
-                {
-                      if($check_fix_caption->wait_for_fix==1)
-                      {
+                $this->response_text = $response_text;
+                $sp_check_fix = SP_UserOpenai::where('main_user_openai_id', $main_useropenai_message_id)->first();
 
-                        $check_fix_caption->content=$this->response_text;
+                if (isset($sp_check_fix->id)) {
+                    $parent_caption_id = $sp_check_fix->id;
+                    $check_fix_caption = SP_UserCaption::where('parent_id', $parent_caption_id)->first();
+                }
+
+                if (isset($check_fix_caption->wait_for_fix)) {
+                    if ($check_fix_caption->wait_for_fix == 1) {
+
+                        $check_fix_caption->content = $this->response_text;
                         $check_fix_caption->save();
 
-                        $sucess_id_fix_caption=$check_fix_caption->id;
-                        if($sucess_id_fix_caption>0)
-                        {
-                            $check_fix_caption->wait_for_fix=0;
+                        $sucess_id_fix_caption = $check_fix_caption->id;
+                        if ($sucess_id_fix_caption > 0) {
+                            $check_fix_caption->wait_for_fix = 0;
                             $check_fix_caption->save();
 
                         }
 
 
-                      }
+                    }
                 }
 
-            }
-            else 
-            {
-            $this->response_text = NULL;
+            } else {
+                $this->response_text = NULL;
             }
 
-            Log::debug(' Check response text in Contructor '.$this->response_text);
-            if(isset($this->response_text['model']))
-            $this->GPTModel=$this->response_text['model'];
+            Log::debug(' Check response text in Contructor ' . $this->response_text);
+            if (isset($this->response_text['model']))
+                $this->GPTModel = $this->response_text['model'];
 
             $json_array = json_decode($response, true);
-            $this->response_json_array=$json_array;
+            $this->raw_response = $response;
+            $this->response_json_array = $json_array;
             Log::info($json_array);
 
             if (isset($json_array['model']))
@@ -310,7 +300,7 @@ class SMAISyncTokenController extends Controller
                 $this->postContent = $choices["text"];
 
 
-                //Log::debug(' !!!!!!!!!!!!!! Check Post COntent response text in Contructor '.$this->postContent);
+            //Log::debug(' !!!!!!!!!!!!!! Check Post COntent response text in Contructor '.$this->postContent);
 
 
             //case send from Smart Bio ||   model = gpt-4-0613
@@ -342,64 +332,60 @@ class SMAISyncTokenController extends Controller
             //$response['choices'][0]['delta']['content']
 
 
-            if( Str::contains($this->chatGPT_catgory, 'chat_')==true || Str::contains($this->chatGPT_catgory, 'Chat_')==true  )   
-            { 
+            if (Str::contains($this->chatGPT_catgory, 'chat_') == true || Str::contains($this->chatGPT_catgory, 'Chat_') == true) {
 
-            //create chat_id only in Initiate
-            //define where's chat come from
+                //create chat_id only in Initiate
+                //define where's chat come from
 
-            Log::debug('Debug $this_chat_id Global ' . $this->chat_id);
-            Log::debug('Debug $chat_id Local ' . $chat_id);
+                Log::debug('Debug $this_chat_id Global ' . $this->chat_id);
+                Log::debug('Debug $chat_id Local ' . $chat_id);
 
-            if($chat_id!=NULL)
-            $this->chat_id = $chat_id;
+                if ($chat_id != NULL)
+                    $this->chat_id = $chat_id;
 
-            else if($from=='bio' && $this->chat_id==NULL)
-            $this->chat_id=$this->find_chat_id($from);
+                else if ($from == 'bio' && $this->chat_id == NULL)
+                    $this->chat_id = $this->find_chat_id($from);
 
-            else if($from=='main_coin' && $this->chat_id==NULL)
-            $this->chat_id=$this->find_chat_id($from);
+                else if ($from == 'main_coin' && $this->chat_id == NULL)
+                    $this->chat_id = $this->find_chat_id($from);
 
-            else if($from=='MobileAppV2' && $this->chat_id==NULL)
-            $this->chat_id=$this->find_chat_id($from);
+                else if ($from == 'MobileAppV2' && $this->chat_id == NULL)
+                    $this->chat_id = $this->find_chat_id($from);
 
-            else 
-            $this->chat_id=NULL;
-
-
-
-            //Log::debug('Debug $this_chat_id ' . $this->chat_id);
-
-            
-            if ($chat_main_id == NULL || $chat_main_id  < 0) {
-            
-                $this->chat_main_id=NULL;
-            }
-            else{
-
-                $this->chat_main_id=$chat_main_id ;
-            }
-
-             if(isset($this->chat_main_id))
-             Log::debug('!!!!!! Debug $chat_main_id !!!!!' . $this->chat_main_id);
-             
-             if($this->chat_main_id==NULL)
-             {
-                if(isset($params_json1['chat_main_id']) && $params_json1['chat_main_id']>0)
-                $this->chat_main_id=$params_json1['chat_main_id'];
                 else
-                $this->chat_main_id=$this->create_new_chat_main_id($from,$user_id,$this->chat_id);
-             }
+                    $this->chat_id = NULL;
+
+
+                //Log::debug('Debug $this_chat_id ' . $this->chat_id);
+
+
+                if ($chat_main_id == NULL || $chat_main_id < 0) {
+
+                    $this->chat_main_id = NULL;
+                } else {
+
+                    $this->chat_main_id = $chat_main_id;
+                }
+
+                if (isset($this->chat_main_id))
+                    Log::debug('!!!!!! Debug $chat_main_id !!!!!' . $this->chat_main_id);
+
+                if ($this->chat_main_id == NULL) {
+                    if (isset($params_json1['chat_main_id']) && $params_json1['chat_main_id'] > 0)
+                        $this->chat_main_id = $params_json1['chat_main_id'];
+                    else
+                        $this->chat_main_id = $this->create_new_chat_main_id($from, $user_id, $this->chat_id);
+                }
+
+            }
+
 
         }
 
-
-        }
-
-        if($chat_name != NULL)
-        $this->chat_name = $chat_name;
+        if ($chat_name != NULL)
+            $this->chat_name = $chat_name;
         else
-        $this->chat_name =NULL;
+            $this->chat_name = NULL;
 
         /* if (is_array($params))
                 $params_json1 = $params;
@@ -407,101 +393,95 @@ class SMAISyncTokenController extends Controller
                 $params_json1 = json_decode($params, true); */
 
 
-        if(isset($params_json1['prompt']))
-        $prompt=$params_json1['prompt'];
+        if (isset($params_json1['prompt']))
+            $prompt = $params_json1['prompt'];
         else
-        $prompt=NULL;
+            $prompt = NULL;
 
 
-     if( Str::contains($this->chatGPT_catgory, 'chat_')==true || Str::contains($this->chatGPT_catgory, 'Chat_')==true  )   
-    {
-        //check chat_id again
-        if( strlen($this->chat_id) >2 ) 
-        {
-           Log::debug('!!!!!! Debug $this->chat_id  again!!!!!' . $this->chat_id);
+        if (Str::contains($this->chatGPT_catgory, 'chat_') == true || Str::contains($this->chatGPT_catgory, 'Chat_') == true) {
+            //check chat_id again
+            if (strlen($this->chat_id) > 2) {
+                Log::debug('!!!!!! Debug $this->chat_id  again!!!!!' . $this->chat_id);
+                $chat_id_find = UserOpenaiChat::where('id', $this->chat_main_id)->first();
+
+                if ($chat_id_find->chat_id == NULL) {
+                    $chat_id_find->chat_id = $this->chat_id;
+                    $chat_id_find->save();
+                }
+
+
+            } else {
+
+                Log::debug('!!!!!! Debug $this->chat_id  again!!!!! case No cat ID' . $this->chat_id);
+                if ($params_json1['platform'] == 'bio') {
+
+                    Log::debug('!!!!!! Debug fine Bio old ChatID !!!!!');
+                    // $chat_id_find=UserOpenaiChatBio::where('chat_id',$this->chat_main_id)->first();
+
+                    $chat_id_find = DB::connection('bio_db')->table('chats')->where('chat_id', $this->chat_main_id)->first();
+                    $new_chat_id = $chat_id_find->chat_id_mobile;
+                    $this->chat_id = $new_chat_id;
+
+                    if ($this->chat_id == NULL) {
+                        $chat_mobile_id = "chat_";
+                        $chat_mobile_id .= strval(time());
+                        $ran = rand(100, 999);
+                        $chat_mobile_id .= $ran;
+
+                        $new_chat_id = array(
+                            'chat_id_mobile' => $chat_mobile_id,
+                        );
+
+                        $chatData = DB::connection('bio_db')->table('chats')
+                            ->where('chat_id', $this->chat_main_id)
+                            ->update($new_chat_id);
+
+                        //$chat_id_find->update($new_chat_id);
+
+
+                        $this->chat_id = $chat_mobile_id;
+
+
+                    }
+                } else {
+                    $chat_id_find = UserOpenaiChat::where('id', $this->chat_main_id)->first();
+                    $new_chat_id = $chat_id_find->chat_id;
+                    $this->chat_id = $new_chat_id;
+
+                }
+
+                // $chat_id_find=DB::connection('main_db')->table('user_openai_chat')->wherewhere('id',$this->chat_main_id)->first();
+
+
+                Log::debug('!!!!!! Debug $this->chat_id Define  again!!!!!' . $this->chat_id);
+
+            }
+
         }
-        else
-        {
-       
-           Log::debug('!!!!!! Debug $this->chat_id  again!!!!! case No cat ID' . $this->chat_id);
-                   if($params_json1['platform']=='bio')
-                   {
-
-                       Log::debug('!!!!!! Debug fine Bio old ChatID !!!!!' );
-               // $chat_id_find=UserOpenaiChatBio::where('chat_id',$this->chat_main_id)->first();
-                   
-                   $chat_id_find=DB::connection('bio_db')->table('chats')->where('chat_id',$this->chat_main_id)->first();
-                   $new_chat_id=$chat_id_find->chat_id_mobile;
-                   $this->chat_id = $new_chat_id;
-
-                           if($this->chat_id==NULL)
-                           {
-                                   $chat_mobile_id= "chat_";
-                                   $chat_mobile_id.= strval(time());
-                                   $ran = rand(100, 999);
-                                   $chat_mobile_id.= $ran;
-
-                                   $new_chat_id=array(
-                                       'chat_id_mobile' => $chat_mobile_id,
-                                   );
-
-                                $chatData = DB::connection('bio_db')->table('chats')
-                                ->where('chat_id',$this->chat_main_id)
-                                ->update($new_chat_id);
-
-                                 //$chat_id_find->update($new_chat_id);
-                                   
-
-                                   $this->chat_id =$chat_mobile_id;
 
 
-
-                           }
-                   }
-                   else
-                   {
-                   $chat_id_find=UserOpenaiChat::where('id',$this->chat_main_id)->first();
-                   $new_chat_id=$chat_id_find->chat_id;
-                   $this->chat_id = $new_chat_id;
-               
-                   }
-
-           // $chat_id_find=DB::connection('main_db')->table('user_openai_chat')->wherewhere('id',$this->chat_main_id)->first();
-
-        
-
-             Log::debug('!!!!!! Debug $this->chat_id Define  again!!!!!' . $this->chat_id);
-
-        }
-
-    }
-
-
-
-        if($this->chat_name !=NULL && $prompt=='SKIP' )
-        {
+        if ($this->chat_name != NULL && $prompt == 'SKIP') {
             //send first chatname to all platforms
             // check and update chat_id before send
             Log::debug('!!!!!! Debug $chat_main_id !!!!!' . $this->chat_main_id);
 
-            if($params_json1['platform']=='main_coin')
-            $main_db_chat=UserOpenaiChat::where('id',$this->chat_main_id)->first();
+            if ($params_json1['platform'] == 'main_coin')
+                $main_db_chat = UserOpenaiChat::where('id', $this->chat_main_id)->first();
 
-            if($params_json1['platform']=='bio')
-            $main_db_chat=UserOpenaiChatBio::where('chat_id',$this->chat_main_id)->first();
+            if ($params_json1['platform'] == 'bio')
+                $main_db_chat = UserOpenaiChatBio::where('chat_id', $this->chat_main_id)->first();
 
-           
-            if($main_db_chat->chat_id==NULL || $main_db_chat->chat_id <1 )
-            {
-                $main_db_chat->chat_id=$this->chat_id;
+
+            if ($main_db_chat->chat_id == NULL || $main_db_chat->chat_id < 1) {
+                $main_db_chat->chat_id = $this->chat_id;
                 $main_db_chat->save();
 
 
             }
 
 
-            
-            $new_chat_ins_all = $this->new_chat_all_platforms($this->chat_name,$this->chat_id,$user_id,$this->chat_main_id);
+            $new_chat_ins_all = $this->new_chat_all_platforms($this->chat_name, $this->chat_id, $user_id, $this->chat_main_id);
         }
 
 
@@ -519,7 +499,7 @@ class SMAISyncTokenController extends Controller
     }
 
     //Working can not find the exactly Table that specific the remaining_words and images
-    public function SMAI_UpdateGPT_MainMarketing($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
+    public function SMAI_UpdateGPT_MainMarketing($user_id, $usage, $response, $params, $from, $main_message_id = NULL, $i_arr = NULL)
     {
 
         $settings = $this->settings;
@@ -600,6 +580,7 @@ class SMAISyncTokenController extends Controller
                 }
 
                 $message_id = $message_new_ins;
+                $message_response = ''; // Initialize here
 
                 if (isset($response['choices'][0]['delta']['content']))
                     $message_response = $response['choices'][0]['delta']['content'];
@@ -613,12 +594,12 @@ class SMAISyncTokenController extends Controller
                 $time = strval(time());
 
                 $message = UserOpenaiChatMessageMainMarketing::whereId($message_id)->first();
-               
-                if($chat_id != NULL && $chat_id !='')
-                $chat = UserOpenaiChatMainMarketing::where('chat_id', $chat_id)->first();
+
+                if ($chat_id != NULL && $chat_id != '')
+                    $chat = UserOpenaiChatMainMarketing::where('chat_id', $chat_id)->first();
                 else
-                $chat = UserOpenaiChatMainMarketing::where('user_openai_chat_id', $this->chat_main_id)->first();
-               
+                    $chat = UserOpenaiChatMainMarketing::where('user_openai_chat_id', $this->chat_main_id)->first();
+
                 if ($params_json1["model"] == 'whisper-1') {
                     $message->response = serialize(json_encode($response_arr));
 
@@ -665,7 +646,7 @@ class SMAISyncTokenController extends Controller
 
                 //save token to chat ID
                 $chat->total_credits += $total_used_tokens;
-                $chat->openai_chat_category_id=$this->main_chat_category;
+                $chat->openai_chat_category_id = $this->main_chat_category;
                 $chat->save();
 
                 $chat_openai_id = $chat->id;
@@ -677,52 +658,50 @@ class SMAISyncTokenController extends Controller
 
 
                 //Define CHat Role Universal
-                if (is_array($params_json1["prompt"])!=FALSE)
-                {
+                if (is_array($params_json1["prompt"]) != FALSE) {
                     $n_prompt = count($params_json1["prompt"]);
 
                     if (isset($response['choices'][0]['message']['role']))
                         $this->chat_role = $response['choices'][0]['message']['role'];
                     else
                         $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
-    
-    
+
+
                     if ($n_prompt > 0) {
                         $n_prompt -= 1;
                     }
-    
+
                     Log::debug('Count n_prompt' . $n_prompt);
                     $x = intval($n_prompt);
-    
+
                     $description = Arr::last($params_json1["prompt"]);
                     $description = implode(" ", $description);
 
-            }
-            else{
+                } else {
 
-                $n_prompt = 2;
+                    $n_prompt = 2;
 
-                $this->chat_role = $params_json1['messages'][1]['role'];
+                    $this->chat_role = $params_json1['messages'][1]['role'];
 
-                //Define CHat Role Universal
+                    //Define CHat Role Universal
 
-                if ($n_prompt > 0) {
-                    $n_prompt -= 1;
+                    if ($n_prompt > 0) {
+                        $n_prompt -= 1;
+                    }
+
+                    Log::debug('Count n_prompt ' . $n_prompt);
+                    $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                    Log::debug('Which Role is : ' . $this->chat_role);
+                    $description = $params_json1['messages'][0]['content'];
+
+
                 }
 
-                Log::debug('Count n_prompt ' . $n_prompt);
-                $role_of_previous_chat = $params_json1['messages'][0]['role'];
-                Log::debug('Which Role is : ' . $this->chat_role);
-                $description = $params_json1['messages'][0]['content'];
+                if (!isset($save_user_request_chat["chat_id"]))
+                    $save_user_request_chat["chat_id"] = $this->chat_main_id;
 
 
-            }
-
-            if(!isset($save_user_request_chat["chat_id"]))
-                $save_user_request_chat["chat_id"]=$this->chat_main_id;
-
-
-                $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
+                $save_user_request_chat["chat_id_mobile"] = $this->chat_id;
                 $save_to_where = "MainMarketing";
                 $save_user_request_chat["input"] = $description;
                 $save_user_q = new SMAIUpdateProfileController();
@@ -733,139 +712,144 @@ class SMAISyncTokenController extends Controller
                 $save_to_where = "MainMarketing";
                 //save text Doc in others case that not Chat
 
-                if($this->platform=='main_coin')
-                {
+                if ($this->platform == 'main_coin') {
                     try {
-                        $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-                        if(empty($message_arr)) 
+                        if ($this->response_json_array) {
+                            if ($this->response_json_array != '[]' && $this->response_json_array != null) {
+                                $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+                            } else {
+                                $message_arr = array();
+                                $message_arr[0] = '';
+                                // json is either empty or null, handle it here
+                            }
+                        }
+                        if (empty($message_arr))
                             throw new Exception('Empty message array');
                     } catch (Exception $e) {
                         $message_arr = array();
                         $message_arr[0] = '';
-                        
+
                     }
                     Log::info($message_arr);
-                }
-                else
-                $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-           
-            Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-            Log::info($message_arr);
-            $return_message_array=[];
-            for($i=0; $i<count($message_arr); $i++)
-            {
+                } else
+                    $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
 
-                //if($i_arr!=NULL &&  $i==$i_arr)
-                if($i_arr==0)
-                {
-                            $message = $message_arr[$i];
+                Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                Log::info($message_arr);
+                $return_message_array = [];
+                for ($i = 0; $i < count($message_arr); $i++) {
 
-                            Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-                            Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
-                            $messageFix = Helper::remove_html($message);
-                            $output = $messageFix;
-                            $responsedText = $message;
-                            $total_used_tokens += Helper::countWords($messageFix);
-    
-                            $string_length = Str::length($messageFix);
-                            $needChars = 6000 - $string_length;
-                            $random_text = Str::random($needChars);
-                            //eof Test Swtich to Helper version
+                    //if($i_arr!=NULL &&  $i==$i_arr)
+                    if ($i_arr == 0) {
+                        $message = $message_arr[$i];
+                        $response_arr = $message;
 
-                            if (is_array($params))
-                                $params_json = $params;
-                            else
-                                $params_json = json_decode($params, true);
+                        Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                        Log::debug('!!!!!!!! This is message_array message_array $i ' . $i . ' ' . $message);
+                        $messageFix = Helper::remove_html($message);
+                        $output = $messageFix;
+                        $responsedText = $message;
+                        $total_used_tokens += Helper::countWords($messageFix);
+
+                        $string_length = Str::length($messageFix);
+                        $needChars = 6000 - $string_length;
+                        $random_text = Str::random($needChars);
+                        //eof Test Swtich to Helper version
+
+                        if (is_array($params))
+                            $params_json = $params;
+                        else
+                            $params_json = json_decode($params, true);
 
 
-                            $keywords = '';
-                            $description = $params_json["prompt"];
-                            $creativity = 1;
-                            $number_of_results = 1;
-                            $tone_of_voice = 0;
-                            $maximum_length = 2000;
-                            $language = "en";
-                            $post_type = 'paragraph_generator';
-                            $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
+                        $keywords = '';
+                        $description = $params_json["prompt"];
+                        $creativity = 1;
+                        $number_of_results = 1;
+                        $tone_of_voice = 0;
+                        $maximum_length = 2000;
+                        $language = "en";
+                        $post_type = 'paragraph_generator';
+                        $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
                         Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
                         ";
 
 
-                            // Save Users of Digital_Asset
-                            $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
-                            //$users = DB::connection('second_db')->table('users')->get();
+                        // Save Users of Digital_Asset
+                        $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
+                        //$users = DB::connection('second_db')->table('users')->get();
 
 
-                            $post = OpenAIGenerator::where('slug', $post_type)->first();
-                            $entry = new UserOpenai();
-                            $entry->title = 'New Workbook';
+                        $post = OpenAIGenerator::where('slug', $post_type)->first();
+                        $entry = new UserOpenai();
+                        $entry->title = 'New Workbook';
 
-                            if ($params_json1["model"] == 'whisper-1') {
-                                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                            } else {
-                                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
-                            }
+                        if ($params_json1["model"] == 'whisper-1') {
+                            $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                        } else {
+                            $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                        }
 
-                            if ($params_json1["model"] == 'whisper-1') {
-                                $prompt = $description;
-                                $output = $response['text'];
-                            }
+                        if ($params_json1["model"] == 'whisper-1') {
+                            $prompt = $description;
+                            $output = $response['text'];
+                        }
 
-                            $response_arr = json_decode($response_bk, true);
+                        $response_arr = json_decode($response_bk, true);
 
-                            $entry->user_id = $user_id;
-                            $entry->openai_id = $post->id;
-                            $entry->input = $prompt;
-                            $entry->response = serialize(json_encode($response_arr));
-                            $entry->output = $output;
-                            $entry->hash = str()->random(256);
-                            $entry->credits = 0;
-                            $entry->words = 0;
-                            $entry->main_user_openai_id = $main_message_id;
-                            $entry->save();
-                        
-                            //for socialpost caption
-                            $responsedText_backup =$entry->response;
+                        $entry->user_id = $user_id;
+                        $entry->openai_id = $post->id;
+                        $entry->input = $prompt;
+                        $entry->response = serialize(json_encode($response_arr));
+                        $entry->output = $output;
+                        $entry->hash = str()->random(256);
+                        $entry->credits = 0;
+                        $entry->words = 0;
+                        $entry->main_user_openai_id = $main_message_id;
+                        $entry->save();
 
-                            $message_id = $entry->id;
+                        //for socialpost caption
+                        $responsedText_backup = $entry->response;
 
-                            Log::debug('Message_ID of MainMarketing ' . $message_id);
+                        $message_id = $entry->id;
+
+                        Log::debug('Message_ID of MainMarketing ' . $message_id);
 
 
-                            // Create UserOpenai Models belong to OpenAIGenerator Models
-                            $message = UserOpenai::whereId($message_id)->first();
-                            if ($params_json1["model"] == 'whisper-1') {
-                                $message->response = serialize(json_encode($response_arr));
+                        // Create UserOpenai Models belong to OpenAIGenerator Models
+                        $message = UserOpenai::whereId($message_id)->first();
+                        if ($params_json1["model"] == 'whisper-1') {
+                            $message->response = serialize(json_encode($response_arr));
 
-                            } else {
-                                $message->response = $responsedText;
+                        } else {
+                            $message->response = $responsedText;
 
-                            }
-                            $message->output = $output;
-                            $message->hash = Str::random(256);
-                            $message->credits = $this->total_used_tokens;
-                            $message->words = 0;
-                            $UserOpenai_saved = $message->save();
+                        }
+                        $message->output = $output;
+                        $message->hash = Str::random(256);
+                        $message->credits = $this->total_used_tokens;
+                        $message->words = 0;
+                        $UserOpenai_saved = $message->save();
 
-                            if (!$UserOpenai_saved) {
-                                Log::debug('Save OpenAI Log Error ');
-                            } else {
-                                Log::debug('Save UserOpenai Log Success ');
-                            }
+                        if (!$UserOpenai_saved) {
+                            Log::debug('Save OpenAI Log Error ');
+                        } else {
+                            Log::debug('Save UserOpenai Log Success ');
+                        }
 
                         // reset $output and $responsedText in each Loop
                         //$output = str_replace($messageFix, '', $output);
                         //$responsedText = str_replace($message, '', $responsedText);
                         // reset $output and $responsedText in each Loop
-                  }
+                    }
 
-               }
+                }
 
                 //EOF case none Chat
                 //eof Switch loop save OPEN AI Helper version
 
-               
-        }
+
+            }
             //EOF case Doc text or Chat Text
 
 
@@ -877,32 +861,31 @@ class SMAISyncTokenController extends Controller
     }
 
     //Done
-    public function SMAI_UpdateGPT_MainCoIn($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
+    public function SMAI_UpdateGPT_MainCoIn($user_id, $usage, $response, $params, $from, $main_message_id = NULL, $i_arr = NULL)
     {
         if (is_array($params))
-                $params_json1 = $params;
-            else
-                $params_json1 = json_decode($params, true);
+            $params_json1 = $params;
+        else
+            $params_json1 = json_decode($params, true);
 
-            if (isset($params_json1['gpt_category']))
-                $chatGPT_catgory = $params_json1['gpt_category'];
-            else
-                $chatGPT_catgory = NULL;
-        
-        if($params_json1['prompt']!='SKIP')
-        {
+        if (isset($params_json1['gpt_category']))
+            $chatGPT_catgory = $params_json1['gpt_category'];
+        else
+            $chatGPT_catgory = NULL;
 
-        $settings = $this->settings;
-        $settings_two = $this->settings_two;
+        if ($params_json1['prompt'] != 'SKIP') {
 
-        if (isset($user_id)) {
-            $responsedText = "";
-            $output = "";
-            $total_used_tokens = 0;
+            $settings = $this->settings;
+            $settings_two = $this->settings_two;
 
-            Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_MainCoIn from SMAIsyncController : ' . $user_id);
+            if (isset($user_id)) {
+                $responsedText = "";
+                $output = "";
+                $total_used_tokens = 0;
 
-           /*  if (is_array($params))
+                Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_MainCoIn from SMAIsyncController : ' . $user_id);
+
+                /*  if (is_array($params))
                 $params_json1 = $params;
             else
                 $params_json1 = json_decode($params, true);
@@ -912,214 +895,207 @@ class SMAISyncTokenController extends Controller
             else
                 $chatGPT_catgory = NULL; */
 
-            $response_bk = $response;
-            $response = json_decode($response, true);
-            if (Str::contains($chatGPT_catgory, 'Chat_')) {
-                //add Sync GPT chat version here
+                $response_bk = $response;
+                $response = json_decode($response, true);
+                if (Str::contains($chatGPT_catgory, 'Chat_')) {
+                    //add Sync GPT chat version here
 
-                $total_used_tokens = $usage;
-                $chat_id = $this->chat_id;
+                    $total_used_tokens = $usage;
+                    $chat_id = $this->chat_id;
 
-                $chat_new_ins = UserOpenaiChat::updateOrCreate(
-                    ['chat_id' => $chat_id],
-                    ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
-                );
+                    $chat_new_ins = UserOpenaiChat::updateOrCreate(
+                        ['chat_id' => $chat_id],
+                        ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
+                    );
 
-                /* $chat_new_ins = DB::connection('main_db')->table('user_openai_chat')->updateOrCreate(
+                    /* $chat_new_ins = DB::connection('main_db')->table('user_openai_chat')->updateOrCreate(
                      ['chat_id' => $chat_id],
                      ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
                  );*/
 
-                //$user_openai_chat_id =UserOpenaiChat::where('chat_id',$chat_id);
-                $user_openai_chat_id = DB::connection('main_db')->table('user_openai_chat')->where('chat_id', $chat_id)->first();
+                    //$user_openai_chat_id =UserOpenaiChat::where('chat_id',$chat_id);
+                    $user_openai_chat_id = DB::connection('main_db')->table('user_openai_chat')->where('chat_id', $chat_id)->first();
 
-                $time = time();
-                $time = intval($time);
-                if (isset($user_openai_chat_id->id)) {
-                    $user_openai_chat_id_ins = $user_openai_chat_id->id;
-                    //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id, 'user_openai_chat_id_ins' => $user_openai_chat_id_ins,'updated_at' => $time]);
+                    $time = time();
+                    $time = intval($time);
+                    if (isset($user_openai_chat_id->id)) {
+                        $user_openai_chat_id_ins = $user_openai_chat_id->id;
+                        //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id, 'user_openai_chat_id_ins' => $user_openai_chat_id_ins,'updated_at' => $time]);
 
-                    $data_message = array(
-                        'user_id' => $user_id,
-                        'chat_id' => $chat_id,
-                        'user_openai_chat_id' => $user_openai_chat_id_ins,
-                        //updated_at' => $time,
-                    );
-                    $message_new_ins = DB::connection('main_db')->table('user_openai_chat_messages')->insertGetId($data_message);
+                        $data_message = array(
+                            'user_id' => $user_id,
+                            'chat_id' => $chat_id,
+                            'user_openai_chat_id' => $user_openai_chat_id_ins,
+                            //updated_at' => $time,
+                        );
+                        $message_new_ins = DB::connection('main_db')->table('user_openai_chat_messages')->insertGetId($data_message);
 
-                } else {
+                    } else {
 
-                    //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id,'updated_at' => $time ]);
-                    $data_message = array(
-                        'user_id' => $user_id,
-                        'chat_id' => $chat_id,
-                        //updated_at' => $time,
-                    );
-                    $message_new_ins = DB::connection('main_db')->table('user_openai_chat_messages')->insertGetId($data_message);
-                }
+                        //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id,'updated_at' => $time ]);
+                        $data_message = array(
+                            'user_id' => $user_id,
+                            'chat_id' => $chat_id,
+                            //updated_at' => $time,
+                        );
+                        $message_new_ins = DB::connection('main_db')->table('user_openai_chat_messages')->insertGetId($data_message);
+                    }
 
-                $message_id = $message_new_ins;
+                    $message_id = $message_new_ins;
 
-                //$chat_new_ins = UserOpenaiChat::create(['user_id' => $user_id,'openai_chat_category_id' => 1,'chat_id' => $chat_id]);
+                    $message_response = ''; // Initialize here
+                    //$chat_new_ins = UserOpenaiChat::create(['user_id' => $user_id,'openai_chat_category_id' => 1,'chat_id' => $chat_id]);
 
 
-                if (isset($response['choices'][0]['delta']['content']))
-                    $message_response = $response['choices'][0]['delta']['content'];
-                
-                else if (isset($response['choices'][0]['message']['content']))
-                    $message_response = $response['choices'][0]['message']['content'];
+                    if (isset($response['choices'][0]['delta']['content']))
+                        $message_response = $response['choices'][0]['delta']['content'];
 
-                else if(isset($params_json1['messages'][1]['content']))
-                $message_response=$params_json1['messages'][1]['content'];
-                
-                else if(isset($params_json1['response']))
-                $message_response=$params_json1['response'];
-                 
-                else
-                $message_response=NULL;
-              
-                /*  if($params_json1['prompt']=='SKIP')
+                    else if (isset($response['choices'][0]['message']['content']))
+                        $message_response = $response['choices'][0]['message']['content'];
+
+                    else if (isset($params_json1['messages'][1]['content']))
+                        $message_response = $params_json1['messages'][1]['content'];
+
+                    else if (isset($params_json1['response']))
+                        $message_response = $params_json1['response'];
+
+                    else
+                        $message_response = NULL;
+
+                    /*  if($params_json1['prompt']=='SKIP')
                 {
 
-                    $new_chat_ins_all = $this->new_chat_all_platforms($this->chat_name,$this->chat_id,$user_id,$this->chat_main_id); 
+                    $new_chat_ins_all = $this->new_chat_all_platforms($this->chat_name,$this->chat_id,$user_id,$this->chat_main_id);
                     $message_response=$params_json1['chat_name'];
 
-                } 
+                }
                    */
 
-                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
-                $output .= $messageFix;
-                $responsedText .= $message_response;
+                    $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
+                    $output .= $messageFix;
+                    $responsedText .= $message_response;
 
-                $message = UserOpenaiChatMessage::whereId($message_id)->first();
-                
-                if($chat_id != NULL && $chat_id !='')
-                $chat = UserOpenaiChat::where('chat_id', $this->chat_id)->first();
-                else
-                $chat = UserOpenaiChat::where('id', $this->chat_main_id)->first();
+                    $message = UserOpenaiChatMessage::whereId($message_id)->first();
+
+                    if ($chat_id != NULL && $chat_id != '')
+                        $chat = UserOpenaiChat::where('chat_id', $this->chat_id)->first();
+                    else
+                        $chat = UserOpenaiChat::where('id', $this->chat_main_id)->first();
 
 
+                    if ($params_json1["model"] == 'whisper-1') {
+                        $message->response = serialize(json_encode($response_arr));
 
-                
-                if ($params_json1["model"] == 'whisper-1') {
-                    $message->response = serialize(json_encode($response_arr));
+                    } else {
+                        $message->response = $responsedText;
+
+                    }
+                    $message->output = $output;
+                    $message->hash = Str::random(256);
+                    $message->credits = $this->total_used_tokens;
+                    $message->words = 0;
+                    $message->save();
+
+                    //$user = UserMain::where('id',$user_id);
+                    $user1 = DB::connection('main_db')->table('users')->where('id', $user_id)->first();
+                    //$user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
+
+                    $user_email = $user1->email;
+                    Log::debug('FOund user main Email ' . $user1->email);
+                    $old_remaining_words = $user1->remaining_words;
+                    $new_remaining_words = $old_remaining_words - $total_used_tokens;
+
+
+                    if ($new_remaining_words < 0) {
+                        $new_remaining_words = 0;
+                    }
+
+                    $remaining_words_arr = array(
+                        'remaining_words' => $new_remaining_words,
+                    );
+
+
+                    $chat->total_credits += $total_used_tokens;
+                    $chat->openai_chat_category_id = $this->main_chat_category;
+                    $chat->save();
+
+                    $chat_openai_id = $chat->id;
+                    $save_user_request_chat = array(
+
+                        'chat_id' => $chat_openai_id,
+                        'response' => $responsedText,
+                    );
+
+
+                    if (is_array($params_json1["prompt"]) != FALSE) {
+                        $n_prompt = count($params_json1["prompt"]);
+
+                        if (isset($response['choices'][0]['message']['role']))
+                            $this->chat_role = $response['choices'][0]['message']['role'];
+                        else
+                            $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
+
+                        //Define CHat Role Universal
+
+                        if ($n_prompt > 0) {
+                            $n_prompt -= 1;
+                        }
+
+                        Log::debug('Count n_prompt ' . $n_prompt);
+                        $role_of_previous_chat = $params_json1["prompt"][$n_prompt]["role"];
+                        Log::debug('Which Role is : ' . $this->chat_role);
+                        $description = $params_json1["prompt"][$n_prompt]["content"];
+
+                    } else {
+
+                        $n_prompt = 2;
+
+
+                        $this->chat_role = $params_json1['messages'][1]['role'];
+                        if ($n_prompt > 0) {
+                            $n_prompt -= 1;
+                        }
+
+                        Log::debug('Count n_prompt ' . $n_prompt);
+                        $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                        Log::debug('Which Role is : ' . $this->chat_role);
+                        $description = $params_json1['messages'][0]['content'];
+
+
+                        //Define CHat Role Universal
+
+
+                    }
+
+
+                    if (!isset($save_user_request_chat["chat_id"]))
+                        $save_user_request_chat["chat_id"] = $this->chat_main_id;
+
+                    $save_user_request_chat["chat_id_mobile"] = $this->chat_id;
+                    $save_to_where = "MainCoIn";
+                    $save_user_request_chat["input"] = $description;
+                    $save_user_q = new SMAIUpdateProfileController();
+                    $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
+
 
                 } else {
-                    $message->response = $responsedText;
 
-                }
-                $message->output = $output;
-                $message->hash = Str::random(256);
-                $message->credits = $this->total_used_tokens;
-                $message->words = 0;
-                $message->save();
+                    $save_to_where = "MainCoIn";
+                    //Test Swtich to Helper version
 
-                //$user = UserMain::where('id',$user_id);
-                $user1 = DB::connection('main_db')->table('users')->where('id', $user_id)->first();
-                //$user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
+                    // $message_arr=Helper::parse_messages_from_response_arr($this->response_json_array);
+                    $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
 
-                $user_email = $user1->email;
-                Log::debug('FOund user main Email ' . $user1->email);
-                $old_remaining_words = $user1->remaining_words;
-                $new_remaining_words = $old_remaining_words - $total_used_tokens;
+                    Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                    Log::info($message_arr);
+                    $return_message_array = [];
+                    for ($i = 0; $i < count($message_arr); $i++) {
 
-
-                if ($new_remaining_words < 0) {
-                    $new_remaining_words = 0;
-                }
-
-                $remaining_words_arr = array(
-                    'remaining_words' => $new_remaining_words,
-                );
-
-
-                $chat->total_credits += $total_used_tokens;
-                $chat->openai_chat_category_id=$this->main_chat_category;
-                $chat->save();
-
-                $chat_openai_id = $chat->id;
-                $save_user_request_chat = array(
-
-                    'chat_id' => $chat_openai_id,
-                    'response' => $responsedText,
-                );
-
-
-               if (is_array($params_json1["prompt"])!=FALSE)
-                {
-                $n_prompt = count($params_json1["prompt"]);
-
-                if (isset($response['choices'][0]['message']['role']))
-                    $this->chat_role = $response['choices'][0]['message']['role'];
-                else
-                    $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
-
-                //Define CHat Role Universal
-
-                if ($n_prompt > 0) {
-                    $n_prompt -= 1;
-                }
-
-                Log::debug('Count n_prompt ' . $n_prompt);
-                $role_of_previous_chat = $params_json1["prompt"][$n_prompt]["role"];
-                Log::debug('Which Role is : ' . $this->chat_role);
-                $description = $params_json1["prompt"][$n_prompt]["content"];
-
-            }
-            else{
-
-                $n_prompt = 2;
-
-               
-                
-
-                $this->chat_role = $params_json1['messages'][1]['role'];
-                if ($n_prompt > 0) {
-                    $n_prompt -= 1;
-                }
-
-                Log::debug('Count n_prompt ' . $n_prompt);
-                $role_of_previous_chat = $params_json1['messages'][0]['role'];
-                Log::debug('Which Role is : ' . $this->chat_role);
-                $description = $params_json1['messages'][0]['content'];
-
-                
-                //Define CHat Role Universal
-
-                
-
-
-            }
-
-
-                if(!isset($save_user_request_chat["chat_id"]))
-                $save_user_request_chat["chat_id"]=$this->chat_main_id;
-
-                $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
-                $save_to_where = "MainCoIn";
-                $save_user_request_chat["input"] = $description;
-                $save_user_q = new SMAIUpdateProfileController();
-                $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
-
-
-            } else {
-
-                $save_to_where = "MainCoIn";
-               //Test Swtich to Helper version
-
-           // $message_arr=Helper::parse_messages_from_response_arr($this->response_json_array);
-           $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-           
-           Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-            Log::info($message_arr);
-            $return_message_array=[];
-            for($i=0; $i<count($message_arr); $i++)
-            {
-                
                         $message = $message_arr[$i];
+                        $response_arr = $message;
 
-                        Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-                        Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
+                        Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                        Log::debug('!!!!!!!! This is message_array message_array $i ' . $i . ' ' . $message);
                         $messageFix = Helper::remove_html($message);
                         $output = $messageFix;
                         $responsedText = $message;
@@ -1129,7 +1105,7 @@ class SMAISyncTokenController extends Controller
                         $needChars = 6000 - $string_length;
                         $random_text = Str::random($needChars);
                         //eof Test Swtich to Helper version
-                        
+
 
                         if (is_array($params))
                             $params_json = $params;
@@ -1181,15 +1157,15 @@ class SMAISyncTokenController extends Controller
                         $entry->save();
 
                         //for socialpost caption
-                        $responsedText_backup =$entry->response;
+                        $responsedText_backup = $entry->response;
 
                         $message_id = $entry->id;
-                    
-                        Log::debug('Message_ID of MainCoIn ' . $message_id);
-                        if($this->chat_id==NULL)
 
-                        // Create UserOpenai Models belong to OpenAIGenerator Models
-                        $message = UserOpenai::whereId($message_id)->first();
+                        Log::debug('Message_ID of MainCoIn ' . $message_id);
+                        if ($this->chat_id == NULL)
+
+                            // Create UserOpenai Models belong to OpenAIGenerator Models
+                            $message = UserOpenai::whereId($message_id)->first();
                         if ($params_json1["model"] == 'whisper-1') {
                             $message->response = serialize(json_encode($response_arr));
 
@@ -1200,10 +1176,10 @@ class SMAISyncTokenController extends Controller
                         $message->output = $output;
                         $message->hash = Str::random(256);
 
-                        if($this->total_used_tokens>0 && $this->total_used_tokens!=NULL)
-                        $message->credits = $this->total_used_tokens;
+                        if ($this->total_used_tokens > 0 && $this->total_used_tokens != NULL)
+                            $message->credits = $this->total_used_tokens;
                         else
-                        $message->credits = $total_used_tokens ;
+                            $message->credits = $total_used_tokens;
 
 
                         $message->words = 0;
@@ -1215,14 +1191,13 @@ class SMAISyncTokenController extends Controller
                             Log::debug('Save UserOpenai Log Success ');
                         }
 
-                        if ($message_id == $entry->id)
-                        {
-                            $return_message_array[$i]=array(
-                                'message_id'=>$message_id,
-                                'total_used_tokens'=>$message->credits,
+                        if ($message_id == $entry->id) {
+                            $return_message_array[$i] = array(
+                                'message_id' => $message_id,
+                                'total_used_tokens' => $message->credits,
                             );
-                        
-                            
+
+
                             array_push($return_message_array, $return_message_array[$i]);
 
                         }
@@ -1233,742 +1208,747 @@ class SMAISyncTokenController extends Controller
                         // reset $output and $responsedText in each Loop
 
 
-               }
+                    }
 
-               //return back to APIsController after loop all $return_message_array
-               return $return_message_array;
+                    //return back to APIsController after loop all $return_message_array
+                    return $return_message_array;
 
 
+                }
+
+
+            } else {
+                //echo 'data: [Update Failed user not found]';
             }
-
-
-        } else {
-            //echo 'data: [Update Failed user not found]';
         }
-      }
 
 
     }
 
 
     //Done
-    public function SMAI_UpdateGPT_SocialPost($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
+    public function SMAI_UpdateGPT_SocialPost($user_id, $usage, $response, $params, $from, $main_message_id = NULL, $i_arr = NULL)
     {
 
-        if($from!=NULL)
-        $this->platform=$from;
+        if ($from != NULL)
+            $this->platform = $from;
 
         $settings = $this->settings;
         $settings_two = $this->settings_two;
 
         if (is_array($params))
-        $params_json1 = $params;
-    else
-        $params_json1 = json_decode($params, true);
+            $params_json1 = $params;
+        else
+            $params_json1 = json_decode($params, true);
 
-    if (isset($params_json1['gpt_category']))
-        $chatGPT_catgory = $params_json1['gpt_category'];
-    else
-        $chatGPT_catgory = NULL;
+        if (isset($params_json1['gpt_category']))
+            $chatGPT_catgory = $params_json1['gpt_category'];
+        else
+            $chatGPT_catgory = NULL;
 
-if($params_json1['prompt']!='SKIP')
-{
+        if ($params_json1['prompt'] != 'SKIP') {
 
-        if (isset($user_id)) {
-            $responsedText = "";
-            $output = "";
-            $total_used_tokens = 0;
+            if (isset($user_id)) {
+                $responsedText = "";
+                $output = "";
+                $total_used_tokens = 0;
 
-            Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_SocialPost from SMAIsyncController : ' . $user_id);
+                Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_SocialPost from SMAIsyncController : ' . $user_id);
 
-            if (is_array($params))
-                $params_json1 = $params;
-            else
-                $params_json1 = json_decode($params, true);
+                if (is_array($params))
+                    $params_json1 = $params;
+                else
+                    $params_json1 = json_decode($params, true);
 
-            if (isset($params_json1['gpt_category']))
-                $chatGPT_catgory = $params_json1['gpt_category'];
-            else
-                $chatGPT_catgory = NULL;
+                if (isset($params_json1['gpt_category']))
+                    $chatGPT_catgory = $params_json1['gpt_category'];
+                else
+                    $chatGPT_catgory = NULL;
 
-            $response_bk = $response;
-            $response = json_decode($response, true);
-            if (Str::contains($chatGPT_catgory, 'Chat_')) {
-                //add Sync GPT chat version here
+                $response_bk = $response;
+                $response = json_decode($response, true);
+                if (Str::contains($chatGPT_catgory, 'Chat_')) {
+                    //add Sync GPT chat version here
 
-                $total_used_tokens = $usage;
-                $chat_id = $this->chat_id;
+                    $total_used_tokens = $usage;
+                    $chat_id = $this->chat_id;
 
-                $chat_new_ins = UserOpenaiChatSocialPost::updateOrCreate(
-                    ['chat_id' => $chat_id],
-                    ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
-                );
+                    $chat_new_ins = UserOpenaiChatSocialPost::updateOrCreate(
+                        ['chat_id' => $chat_id],
+                        ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
+                    );
 
-                /*$chat_new_ins = DB::connection('main_db')->table('sp_user_openai_chat')->updateOrCreate(
+                    /*$chat_new_ins = DB::connection('main_db')->table('sp_user_openai_chat')->updateOrCreate(
                     ['chat_id' => $chat_id],
                     ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
                 );*/
 
-                //$user_openai_chat_id =UserOpenaiChat::where('chat_id',$chat_id);
-                $user_openai_chat_id = DB::connection('main_db')->table('sp_user_openai_chat')->where('chat_id', $chat_id)->first();
+                    //$user_openai_chat_id =UserOpenaiChat::where('chat_id',$chat_id);
+                    $user_openai_chat_id = DB::connection('main_db')->table('sp_user_openai_chat')->where('chat_id', $chat_id)->first();
 
-                $time = time();
-                //$time = intval($time);
-                if (isset($user_openai_chat_id->id)) {
-                    $user_openai_chat_id_ins = $user_openai_chat_id->id;
-                    //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id, 'user_openai_chat_id_ins' => $user_openai_chat_id_ins,'updated_at' => $time]);
+                    $time = time();
+                    //$time = intval($time);
+                    if (isset($user_openai_chat_id->id)) {
+                        $user_openai_chat_id_ins = $user_openai_chat_id->id;
+                        //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id, 'user_openai_chat_id_ins' => $user_openai_chat_id_ins,'updated_at' => $time]);
 
-                    $data_message = array(
-                        'user_id' => $user_id,
-                        'chat_id' => $chat_id,
-                        'user_openai_chat_id' => $user_openai_chat_id_ins,
-                        //updated_at' => $time,
+                        $data_message = array(
+                            'user_id' => $user_id,
+                            'chat_id' => $chat_id,
+                            'user_openai_chat_id' => $user_openai_chat_id_ins,
+                            //updated_at' => $time,
+                        );
+                        $message_new_ins = DB::connection('main_db')->table('sp_user_openai_chat_messages')->insertGetId($data_message);
+
+                    } else {
+
+                        //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id,'updated_at' => $time ]);
+                        $data_message = array(
+                            'user_id' => $user_id,
+                            'chat_id' => $chat_id,
+                            //updated_at' => $time,
+                        );
+                        $message_new_ins = DB::connection('main_db')->table('sp_user_openai_chat_messages')->insertGetId($data_message);
+                    }
+
+                    $message_id = $message_new_ins;
+
+                    $message_response = ''; // Initialize here
+
+                    if (isset($response['choices'][0]['delta']['content']))
+                        $message_response = $response['choices'][0]['delta']['content'];
+                    if (isset($response['choices'][0]['message']['content']))
+                        $message_response = $response['choices'][0]['message']['content'];
+
+                    if (isset($params_json1['messages'][1]['content']))
+                        $message_response = $params_json1['messages'][1]['content'];
+
+                    if (isset($params_json1['response']))
+                        $message_response = $params_json1['response'];
+
+                    $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
+                    $output .= $messageFix;
+                    $responsedText .= $message_response;
+
+                    $message = UserOpenaiChatMessageSocialPost::whereId($message_id)->first();
+
+                    if ($chat_id != NULL && $chat_id != '')
+                        $chat = UserOpenaiChatSocialPost::where('chat_id', $chat_id)->first();
+                    else
+                        $chat = UserOpenaiChatSocialPost::where('user_openai_chat_id', $this->chat_main_id)->first();
+
+
+                    if ($params_json1["model"] == 'whisper-1') {
+                        $message->response = serialize(json_encode($response_arr));
+
+                    } else {
+                        $message->response = $responsedText;
+
+                    }
+                    $message->output = $output;
+                    $message->hash = Str::random(256);
+                    $message->credits = $this->total_used_tokens;
+                    $message->words = 0;
+                    $message->save();
+
+                    //$user = UserSP::where('id',$user_id);
+                    $user = DB::connection('main_db')->table('sp_users')->where('id', $user_id)->first();
+
+                    $user_email = $user->email;
+                    $old_remaining_words = $user->remaining_words;
+
+                    $new_remaining_words = $old_remaining_words - $total_used_tokens;
+
+
+                    if ($new_remaining_words < 0) {
+                        $new_remaining_words = 0;
+                    }
+
+                    $remaining_words_arr = array(
+                        'remaining_words' => $new_remaining_words,
                     );
-                    $message_new_ins = DB::connection('main_db')->table('sp_user_openai_chat_messages')->insertGetId($data_message);
 
-                } else {
-
-                    //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id,'updated_at' => $time ]);
-                    $data_message = array(
-                        'user_id' => $user_id,
-                        'chat_id' => $chat_id,
-                        //updated_at' => $time,
-                    );
-                    $message_new_ins = DB::connection('main_db')->table('sp_user_openai_chat_messages')->insertGetId($data_message);
-                }
-
-                $message_id = $message_new_ins;
-
-                if (isset($response['choices'][0]['delta']['content']))
-                    $message_response = $response['choices'][0]['delta']['content'];
-                if (isset($response['choices'][0]['message']['content']))
-                    $message_response = $response['choices'][0]['message']['content'];
-
-                    if(isset($params_json1['messages'][1]['content']))
-                    $message_response=$params_json1['messages'][1]['content'];
-                    
-                    if(isset($params_json1['response']))
-                    $message_response=$params_json1['response'];
-
-                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
-                $output .= $messageFix;
-                $responsedText .= $message_response;
-
-                $message = UserOpenaiChatMessageSocialPost::whereId($message_id)->first();
-
-                if($chat_id != NULL && $chat_id != '')
-                $chat = UserOpenaiChatSocialPost::where('chat_id', $chat_id)->first();
-                else
-                $chat = UserOpenaiChatSocialPost::where('user_openai_chat_id', $this->chat_main_id)->first();
-
-                
-                if ($params_json1["model"] == 'whisper-1') {
-                    $message->response = serialize(json_encode($response_arr));
-
-                } else {
-                    $message->response = $responsedText;
-
-                }
-                $message->output = $output;
-                $message->hash = Str::random(256);
-                $message->credits = $this->total_used_tokens;
-                $message->words = 0;
-                $message->save();
-
-                //$user = UserSP::where('id',$user_id);
-                $user = DB::connection('main_db')->table('sp_users')->where('id', $user_id)->first();
-
-                $user_email = $user->email;
-                $old_remaining_words = $user->remaining_words;
-
-                $new_remaining_words = $old_remaining_words - $total_used_tokens;
-
-
-                if ($new_remaining_words < 0) {
-                    $new_remaining_words = 0;
-                }
-
-                $remaining_words_arr = array(
-                    'remaining_words' => $new_remaining_words,
-                );
-
-                /* $user_update = DB::connection('main_db')->table('sp_users')
+                    /* $user_update = DB::connection('main_db')->table('sp_users')
                     ->where('id', $user_id)
                     ->update($remaining_words_arr); */
 
-                //$user->save();
+                    //$user->save();
 
-                $chat->total_credits += $total_used_tokens;
-                $chat->openai_chat_category_id=$this->main_chat_category;
-                $chat->save();
+                    $chat->total_credits += $total_used_tokens;
+                    $chat->openai_chat_category_id = $this->main_chat_category;
+                    $chat->save();
 
-                $chat_openai_id = $chat->id;
-                $save_user_request_chat = array(
+                    $chat_openai_id = $chat->id;
+                    $save_user_request_chat = array(
 
-                    'chat_id' => $chat_openai_id,
-                    'response' => $responsedText,
-                );
-                //Define CHat Role Universal
-                if (is_array($params_json1["prompt"])!=FALSE)
-                {
-                    $n_prompt = count($params_json1["prompt"]);
+                        'chat_id' => $chat_openai_id,
+                        'response' => $responsedText,
+                    );
+                    //Define CHat Role Universal
+                    if (is_array($params_json1["prompt"]) != FALSE) {
+                        $n_prompt = count($params_json1["prompt"]);
 
-                    if (isset($response['choices'][0]['message']['role']))
-                        $this->chat_role = $response['choices'][0]['message']['role'];
-                    else
-                        $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
-    
-    
-                    if ($n_prompt > 0) {
-                        $n_prompt -= 1;
-                    }
-    
-                    Log::debug('Count n_prompt' . $n_prompt);
-                    $x = intval($n_prompt);
-    
-                    $description = Arr::last($params_json1["prompt"]);
-                    $description = implode(" ", $description);
-
-            }
-            else{
-
-                $n_prompt = 2;
-
-                $this->chat_role = $params_json1['messages'][1]['role'];
-
-                //Define CHat Role Universal
-
-                if ($n_prompt > 0) {
-                    $n_prompt -= 1;
-                }
-
-                Log::debug('Count n_prompt ' . $n_prompt);
-                $role_of_previous_chat = $params_json1['messages'][0]['role'];
-                Log::debug('Which Role is : ' . $this->chat_role);
-                $description = $params_json1['messages'][0]['content'];
+                        if (isset($response['choices'][0]['message']['role']))
+                            $this->chat_role = $response['choices'][0]['message']['role'];
+                        else
+                            $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
 
 
-            }
-
-
-                //Log::debug('Desc after convert to string' . $description);
-
-                if(!isset($save_user_request_chat["chat_id"]))
-                $save_user_request_chat["chat_id"]=$this->chat_main_id;
-
-                $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
-                $save_to_where = "SocialPost";
-                $save_user_request_chat["input"] = $description;
-                $save_user_q = new SMAIUpdateProfileController();
-                $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
-
-
-            } else {
-
-                $save_to_where = "SocialPost";
-                //Switch to use Heler version socialpost
-
-
-                //$message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-           
-           // Log::debug('!!!!!!!! This is message_array message_array ');
-            //bugging start
-            if($this->platform=='main_coin')
-            {
-                if($this->platform=='main_coin')
-                    {
-                        try {
-                            $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-                            if(empty($message_arr)) 
-                                throw new Exception('Empty message array');
-                        } catch (Exception $e) {
-                            $message_arr = array();
-                            $message_arr[0] = '';
-                            
+                        if ($n_prompt > 0) {
+                            $n_prompt -= 1;
                         }
-                        Log::info($message_arr);
-                    }
-            }
-            else
-            $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-        
-            Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-            Log::info($message_arr);
 
-            $return_message_array=[];
-            for($i=0; $i<count($message_arr); $i++)
-            {
-                //if($i_arr!=NULL &&  $i==$i_arr)
-                if($i_arr==0)
-                {
-                      /* if($this->platform=='main_coin')
+                        Log::debug('Count n_prompt' . $n_prompt);
+                        $x = intval($n_prompt);
+
+                        $description = Arr::last($params_json1["prompt"]);
+                        $description = implode(" ", $description);
+
+                    } else {
+
+                        $n_prompt = 2;
+
+                        $this->chat_role = $params_json1['messages'][1]['role'];
+
+                        //Define CHat Role Universal
+
+                        if ($n_prompt > 0) {
+                            $n_prompt -= 1;
+                        }
+
+                        Log::debug('Count n_prompt ' . $n_prompt);
+                        $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                        Log::debug('Which Role is : ' . $this->chat_role);
+                        $description = $params_json1['messages'][0]['content'];
+
+
+                    }
+
+
+                    //Log::debug('Desc after convert to string' . $description);
+
+                    if (!isset($save_user_request_chat["chat_id"]))
+                        $save_user_request_chat["chat_id"] = $this->chat_main_id;
+
+                    $save_user_request_chat["chat_id_mobile"] = $this->chat_id;
+                    $save_to_where = "SocialPost";
+                    $save_user_request_chat["input"] = $description;
+                    $save_user_q = new SMAIUpdateProfileController();
+                    $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
+
+
+                } else {
+
+                    $save_to_where = "SocialPost";
+                    //Switch to use Heler version socialpost
+
+
+                    //$message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+
+                    // Log::debug('!!!!!!!! This is message_array message_array ');
+                    //bugging start
+                    if ($this->platform == 'main_coin') {
+                        if ($this->platform == 'main_coin') {
+                            try {
+                                if ($this->response_json_array) {
+                                    if ($this->response_json_array != '[]' && $this->response_json_array != null) {
+                                        $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+                                    } else {
+                                        $message_arr = array();
+                                        $message_arr[0] = '';
+                                        // json is either empty or null, handle it here
+                                    }
+                                }
+                                if (empty($message_arr))
+                                    throw new Exception('Empty message array');
+                            } catch (Exception $e) {
+                                $message_arr = array();
+                                $message_arr[0] = '';
+
+                            }
+                            Log::info($message_arr);
+                        }
+                    } else
+                        $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+
+                    Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                    Log::info($message_arr);
+
+                    $return_message_array = [];
+                    for ($i = 0; $i < count($message_arr); $i++) {
+                        //if($i_arr!=NULL &&  $i==$i_arr)
+                        if ($i_arr == 0) {
+                            /* if($this->platform=='main_coin')
                       {
                       $message ='';
                       $response_arr='';
                       }
                       else */
-                      $message = $message_arr[$i];
-                      
-                      Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-                      Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
-                      $messageFix = Helper::remove_html($message);
-                      $output = $messageFix;
-                      $responsedText = $message;
-                      $total_used_tokens += Helper::countWords($messageFix);
+                            $message = $message_arr[$i];
+                            $response_arr = $message;
 
-                      $string_length = Str::length($messageFix);
-                      $needChars = 6000 - $string_length;
-                      $random_text = Str::random($needChars);
-                      //eof Test Swtich to Helper version
-                  if (is_array($params))
-                      $params_json = $params;
-                  else
-                      $params_json = json_decode($params, true);
-                  $keywords = '';
-                  $description = $params_json["prompt"];
-                  $creativity = 1;
-                  $number_of_results = 1;
-                  $tone_of_voice = 0;
-                  $maximum_length = 2000;
-                  $language = "en";
-                  $post_type = 'paragraph_generator';
-                  $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
+                            Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                            Log::debug('!!!!!!!! This is message_array message_array $i ' . $i . ' ' . $message);
+                            $messageFix = Helper::remove_html($message);
+                            $output = $messageFix;
+                            $responsedText = $message;
+                            $total_used_tokens += Helper::countWords($messageFix);
+
+                            $string_length = Str::length($messageFix);
+                            $needChars = 6000 - $string_length;
+                            $random_text = Str::random($needChars);
+                            //eof Test Swtich to Helper version
+                            if (is_array($params))
+                                $params_json = $params;
+                            else
+                                $params_json = json_decode($params, true);
+                            $keywords = '';
+                            $description = $params_json["prompt"];
+                            $creativity = 1;
+                            $number_of_results = 1;
+                            $tone_of_voice = 0;
+                            $maximum_length = 2000;
+                            $language = "en";
+                            $post_type = 'paragraph_generator';
+                            $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
               Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
               ";
-                 
-              
-                // Save Users of SocialPOst
-                 $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
-                 //$users = DB::connection('second_db')->table('users')->get();
-                 $post = OpenAIGenerator::where('slug', $post_type)->first();
-                 $entry = new SP_UserOpenai();
-                 $entry->title = 'New Workbook';
 
 
-                  if ($params_json1["model"] == 'whisper-1') {
-                      $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                  } else {
-                      $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
-                  }
-                  //$response = json_encode($response);
-                  Log::debug(' REsponse String');
-                  Log::info($response_bk);
-                  if ($params_json1["model"] == 'whisper-1') {
-                      $prompt = $description;
-                      $output = $response['text'];
-                  }
-                 
-                  $entry->user_id = $user_id;
-                  $entry->openai_id = $post->id;
-                  if (is_array($prompt)) {
-                      $prompt = json_encode($prompt);
-                  }
-                  
-                  /* if (is_array($response_arr)) {
+                            // Save Users of SocialPOst
+                            $user = \DB::connection('main_db')->table('users')->where('id', $user_id)->get();
+                            //$users = DB::connection('second_db')->table('users')->get();
+                            $post = OpenAIGenerator::where('slug', $post_type)->first();
+                            $entry = new SP_UserOpenai();
+                            $entry->title = 'New Workbook';
+
+
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                            } else {
+                                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                            }
+                            //$response = json_encode($response);
+                            Log::debug(' REsponse String');
+                            Log::info($response_bk);
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $prompt = $description;
+                                $output = $response['text'];
+                            }
+
+                            $entry->user_id = $user_id;
+                            $entry->openai_id = $post->id;
+                            if (is_array($prompt)) {
+                                $prompt = json_encode($prompt);
+                            }
+
+                            /* if (is_array($response_arr)) {
                       $response_arr = json_encode($response_arr);
                   } */
-                  
-                  if (is_array($output)) {
-                      $output = json_encode($output);
-                  }
-                  $entry->input = $prompt;
-                  if( $this->platform=='main_coin' ||  (Str::contains($this->platform, 'main_coin')))
-                  {
-                     
-                      $main_message_id=$params_json["main_useropenai_message_id"];
-                      
-                 
-                  }
-                  else{
-                      $entry->response = $response_arr;
-                      $entry->output = $output;
-                  }
-                       
-                       
-                       
-                       
-                       
-                        $entry->hash = str()->random(256);
-                        $entry->credits = 0;
-                        $entry->words = 0;
-                        $entry->main_user_openai_id = $main_message_id;
-                        $entry->save();
-                        Log::debug("Saving Loop ".$i." for output array ".$message_arr[$i]);
-                     
-                        
 
-                        //Log::debug('$response_arr OpenAIUserSP of SocialPost ' . $response_arr);
-                        //Log::debug('Entry OpenAIUserSP of SocialPost ' . $entry->response);
-                        // Log::debug(' Gobal $this->response_bk OpenAIUserSP of SocialPost ' . $this->response_bk);
-                        
-                        //for socialpost caption
-                        $responsedText_backup =$entry->response;
-                        Log::debug('responsedText_backup of SocialPost ' .$responsedText_backup);
+                            if (is_array($output)) {
+                                $output = json_encode($output);
+                            }
+                            $entry->input = $prompt;
+                            if ($this->platform == 'main_coin' || (Str::contains($this->platform, 'main_coin'))) {
 
-                        $message_id = $entry->id;
-                        Log::debug('Message_ID of SocialPost ' . $message_id);
-
-                    
-
-                        // Create UserOpenai Models belong to OpenAIGenerator Models
-                        $message = SP_UserOpenai::whereId($message_id)->first();
-                        if ($params_json1["model"] == 'whisper-1') {
-                            $message->response = serialize(json_encode($response_arr));
-
-                        } else {
-                            $message->response = $responsedText;
-
-                        }
-                        $message->output = $output;
-                        $message->hash = Str::random(256);
-                        $message->credits = $this->total_used_tokens;
-                        $message->words = 0;
+                                $main_message_id = $params_json["main_useropenai_message_id"];
 
 
-                        $UserOpenai_saved = $message->save();
-
-                        if (!$UserOpenai_saved) {
-                            Log::debug('Save OpenAI Socialpost Log Error ');
-                        } else {
-                            Log::debug('Save SP_UserOpenai Log Success ');
-                        }
+                            } else {
+                                $entry->response = $response_arr;
+                                $entry->output = $output;
+                            }
 
 
-
-                        //Log::debug('before Skip Caption _Socialpost');
-                        //Bug still be wrong when create TextOpenAI From SmartBio
-                        if (Str::contains($chatGPT_catgory, 'Chat_') == false) {
-
-                            if(Str::length($entry->output) >2 )
-                            $caption_save=$entry->output;
-                            else if(Str::length($responsedText) >2 && $responsedText!= NULL)
-                            $caption_save=$responsedText_backup;
-                            else
-                            $caption_save=$output;
+                            $entry->hash = str()->random(256);
+                            $entry->credits = 0;
+                            $entry->words = 0;
+                            $entry->main_user_openai_id = $main_message_id;
+                            $entry->save();
+                            Log::debug("Saving Loop " . $i . " for output array " . $message_arr[$i]);
 
 
-                            //add to SP_Captions for show in socialpost caption list
-                            //Log::debug('before insert Caption _Socialpost caption_text '.$caption_save);
-                            $caption_table = "sp_captions";
-                            $caption_database = "main_db";
-                           
-                            //test overide content
-                            //$caption_save=$output;
+                            //Log::debug('$response_arr OpenAIUserSP of SocialPost ' . $response_arr);
+                            //Log::debug('Entry OpenAIUserSP of SocialPost ' . $entry->response);
+                            // Log::debug(' Gobal $this->response_bk OpenAIUserSP of SocialPost ' . $this->response_bk);
 
-                            $this->SMAI_Ins_Eloq_openAI_Caption_Socialpost($description, $caption_save, $user_id, $message_id, $caption_database, $caption_table);
+                            //for socialpost caption
+                            $responsedText_backup = $entry->response;
+                            Log::debug('responsedText_backup of SocialPost ' . $responsedText_backup);
+
+                            $message_id = $entry->id;
+                            Log::debug('Message_ID of SocialPost ' . $message_id);
 
 
+                            // Create UserOpenai Models belong to OpenAIGenerator Models
+                            $message = SP_UserOpenai::whereId($message_id)->first();
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $message->response = serialize(json_encode($response_arr));
+
+                            } else {
+                                $message->response = $responsedText;
+
+                            }
+                            $message->output = $output;
+                            $message->hash = Str::random(256);
+                            $message->credits = $this->total_used_tokens;
+                            $message->words = 0;
+
+
+                            $UserOpenai_saved = $message->save();
+
+                            if (!$UserOpenai_saved) {
+                                Log::debug('Save OpenAI Socialpost Log Error ');
+                            } else {
+                                Log::debug('Save SP_UserOpenai Log Success ');
+                            }
+
+
+                            //Log::debug('before Skip Caption _Socialpost');
+                            //Bug still be wrong when create TextOpenAI From SmartBio
+                            if (Str::contains($chatGPT_catgory, 'Chat_') == false) {
+
+                                if (Str::length($entry->output) > 2)
+                                    $caption_save = $entry->output;
+                                else if (Str::length($responsedText) > 2 && $responsedText != NULL)
+                                    $caption_save = $responsedText_backup;
+                                else
+                                    $caption_save = $output;
+
+
+                                //add to SP_Captions for show in socialpost caption list
+                                //Log::debug('before insert Caption _Socialpost caption_text '.$caption_save);
+                                $caption_table = "sp_captions";
+                                $caption_database = "main_db";
+
+                                //test overide content
+                                //$caption_save=$output;
+
+                                $this->SMAI_Ins_Eloq_openAI_Caption_Socialpost($description, $caption_save, $user_id, $message_id, $caption_database, $caption_table);
+
+
+                            }
+
+                            // reset $output and $responsedText in each Loop
+                            //$output = str_replace($messageFix, '', $output);
+                            // $responsedText = str_replace($message, '', $responsedText);
+                            // reset $output and $responsedText in each Loop
                         }
 
-                        // reset $output and $responsedText in each Loop
-                        //$output = str_replace($messageFix, '', $output);
-                       // $responsedText = str_replace($message, '', $responsedText);
-                        // reset $output and $responsedText in each Loop
                     }
+                    return true;
+                    //eof for loop to save TextOpenAI
 
                 }
-                return true;
-                //eof for loop to save TextOpenAI 
+
+
+            } else {
+                //echo 'data: [Update Failed user not found]';
+            }
 
         }
-
-
-        } else {
-            //echo 'data: [Update Failed user not found]';
-        }
-
-}
 
 
     }
 
 
     //Done
-    public function SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
+    public function SMAI_UpdateGPT_DigitalAsset($user_id, $usage, $response, $params, $from, $main_message_id = NULL, $i_arr = NULL)
     {
         // Update Token and usage
         $settings = $this->settings;
         $settings_two = $this->settings_two;
 
         if (is_array($params))
-        $params_json1 = $params;
-    else
-        $params_json1 = json_decode($params, true);
+            $params_json1 = $params;
+        else
+            $params_json1 = json_decode($params, true);
 
-    if (isset($params_json1['gpt_category']))
-        $chatGPT_catgory = $params_json1['gpt_category'];
-    else
-        $chatGPT_catgory = NULL;
+        if (isset($params_json1['gpt_category']))
+            $chatGPT_catgory = $params_json1['gpt_category'];
+        else
+            $chatGPT_catgory = NULL;
 
-if($params_json1['prompt']!='SKIP')
-{
+        if ($params_json1['prompt'] != 'SKIP') {
 
 
-        if (isset($user_id)) {
+            if (isset($user_id)) {
 
-            $responsedText = "";
-            $output = "";
-            $total_used_tokens = 0;
+                $responsedText = "";
+                $output = "";
+                $total_used_tokens = 0;
 
-            Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_DigitalAsset from SMAIsyncController : ' . $user_id);
+                Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_DigitalAsset from SMAIsyncController : ' . $user_id);
 
-            //$response=json_decode($response,true);
+                //$response=json_decode($response,true);
 
-            Log::info(print_r($response, true));
+                Log::info(print_r($response, true));
 
-            if (is_array($params))
-                $params_json1 = $params;
-            else
-                $params_json1 = json_decode($params, true);
-
-            if (isset($params_json1['gpt_category']))
-                $chatGPT_catgory = $params_json1['gpt_category'];
-            else
-                $chatGPT_catgory = NULL;
-
-            $response_bk = $response;
-            $response = json_decode($response, true);
-            if (Str::contains($chatGPT_catgory, 'Chat_')) {
-                //add Sync GPT chat version here
-
-                $total_used_tokens = $usage;
-                $chat_id = $this->chat_id;
-
-                Log::debug(' Chat ID before create Eloquent UserOpenaiChatDesign' . $chat_id);
-                
-                if( $chat_id==NULL) 
-                {
-                $chat_id_find=UserOpenaiChat::where('id',$this->chat_main_id);
-
-                $chat_id=$chat_id_find->chat_id;
-                $this->chat_id =$chat_id_find->chat_id;
-
-                }
-                
-
-                $chat_new_ins = UserOpenaiChatDesign::updateOrCreate(
-                    ['chat_id' => $chat_id],
-                    ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
-                );
-
-                //$user_openai_chat_id =UserOpenaiChat::where('chat_id',$chat_id);
-                $user_openai_chat_id = DB::connection('digitalasset_db')->table('user_openai_chat')->where('chat_id', $chat_id)->first();
-
-                $time = time();
-                //$time = intval($time);
-                if (isset($user_openai_chat_id->id)) {
-                    $user_openai_chat_id_ins = $user_openai_chat_id->id;
-                    //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id, 'user_openai_chat_id_ins' => $user_openai_chat_id_ins,'updated_at' => $time]);
-
-                    $data_message = array(
-                        'user_id' => $user_id,
-                        'chat_id' => $chat_id,
-                        'user_openai_chat_id' => $user_openai_chat_id_ins,
-                        //updated_at' => $time,
-                    );
-                    $message_new_ins = DB::connection('digitalasset_db')->table('user_openai_chat_messages')->insertGetId($data_message);
-
-                } else {
-
-                    //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id,'updated_at' => $time ]);
-                    $data_message = array(
-                        'user_id' => $user_id,
-                        'chat_id' => $chat_id,
-                        //updated_at' => $time,
-                    );
-                    $message_new_ins = DB::connection('digitalasset_db')->table('user_openai_chat_messages')->insertGetId($data_message);
-                }
-
-                $message_id = $message_new_ins;
-
-                if (isset($response['choices'][0]['delta']['content']))
-                    $message_response = $response['choices'][0]['delta']['content'];
-                if (isset($response['choices'][0]['message']['content']))
-                    $message_response = $response['choices'][0]['message']['content'];
-
-                    if(isset($params_json1['messages'][1]['content']))
-                    $message_response=$params_json1['messages'][1]['content'];
-                    
-                    if(isset($params_json1['response']))
-                    $message_response=$params_json1['response'];
-
-                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
-                $output .= $messageFix;
-                $responsedText .= $message_response;
-
-                $message = UserOpenaiChatMessageDesign::whereId($message_id)->first();
-                
-                if($chat_id != NULL && $chat_id != '')
-                $chat = UserOpenaiChatDesign::where('chat_id', $this->chat_id)->first();
+                if (is_array($params))
+                    $params_json1 = $params;
                 else
-                $chat = UserOpenaiChatDesign::where('user_openai_chat_id', $this->chat_main_id)->first();
+                    $params_json1 = json_decode($params, true);
 
-                
-                
-                if ($params_json1["model"] == 'whisper-1') {
-                    $message->response = serialize(json_encode($response_arr));
+                if (isset($params_json1['gpt_category']))
+                    $chatGPT_catgory = $params_json1['gpt_category'];
+                else
+                    $chatGPT_catgory = NULL;
 
-                } else {
-                    $message->response = $responsedText;
+                $response_bk = $response;
+                $response = json_decode($response, true);
+                if (Str::contains($chatGPT_catgory, 'Chat_')) {
+                    //add Sync GPT chat version here
 
-                }
-                $message->output = $output;
-                $message->hash = Str::random(256);
-                $message->credits = $this->total_used_tokens;
-                $message->words = 0;
-                $message->save();
+                    $total_used_tokens = $usage;
+                    $chat_id = $this->chat_id;
 
-                //$user = UserDesign::where('id',$user_id);
-                $user = DB::connection('digitalasset_db')->table('users')->where('id', $user_id)->first();
+                    Log::debug(' Chat ID before create Eloquent UserOpenaiChatDesign' . $chat_id);
 
-                if(isset($user->email))
-                $user_email = $user->email;
-            
-                Log::debug('Debug UderDesign from Eloqunt ');
-                //Log::info($user);
+                    if ($chat_id == NULL) {
+                        $chat_id_find = UserOpenaiChat::where('id', $this->chat_main_id);
 
-                $old_remaining_words = $user->remaining_words;
+                        $chat_id = $chat_id_find->chat_id;
+                        $this->chat_id = $chat_id_find->chat_id;
 
-                $new_remaining_words = $old_remaining_words - $total_used_tokens;
+                    }
 
 
-                if ($new_remaining_words < 0) {
-                    $new_remaining_words = 0;
-                }
+                    $chat_new_ins = UserOpenaiChatDesign::updateOrCreate(
+                        ['chat_id' => $chat_id],
+                        ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
+                    );
 
-                $remaining_words_arr = array(
-                    'remaining_words' => $new_remaining_words,
-                );
+                    //$user_openai_chat_id =UserOpenaiChat::where('chat_id',$chat_id);
+                    $user_openai_chat_id = DB::connection('digitalasset_db')->table('user_openai_chat')->where('chat_id', $chat_id)->first();
 
-                /* $user_update = DB::connection('digitalasset_db')->table('users')
+                    $time = time();
+                    //$time = intval($time);
+                    if (isset($user_openai_chat_id->id)) {
+                        $user_openai_chat_id_ins = $user_openai_chat_id->id;
+                        //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id, 'user_openai_chat_id_ins' => $user_openai_chat_id_ins,'updated_at' => $time]);
+
+                        $data_message = array(
+                            'user_id' => $user_id,
+                            'chat_id' => $chat_id,
+                            'user_openai_chat_id' => $user_openai_chat_id_ins,
+                            //updated_at' => $time,
+                        );
+                        $message_new_ins = DB::connection('digitalasset_db')->table('user_openai_chat_messages')->insertGetId($data_message);
+
+                    } else {
+
+                        //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id,'updated_at' => $time ]);
+                        $data_message = array(
+                            'user_id' => $user_id,
+                            'chat_id' => $chat_id,
+                            //updated_at' => $time,
+                        );
+                        $message_new_ins = DB::connection('digitalasset_db')->table('user_openai_chat_messages')->insertGetId($data_message);
+                    }
+
+                    $message_id = $message_new_ins;
+
+                    $message_response = ''; // Initialize here
+
+                    if (isset($response['choices'][0]['delta']['content']))
+                        $message_response = $response['choices'][0]['delta']['content'];
+                    if (isset($response['choices'][0]['message']['content']))
+                        $message_response = $response['choices'][0]['message']['content'];
+
+                    if (isset($params_json1['messages'][1]['content']))
+                        $message_response = $params_json1['messages'][1]['content'];
+
+                    if (isset($params_json1['response']))
+                        $message_response = $params_json1['response'];
+
+                    $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
+                    $output .= $messageFix;
+                    $responsedText .= $message_response;
+
+                    $message = UserOpenaiChatMessageDesign::whereId($message_id)->first();
+
+                    if ($chat_id != NULL && $chat_id != '')
+                        $chat = UserOpenaiChatDesign::where('chat_id', $this->chat_id)->first();
+                    else
+                        $chat = UserOpenaiChatDesign::where('user_openai_chat_id', $this->chat_main_id)->first();
+
+
+                    if ($params_json1["model"] == 'whisper-1') {
+                        $message->response = serialize(json_encode($response_arr));
+
+                    } else {
+                        $message->response = $responsedText;
+
+                    }
+                    $message->output = $output;
+                    $message->hash = Str::random(256);
+                    $message->credits = $this->total_used_tokens;
+                    $message->words = 0;
+                    $message->save();
+
+                    //$user = UserDesign::where('id',$user_id);
+                    $user = DB::connection('digitalasset_db')->table('users')->where('id', $user_id)->first();
+
+                    if (isset($user->email))
+                        $user_email = $user->email;
+
+                    Log::debug('Debug UderDesign from Eloqunt ');
+                    //Log::info($user);
+
+                    $old_remaining_words = $user->remaining_words;
+
+                    $new_remaining_words = $old_remaining_words - $total_used_tokens;
+
+
+                    if ($new_remaining_words < 0) {
+                        $new_remaining_words = 0;
+                    }
+
+                    $remaining_words_arr = array(
+                        'remaining_words' => $new_remaining_words,
+                    );
+
+                    /* $user_update = DB::connection('digitalasset_db')->table('users')
                     ->where('id', $user_id)
                     ->update($remaining_words_arr); */
 
-                //$user->save();
+                    //$user->save();
 
-                $chat->total_credits += $total_used_tokens;
-                $chat->openai_chat_category_id=$this->main_chat_category;
-                $chat->save();
+                    $chat->total_credits += $total_used_tokens;
+                    $chat->openai_chat_category_id = $this->main_chat_category;
+                    $chat->save();
 
-                $chat_openai_id = $chat->id;
-                $save_user_request_chat = array(
+                    $chat_openai_id = $chat->id;
+                    $save_user_request_chat = array(
 
-                    'chat_id' => $chat_openai_id,
-                    'response' => $responsedText,
-                );
+                        'chat_id' => $chat_openai_id,
+                        'response' => $responsedText,
+                    );
 
-                //Define CHat Role Universal
-                if (is_array($params_json1["prompt"])!=FALSE)
-                {
-                    $n_prompt = count($params_json1["prompt"]);
+                    //Define CHat Role Universal
+                    if (is_array($params_json1["prompt"]) != FALSE) {
+                        $n_prompt = count($params_json1["prompt"]);
 
-                    if (isset($response['choices'][0]['message']['role']))
-                        $this->chat_role = $response['choices'][0]['message']['role'];
-                    else
-                        $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
-    
-    
-                    if ($n_prompt > 0) {
-                        $n_prompt -= 1;
-                    }
-    
-                    Log::debug('Count n_prompt' . $n_prompt);
-                    $x = intval($n_prompt);
-    
-                    $description = Arr::last($params_json1["prompt"]);
-                    $description = implode(" ", $description);
-
-            }
-            else{
-
-                $n_prompt = 2;
-
-                $this->chat_role = $params_json1['messages'][1]['role'];
-
-                //Define CHat Role Universal
-
-                if ($n_prompt > 0) {
-                    $n_prompt -= 1;
-                }
-
-                Log::debug('Count n_prompt ' . $n_prompt);
-                $role_of_previous_chat = $params_json1['messages'][0]['role'];
-                Log::debug('Which Role is : ' . $this->chat_role);
-                $description = $params_json1['messages'][0]['content'];
+                        if (isset($response['choices'][0]['message']['role']))
+                            $this->chat_role = $response['choices'][0]['message']['role'];
+                        else
+                            $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
 
 
-            }
-
-            if(!isset($save_user_request_chat["chat_id"]))
-            $save_user_request_chat["chat_id"]=$this->chat_main_id;
-
-
-            $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
-                $save_to_where = "Design";
-                $save_user_request_chat["input"] = $description;
-                $save_user_q = new SMAIUpdateProfileController();
-                $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
-
-
-            } else {
-
-                $save_to_where = "Design";
-                //Switch to Helper version
-
-
-                //Log::info(print_r($response, true));
-                Log::debug('$params SMAI_UpdateGPT_DigitalAsset from SMAIsyncController : ' . info(print_r($params, true)));
-                //Log::debug('$params smaisync_tokens from APIsController : '.info(json_encode($params)));
-                Log::info(print_r($params, true));
-            
-                //Switch to Heler fnc Digital asset work as the Master
-                //bugging start
-                if($this->platform=='main_coin')
-                {
-                    if($this->platform=='main_coin')
-                    {
-                        try {
-                            $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-                            if(empty($message_arr)) 
-                                throw new Exception('Empty message array');
-                        } catch (Exception $e) {
-                            $message_arr = array();
-                            $message_arr[0] = '';
-                            
+                        if ($n_prompt > 0) {
+                            $n_prompt -= 1;
                         }
-                        Log::info($message_arr);
+
+                        Log::debug('Count n_prompt' . $n_prompt);
+                        $x = intval($n_prompt);
+
+                        $description = Arr::last($params_json1["prompt"]);
+                        $description = implode(" ", $description);
+
+                    } else {
+
+                        $n_prompt = 2;
+
+                        $this->chat_role = $params_json1['messages'][1]['role'];
+
+                        //Define CHat Role Universal
+
+                        if ($n_prompt > 0) {
+                            $n_prompt -= 1;
+                        }
+
+                        Log::debug('Count n_prompt ' . $n_prompt);
+                        $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                        Log::debug('Which Role is : ' . $this->chat_role);
+                        $description = $params_json1['messages'][0]['content'];
+
+
                     }
-                }
-                else
-                $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-           
-                Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-                Log::info($message_arr);
-                $return_message_array=[];
-                for($i=0; $i<count($message_arr); $i++)
-                {
-                    //if($i_arr!=NULL &&  $i==$i_arr)
-                    if($i_arr==0)
-                    {
-                               /*  if($this->platform=='main_coin')
+
+                    if (!isset($save_user_request_chat["chat_id"]))
+                        $save_user_request_chat["chat_id"] = $this->chat_main_id;
+
+
+                    $save_user_request_chat["chat_id_mobile"] = $this->chat_id;
+                    $save_to_where = "Design";
+                    $save_user_request_chat["input"] = $description;
+                    $save_user_q = new SMAIUpdateProfileController();
+                    $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
+
+
+                } else {
+
+                    $save_to_where = "Design";
+                    //Switch to Helper version
+
+
+                    //Log::info(print_r($response, true));
+                    Log::debug('$params SMAI_UpdateGPT_DigitalAsset from SMAIsyncController : ' . info(print_r($params, true)));
+                    //Log::debug('$params smaisync_tokens from APIsController : '.info(json_encode($params)));
+                    Log::info(print_r($params, true));
+
+                    //Switch to Heler fnc Digital asset work as the Master
+                    //bugging start
+                    Log::debug(" response_json_array : ");
+                    Log::info(print_r($this->response_json_array, true));
+
+                    Log::debug(" Raw response : ");
+                    Log::info(print_r($this->raw_response, true));
+
+                    if ($this->platform == 'main_coin') {
+                        if ($this->platform == 'main_coin') {
+                            try {
+
+                                if ($this->response_json_array) {
+                                    if ($this->response_json_array != '[]' && $this->response_json_array != null) {
+                                        $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+                                    } else {
+                                        $message_arr = array();
+                                        $message_arr[0] = '';
+                                        // json is either empty or null, handle it here
+                                    }
+                                }
+
+
+                                if (empty($message_arr))
+                                    throw new Exception('Empty message array');
+                            } catch (Exception $e) {
+                                $message_arr = array();
+                                $message_arr[0] = '';
+
+                            }
+                            Log::info($message_arr);
+                        }
+                    } else
+                        $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+
+                    Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                    Log::info($message_arr);
+                    $return_message_array = [];
+                    for ($i = 0; $i < count($message_arr); $i++) {
+                        //if($i_arr!=NULL &&  $i==$i_arr)
+                        if ($i_arr == 0) {
+                            /*  if($this->platform=='main_coin')
                                 {
                                 $message ='';
                                 $response_arr='';
                                 }
                                 else */
-                                $message = $message_arr[$i];
+                            $message = $message_arr[$i];
+                            $response_arr = $message;
 
-                                Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-                                Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
-                                $messageFix = Helper::remove_html($message);
-                                $output = $messageFix;
-                                $responsedText = $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-        
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                                //eof Test Swtich to Helper version
+                            Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                            Log::debug('!!!!!!!! This is message_array message_array $i ' . $i . ' ' . $message);
+                            $messageFix = Helper::remove_html($message);
+                            $output = $messageFix;
+                            $responsedText = $message;
+                            $total_used_tokens += Helper::countWords($messageFix);
+
+                            $string_length = Str::length($messageFix);
+                            $needChars = 6000 - $string_length;
+                            $random_text = Str::random($needChars);
+                            //eof Test Swtich to Helper version
 
                             if (is_array($params))
                                 $params_json = $params;
@@ -2011,40 +1991,37 @@ if($params_json1['prompt']!='SKIP')
                                 $output = $response['text'];
                             }
 
-                           
+
                             $entry->user_id = $user_id;
                             $entry->openai_id = $post->id;
 
                             if (is_array($prompt)) {
                                 $prompt = json_encode($prompt);
                             }
-                            
-                           /*  if (is_array($response_arr)) {
+
+                            /*  if (is_array($response_arr)) {
                                 $response_arr = json_encode($response_arr);
                             } */
-                            
+
                             if (is_array($output)) {
                                 $output = json_encode($output);
                             }
 
                             $entry->input = $prompt;
 
-                            if( $this->platform=='main_coin' ||  (Str::contains($this->platform, 'main_coin')))
-                            {
-                               
-                                $main_message_id=$params_json["main_useropenai_message_id"];
-                                
-                           
-                            }
-                            else{
+                            if ($this->platform == 'main_coin' || (Str::contains($this->platform, 'main_coin'))) {
+
+                                $main_message_id = $params_json["main_useropenai_message_id"];
+
+
+                            } else {
                                 $entry->response = $response_arr;
                                 $entry->output = $output;
 
 
                             }
 
-             
-                            
+
                             $entry->hash = str()->random(256);
                             $entry->credits = 0;
                             $entry->words = 0;
@@ -2053,7 +2030,7 @@ if($params_json1['prompt']!='SKIP')
                             $entry->save();
 
                             //for socialpost caption
-                            $responsedText_backup =$entry->response;
+                            $responsedText_backup = $entry->response;
 
                             $message_id = $entry->id;
                             Log::debug('Message_ID of DigitalAsset Design ' . $message_id);
@@ -2087,852 +2064,839 @@ if($params_json1['prompt']!='SKIP')
                             //$output = str_replace($messageFix, '', $output);
                             //$responsedText = str_replace($message, '', $responsedText);
                             // reset $output and $responsedText in each Loop
+                        }
+
                     }
+                    //eof for loop Save Text OPEN AI data
+                    return true;
 
                 }
-                //eof for loop Save Text OPEN AI data
-                return true;
 
+
+            } else {
+                //echo 'data: [Update Failed user not found]';
             }
 
-
-        } else {
-            //echo 'data: [Update Failed user not found]';
         }
-
-}
 
 
     }
 
 //Done
-    public function SMAI_UpdateGPT_MobileApp($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
+    public function SMAI_UpdateGPT_MobileApp($user_id, $usage, $response, $params, $from, $main_message_id = NULL, $i_arr = NULL)
     {
         $settings = $this->settings;
         $settings_two = $this->settings_two;
 
         if (is_array($params))
-        $params_json1 = $params;
-    else
-        $params_json1 = json_decode($params, true);
+            $params_json1 = $params;
+        else
+            $params_json1 = json_decode($params, true);
 
-    if (isset($params_json1['gpt_category']))
-        $chatGPT_catgory = $params_json1['gpt_category'];
-    else
-        $chatGPT_catgory = NULL;
+        if (isset($params_json1['gpt_category']))
+            $chatGPT_catgory = $params_json1['gpt_category'];
+        else
+            $chatGPT_catgory = NULL;
 
-if($params_json1['prompt']!='SKIP')
-{
+        if ($params_json1['prompt'] != 'SKIP') {
 
-        if (isset($user_id)) {
+            if (isset($user_id)) {
 
-            $responsedText = "";
-            $output = "";
-            $total_used_tokens = 0;
+                $responsedText = "";
+                $output = "";
+                $total_used_tokens = 0;
 
-            Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_MobileApp from SMAIsyncController : ' . $user_id);
+                Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_MobileApp from SMAIsyncController : ' . $user_id);
 
-            if (is_array($params))
-                $params_json1 = $params;
-            else
-                $params_json1 = json_decode($params, true);
-
-
-            if (isset($params_json1['gpt_category']))
-                $chatGPT_catgory = $params_json1['gpt_category'];
-            else
-                $chatGPT_catgory = NULL;
-
-            $response_bk = $response;
-            $response = json_decode($response, true);
-            if (Str::contains($chatGPT_catgory, 'Chat_')) {
-                //add Sync GPT chat version here
-
-                $total_used_tokens = $usage;
-                $chat_id = $this->chat_id;
-
-
-                $chat_new_ins = UserOpenaiChatMobile::updateOrCreate(
-                    ['chat_id' => $chat_id],
-                    ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
-                );
-
-                //$user_openai_chat_id =UserOpenaiChat::where('chat_id',$chat_id);
-                $user_openai_chat_id = DB::connection('mobileapp_db')->table('willdev_user_chat')->where('chat_id', $chat_id)->first();
-
-                $time = time();
-                //$time = intval($time);
-                if (isset($user_openai_chat_id->id)) {
-                    $user_openai_chat_id_ins = $user_openai_chat_id->id;
-                    //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id, 'user_openai_chat_id_ins' => $user_openai_chat_id_ins,'updated_at' => $time]);
-
-                    $data_message = array(
-                        'user_id' => $user_id,
-                        'chat_id' => $chat_id,
-                        'user_openai_chat_id' => $user_openai_chat_id_ins,
-                        //updated_at' => $time,
-                    );
-                    $message_new_ins = DB::connection('mobileapp_db')->table('user_openai_chat_messages')->insertGetId($data_message);
-
-                } else {
-
-                    //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id,'updated_at' => $time ]);
-                    $data_message = array(
-                        'user_id' => $user_id,
-                        'chat_id' => $chat_id,
-                        //updated_at' => $time,
-                    );
-                    $message_new_ins = DB::connection('mobileapp_db')->table('user_openai_chat_messages')->insertGetId($data_message);
-                }
-
-                $message_id = $message_new_ins;
-
-
-                if (isset($response['choices'][0]['delta']['content']))
-                    $message_response = $response['choices'][0]['delta']['content'];
-                if (isset($response['choices'][0]['message']['content']))
-                    $message_response = $response['choices'][0]['message']['content'];
-
-                    if(isset($params_json1['messages'][1]['content']))
-                    $message_response=$params_json1['messages'][1]['content'];
-                    
-                    if(isset($params_json1['response']))
-                    $message_response=$params_json1['response'];
-
-
-                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
-                $output .= $messageFix;
-                $responsedText .= $message_response;
-
-                $message = UserOpenaiChatMessageMobile::whereId($message_id)->first();
-               
-                if($chat_id != NULL && $chat_id != '')
-                $chat = UserOpenaiChatMobile::where('chat_id', $chat_id)->first();
+                if (is_array($params))
+                    $params_json1 = $params;
                 else
-                $chat = UserOpenaiChatMobile::where('id', $this->chat_main_id)->first();
-                
-                if ($params_json1["model"] == 'whisper-1') {
-                    $message->response = serialize(json_encode($response_arr));
-
-                } else {
-                    $message->response = $responsedText;
-
-                }
-                $message->output = $output;
-                $message->hash = Str::random(256);
-                $message->credits = $this->total_used_tokens;
-                $message->words = 0;
-                $message->save();
-
-                $user = DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->first();
-                //$user = UserMain::where('id',$user_id);
-
-                $user_email = $user->email;
-                $old_remaining_words = $user->remaining_words;
-
-                $new_remaining_words = $old_remaining_words - $total_used_tokens;
+                    $params_json1 = json_decode($params, true);
 
 
-                if ($new_remaining_words < 0) {
-                    $new_remaining_words = 0;
-                }
-                $remaining_words_arr = array(
-                    'remaining_words' => $new_remaining_words,
-                );
+                if (isset($params_json1['gpt_category']))
+                    $chatGPT_catgory = $params_json1['gpt_category'];
+                else
+                    $chatGPT_catgory = NULL;
+
+                $response_bk = $response;
+                $response = json_decode($response, true);
+                if (Str::contains($chatGPT_catgory, 'Chat_')) {
+                    //add Sync GPT chat version here
+
+                    $total_used_tokens = $usage;
+                    $chat_id = $this->chat_id;
 
 
-                /* $user_update = DB::connection('mobileapp_db')->table('users')
+                    $chat_new_ins = UserOpenaiChatMobile::updateOrCreate(
+                        ['chat_id' => $chat_id],
+                        ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
+                    );
+
+                    //$user_openai_chat_id =UserOpenaiChat::where('chat_id',$chat_id);
+                    $user_openai_chat_id = DB::connection('mobileapp_db')->table('willdev_user_chat')->where('chat_id', $chat_id)->first();
+
+                    $time = time();
+                    //$time = intval($time);
+                    if (isset($user_openai_chat_id->id)) {
+                        $user_openai_chat_id_ins = $user_openai_chat_id->id;
+                        //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id, 'user_openai_chat_id_ins' => $user_openai_chat_id_ins,'updated_at' => $time]);
+
+                        $data_message = array(
+                            'user_id' => $user_id,
+                            'chat_id' => $chat_id,
+                            'user_openai_chat_id' => $user_openai_chat_id_ins,
+                            //updated_at' => $time,
+                        );
+                        $message_new_ins = DB::connection('mobileapp_db')->table('user_openai_chat_messages')->insertGetId($data_message);
+
+                    } else {
+
+                        //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id,'updated_at' => $time ]);
+                        $data_message = array(
+                            'user_id' => $user_id,
+                            'chat_id' => $chat_id,
+                            //updated_at' => $time,
+                        );
+                        $message_new_ins = DB::connection('mobileapp_db')->table('user_openai_chat_messages')->insertGetId($data_message);
+                    }
+
+                    $message_id = $message_new_ins;
+
+                    $message_response = ''; // Initialize here
+
+                    if (isset($response['choices'][0]['delta']['content']))
+                        $message_response = $response['choices'][0]['delta']['content'];
+                    if (isset($response['choices'][0]['message']['content']))
+                        $message_response = $response['choices'][0]['message']['content'];
+
+                    if (isset($params_json1['messages'][1]['content']))
+                        $message_response = $params_json1['messages'][1]['content'];
+
+                    if (isset($params_json1['response']))
+                        $message_response = $params_json1['response'];
+
+                    $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
+                    $output .= $messageFix;
+                    $responsedText .= $message_response;
+
+                    $message = UserOpenaiChatMessageMobile::whereId($message_id)->first();
+
+                    if ($chat_id != NULL && $chat_id != '')
+                        $chat = UserOpenaiChatMobile::where('chat_id', $chat_id)->first();
+                    else
+                        $chat = UserOpenaiChatMobile::where('id', $this->chat_main_id)->first();
+
+                    if ($params_json1["model"] == 'whisper-1') {
+                        $message->response = serialize(json_encode($response_arr));
+
+                    } else {
+                        $message->response = $responsedText;
+
+                    }
+                    $message->output = $output;
+                    $message->hash = Str::random(256);
+                    $message->credits = $this->total_used_tokens;
+                    $message->words = 0;
+                    $message->save();
+
+                    $user = DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->first();
+                    //$user = UserMain::where('id',$user_id);
+
+                    $user_email = $user->email;
+                    $old_remaining_words = $user->remaining_words;
+
+                    $new_remaining_words = $old_remaining_words - $total_used_tokens;
+
+
+                    if ($new_remaining_words < 0) {
+                        $new_remaining_words = 0;
+                    }
+                    $remaining_words_arr = array(
+                        'remaining_words' => $new_remaining_words,
+                    );
+
+
+                    /* $user_update = DB::connection('mobileapp_db')->table('users')
                     ->where('id', $user_id)
                     ->update($remaining_words_arr); */
 
-                //$user->save();
+                    //$user->save();
 
 
-                $chat->total_credits += $total_used_tokens;
-                $chat->openai_chat_category_id=$this->main_chat_category;
-                $chat->save();
+                    $chat->total_credits += $total_used_tokens;
+                    $chat->openai_chat_category_id = $this->main_chat_category;
+                    $chat->save();
 
-                $chat_openai_id = $chat->id;
-                $save_user_request_chat = array(
+                    $chat_openai_id = $chat->id;
+                    $save_user_request_chat = array(
 
-                    'chat_id' => $chat_openai_id,
-                    'response' => $responsedText,
-                );
+                        'chat_id' => $chat_openai_id,
+                        'response' => $responsedText,
+                    );
 
-                //Define CHat Role Universal
-                if (is_array($params_json1["prompt"])!=FALSE)
-                {
-                    $n_prompt = count($params_json1["prompt"]);
+                    //Define CHat Role Universal
+                    if (is_array($params_json1["prompt"]) != FALSE) {
+                        $n_prompt = count($params_json1["prompt"]);
 
-                    if (isset($response['choices'][0]['message']['role']))
-                        $this->chat_role = $response['choices'][0]['message']['role'];
-                    else
-                        $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
-    
-    
-                    if ($n_prompt > 0) {
-                        $n_prompt -= 1;
-                    }
-    
-                    Log::debug('Count n_prompt' . $n_prompt);
-                    $x = intval($n_prompt);
-    
-                    $description = Arr::last($params_json1["prompt"]);
-                    $description = implode(" ", $description);
-
-            }
-            else{
-
-                $n_prompt = 2;
-
-                $this->chat_role = $params_json1['messages'][1]['role'];
-
-                //Define CHat Role Universal
-
-                if ($n_prompt > 0) {
-                    $n_prompt -= 1;
-                }
-
-                Log::debug('Count n_prompt ' . $n_prompt);
-                $role_of_previous_chat = $params_json1['messages'][0]['role'];
-                Log::debug('Which Role is : ' . $this->chat_role);
-                $description = $params_json1['messages'][0]['content'];
+                        if (isset($response['choices'][0]['message']['role']))
+                            $this->chat_role = $response['choices'][0]['message']['role'];
+                        else
+                            $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
 
 
-            }
-
-            if(!isset($save_user_request_chat["chat_id"]))
-                $save_user_request_chat["chat_id"]=$this->chat_main_id;
-
-
-            $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
-                $save_to_where = "MobileAppV2";
-                $save_user_request_chat["input"] = $description;
-                $save_user_q = new SMAIUpdateProfileController();
-                $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
-
-            } else {
-
-                $save_to_where = "MobileAppV2";
-                //Switch to Helper version
-
-
-
-              //$message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-           
-              Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-              
-               //bugging start SMAI after $message_arr=
-              if($this->platform=='main_coin')
-              {
-                if($this->platform=='main_coin')
-                    {
-                        try {
-                            $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-                            if(empty($message_arr)) 
-                                throw new Exception('Empty message array');
-                        } catch (Exception $e) {
-                            $message_arr = array();
-                            $message_arr[0] = '';
-                            
+                        if ($n_prompt > 0) {
+                            $n_prompt -= 1;
                         }
-                        Log::info($message_arr);
+
+                        Log::debug('Count n_prompt' . $n_prompt);
+                        $x = intval($n_prompt);
+
+                        $description = Arr::last($params_json1["prompt"]);
+                        $description = implode(" ", $description);
+
+                    } else {
+
+                        $n_prompt = 2;
+
+                        $this->chat_role = $params_json1['messages'][1]['role'];
+
+                        //Define CHat Role Universal
+
+                        if ($n_prompt > 0) {
+                            $n_prompt -= 1;
+                        }
+
+                        Log::debug('Count n_prompt ' . $n_prompt);
+                        $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                        Log::debug('Which Role is : ' . $this->chat_role);
+                        $description = $params_json1['messages'][0]['content'];
+
+
                     }
-              }
-              else
-              $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-         
-              Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-              Log::info($message_arr);
-              $return_message_array=[];
-              for($i=0; $i<count($message_arr); $i++)
-              {
-                  //if($i_arr!=NULL &&  $i==$i_arr)
-                  if($i_arr==0)
-                  {
+
+                    if (!isset($save_user_request_chat["chat_id"]))
+                        $save_user_request_chat["chat_id"] = $this->chat_main_id;
+
+
+                    $save_user_request_chat["chat_id_mobile"] = $this->chat_id;
+                    $save_to_where = "MobileAppV2";
+                    $save_user_request_chat["input"] = $description;
+                    $save_user_q = new SMAIUpdateProfileController();
+                    $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
+
+                } else {
+
+                    $save_to_where = "MobileAppV2";
+                    //Switch to Helper version
+
+
+                    //$message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+
+                    Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+
+                    //bugging start SMAI after $message_arr=
+                    if ($this->platform == 'main_coin') {
+                        if ($this->platform == 'main_coin') {
+                            try {
+                                if ($this->response_json_array) {
+                                    if ($this->response_json_array != '[]' && $this->response_json_array != null) {
+                                        $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+                                    } else {
+                                        $message_arr = array();
+                                        $message_arr[0] = '';
+                                        // json is either empty or null, handle it here
+                                    }
+                                }
+                                if (empty($message_arr))
+                                    throw new Exception('Empty message array');
+                            } catch (Exception $e) {
+                                $message_arr = array();
+                                $message_arr[0] = '';
+
+                            }
+                            Log::info($message_arr);
+                        }
+                    } else
+                        $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+
+                    Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                    Log::info($message_arr);
+                    $return_message_array = [];
+                    for ($i = 0; $i < count($message_arr); $i++) {
+                        //if($i_arr!=NULL &&  $i==$i_arr)
+                        if ($i_arr == 0) {
                             /*   if($this->platform=='main_coin')
                               {
                               $message ='';
                               $response_arr='';
                               }
                               else */
-                              $message = $message_arr[$i];
+                            $message = $message_arr[$i];
+                            $response_arr = $message;
 
-                              Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-                              Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
-                              $messageFix = Helper::remove_html($message);
-                              $output = $messageFix;
-                              $responsedText = $message;
-                              $total_used_tokens += Helper::countWords($messageFix);
-      
-                              $string_length = Str::length($messageFix);
-                              $needChars = 6000 - $string_length;
-                              $random_text = Str::random($needChars);
-                              //eof Test Swtich to Helper version
-                          if (is_array($params))
-                              $params_json = $params;
-                          else
-                              $params_json = json_decode($params, true);
-                          $keywords = '';
-                          $description = $params_json["prompt"];
-                          $creativity = 1;
-                          $number_of_results = 1;
-                          $tone_of_voice = 0;
-                          $maximum_length = 2000;
-                          $language = "en";
-                          $post_type = 'paragraph_generator';
-                          $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
+                            Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                            Log::debug('!!!!!!!! This is message_array message_array $i ' . $i . ' ' . $message);
+                            $messageFix = Helper::remove_html($message);
+                            $output = $messageFix;
+                            $responsedText = $message;
+                            $total_used_tokens += Helper::countWords($messageFix);
+
+                            $string_length = Str::length($messageFix);
+                            $needChars = 6000 - $string_length;
+                            $random_text = Str::random($needChars);
+                            //eof Test Swtich to Helper version
+                            if (is_array($params))
+                                $params_json = $params;
+                            else
+                                $params_json = json_decode($params, true);
+                            $keywords = '';
+                            $description = $params_json["prompt"];
+                            $creativity = 1;
+                            $number_of_results = 1;
+                            $tone_of_voice = 0;
+                            $maximum_length = 2000;
+                            $language = "en";
+                            $post_type = 'paragraph_generator';
+                            $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
                       Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
                       ";
 
 
-                         // Save Users of Mobile App
-                         $user = \DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->get();
-                         //$users = DB::connection('second_db')->table('users')->get();
-                         $post = OpenAIGenerator::where('slug', $post_type)->first();
-                         $entry = new Mobile_UserOpenai();
-                         $entry->title = 'New Workbook';
+                            // Save Users of Mobile App
+                            $user = \DB::connection('mobileapp_db')->table('users')->where('id', $user_id)->get();
+                            //$users = DB::connection('second_db')->table('users')->get();
+                            $post = OpenAIGenerator::where('slug', $post_type)->first();
+                            $entry = new Mobile_UserOpenai();
+                            $entry->title = 'New Workbook';
 
 
-                          if ($params_json1["model"] == 'whisper-1') {
-                              $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                          } else {
-                              $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
-                          }
-                          //$response = json_encode($response);
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                            } else {
+                                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                            }
+                            //$response = json_encode($response);
 
-                          Log::debug(' REsponse String');
-                          Log::info($response_bk);
-                          if ($params_json1["model"] == 'whisper-1') {
-                              $prompt = $description;
-                              $output = $response['text'];
-                          }
-                         
-                          $entry->user_id = $user_id;
-                          $entry->openai_id = $post->id;
-                          if (is_array($prompt)) {
-                              $prompt = json_encode($prompt);
-                          }
-                          
-                          /* if (is_array($response_arr)) {
+                            Log::debug(' REsponse String');
+                            Log::info($response_bk);
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $prompt = $description;
+                                $output = $response['text'];
+                            }
+
+                            $entry->user_id = $user_id;
+                            $entry->openai_id = $post->id;
+                            if (is_array($prompt)) {
+                                $prompt = json_encode($prompt);
+                            }
+
+                            /* if (is_array($response_arr)) {
                               $response_arr = json_encode($response_arr);
                           } */
-                          
-                          if (is_array($output)) {
-                              $output = json_encode($output);
-                          }
-                          $entry->input = $prompt;
-                          if( $this->platform=='main_coin' ||  (Str::contains($this->platform, 'main_coin')))
-                          {
-                             
-                              $main_message_id=$params_json["main_useropenai_message_id"];
-                              
-                         
-                          }
-                          else{
-                              $entry->response = $response_arr;
-                              $entry->output = $output;
-                          }
-                            //eof bugging start SMAI after $message_arr=     
-                                
-                                $entry->hash = str()->random(256);
-                                $entry->credits = 0;
-                                $entry->words = 0;
-                                $entry->main_user_openai_id = $main_message_id;
-                                $entry->save();
 
-                                //for socialpost caption
-                                $responsedText_backup =$entry->response;
+                            if (is_array($output)) {
+                                $output = json_encode($output);
+                            }
+                            $entry->input = $prompt;
+                            if ($this->platform == 'main_coin' || (Str::contains($this->platform, 'main_coin'))) {
 
-                                $message_id = $entry->id;
-                                Log::debug('Message_ID of MobileAppV2 ' . $message_id);
+                                $main_message_id = $params_json["main_useropenai_message_id"];
 
-                                // Create UserOpenai Models belong to OpenAIGenerator Models
-                                $message = Mobile_UserOpenai::whereId($message_id)->first();
-                                if ($params_json1["model"] == 'whisper-1') {
-                                    $message->response = serialize(json_encode($response_arr));
 
-                                } else {
-                                    $message->response = $responsedText;
+                            } else {
+                                $entry->response = $response_arr;
+                                $entry->output = $output;
+                            }
+                            //eof bugging start SMAI after $message_arr=
 
-                                }
-                                $message->output = $output;
-                                $message->hash = Str::random(256);
-                                $message->credits = $this->total_used_tokens;
-                                $message->words = 0;
-                                $UserOpenai_saved = $message->save();
+                            $entry->hash = str()->random(256);
+                            $entry->credits = 0;
+                            $entry->words = 0;
+                            $entry->main_user_openai_id = $main_message_id;
+                            $entry->save();
 
-                                if (!$UserOpenai_saved) {
-                                    Log::debug('Save OpenAI Mobile Log Error ');
-                                } else {
-                                    Log::debug('Save Mobile Log Success ');
-                                }
+                            //for socialpost caption
+                            $responsedText_backup = $entry->response;
+
+                            $message_id = $entry->id;
+                            Log::debug('Message_ID of MobileAppV2 ' . $message_id);
+
+                            // Create UserOpenai Models belong to OpenAIGenerator Models
+                            $message = Mobile_UserOpenai::whereId($message_id)->first();
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $message->response = serialize(json_encode($response_arr));
+
+                            } else {
+                                $message->response = $responsedText;
+
+                            }
+                            $message->output = $output;
+                            $message->hash = Str::random(256);
+                            $message->credits = $this->total_used_tokens;
+                            $message->words = 0;
+                            $UserOpenai_saved = $message->save();
+
+                            if (!$UserOpenai_saved) {
+                                Log::debug('Save OpenAI Mobile Log Error ');
+                            } else {
+                                Log::debug('Save Mobile Log Success ');
+                            }
 
                             // reset $output and $responsedText in each Loop
                             //$output = str_replace($messageFix, '', $output);
                             //$responsedText = str_replace($message, '', $responsedText);
                             // reset $output and $responsedText in each Loop
+                        }
                     }
-                }
-                //eof Switch for loop save OpenAI in Helper version
-                return true;
+                    //eof Switch for loop save OpenAI in Helper version
+                    return true;
 
+                }
+
+
+            } else {
+                //echo 'data: [Update Failed user not found]';
             }
 
 
-        } else {
-            //echo 'data: [Update Failed user not found]';
         }
 
-  
     }
 
-    }
-
-    public function SMAI_UpdateGPT_Bio($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
+    public function SMAI_UpdateGPT_Bio($user_id, $usage, $response, $params, $from, $main_message_id = NULL, $i_arr = NULL)
     {
         $settings = $this->settings;
         $settings_two = $this->settings_two;
 
         if (is_array($params))
-        $params_json1 = $params;
-    else
-        $params_json1 = json_decode($params, true);
+            $params_json1 = $params;
+        else
+            $params_json1 = json_decode($params, true);
 
-    if (isset($params_json1['gpt_category']))
-        $chatGPT_catgory = $params_json1['gpt_category'];
-    else
-        $chatGPT_catgory = NULL;
+        if (isset($params_json1['gpt_category']))
+            $chatGPT_catgory = $params_json1['gpt_category'];
+        else
+            $chatGPT_catgory = NULL;
 
-if($params_json1['prompt']!='SKIP')
-{
+        if ($params_json1['prompt'] != 'SKIP') {
 
-        if (isset($user_id)) {
+            if (isset($user_id)) {
 
-            $responsedText = "";
-            $output = "";
-            $total_used_tokens = 0;
-
-
-            Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_Bio from SMAIsyncController : ' . $user_id);
-            Log::debug('With response ');
-            Log::info($response);
-
-            if (is_array($params))
-                $params_json1 = $params;
-            else
-                $params_json1 = json_decode($params, true);
+                $responsedText = "";
+                $output = "";
+                $total_used_tokens = 0;
 
 
-            if (isset($params_json1['gpt_category']))
-                $chatGPT_catgory = $params_json1['gpt_category'];
-            else
-                $chatGPT_catgory = NULL;
+                Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_Bio from SMAIsyncController : ' . $user_id);
+                Log::debug('With response ');
+                Log::info($response);
 
-            $response_bk = $response;
-            $response = json_decode($response, true);
-            if (Str::contains($chatGPT_catgory, 'Chat_')) {
-                //add Sync GPT chat version here
-
-                $total_used_tokens = $usage;
-                $chat_id = $this->chat_id;
-
-
-                Log::debug('Debug before Insert $this_chat_id' . $this->chat_id);
-
-                Log::debug('THis local Chat ID ' . $chat_id);
-
-                $chat_new_ins = UserOpenaiChatBio::updateOrCreate(
-                    ['chat_id_mobile' => $this->chat_id],
-                    ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
-                );
-
-                Log::debug('!!!!!!!!!!!!!!!!!! important new chats record in Bio !!!!!!!!!!!!!!!!!');
-                Log::info($chat_new_ins);
-
-                //$user_openai_chat_id =UserOpenaiChat::where('chat_id',$chat_id);
-                $user_openai_chat_id = DB::connection('bio_db')->table('chats')->where('chat_id_mobile', $chat_id)->first();
-
-                $time = time();
-                //$time = intval($time);
-                if (isset($user_openai_chat_id->chat_id)) {
-                    $user_openai_chat_id_ins = $user_openai_chat_id->chat_id;
-                    //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id, 'user_openai_chat_id_ins' => $user_openai_chat_id_ins,'updated_at' => $time]);
-
-                    $data_message = array(
-                        'user_id' => $user_id,
-                        'chat_id_mobile' => $chat_id,
-                        'user_openai_chat_id' => $user_openai_chat_id_ins,
-                        //updated_at' => $time,
-                    );
-                    $message_new_ins = DB::connection('bio_db')->table('chats_messages')->insertGetId($data_message, 'chat_message_id');
-
-                } else {
-
-                    //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id,'updated_at' => $time ]);
-                    $data_message = array(
-                        'user_id' => $user_id,
-                        'chat_id_mobile' => $chat_id,
-                        //updated_at' => $time,
-                    );
-                    $message_new_ins = DB::connection('bio_db')->table('chats_messages')->insertGetId($data_message, 'chat_message_id');
-                }
-
-                $message_id = $message_new_ins;
-
-
-                if (isset($response['choices'][0]['delta']['content']))
-                    $message_response = $response['choices'][0]['delta']['content'];
-                if (isset($response['choices'][0]['message']['content']))
-                    $message_response = $response['choices'][0]['message']['content'];
-
-                    if(isset($params_json1['messages'][1]['content']))
-                    $message_response=$params_json1['messages'][1]['content'];
-                    
-                    if(isset($params_json1['response']))
-                    $message_response=$params_json1['response'];
-
-
-                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
-                $output .= $messageFix;
-                $responsedText .= $message_response;
-
-                $message = UserOpenaiChatMessageBio::where('chat_message_id', $message_id)->first();
-                
-                if($chat_id != NULL && $chat_id != '')
-                $chat = UserOpenaiChatBio::where('chat_id_mobile', $chat_id)->first();
+                if (is_array($params))
+                    $params_json1 = $params;
                 else
-                $chat = UserOpenaiChatBio::where('user_openai_chat_id', $this->chat_main_id)->first();
-
-                
-                if ($params_json1["model"] == 'whisper-1') {
-                    $message->response = serialize(json_encode($response_arr));
-
-                } else {
-                    $message->response = $responsedText;
-
-                }
+                    $params_json1 = json_decode($params, true);
 
 
-                $message->output = $output;
-                $message->hash = Str::random(256);
-                $message->credits = $this->total_used_tokens;
-                $message->words = 0;
-                $message->save();
+                if (isset($params_json1['gpt_category']))
+                    $chatGPT_catgory = $params_json1['gpt_category'];
+                else
+                    $chatGPT_catgory = NULL;
 
-                $user = DB::connection('bio_db')->table('users')->where('user_id', $user_id)->first();
-                //$user = UserMain::where('id',$user_id);
+                $response_bk = $response;
+                $response = json_decode($response, true);
+                if (Str::contains($chatGPT_catgory, 'Chat_')) {
+                    //add Sync GPT chat version here
 
-                $user_email = $user->email;
-                $old_remaining_words = $user->remaining_words;
-
-                $new_remaining_words = $old_remaining_words - $total_used_tokens;
-
-
-                if ($new_remaining_words < 0) {
-                    $new_remaining_words = 0;
-                }
-                $remaining_words_arr = array(
-                    'remaining_words' => $new_remaining_words,
-                );
+                    $total_used_tokens = $usage;
+                    $chat_id = $this->chat_id;
 
 
-                /* $user_update = DB::connection('mobileapp_db')->table('users')
+                    Log::debug('Debug before Insert $this_chat_id' . $this->chat_id);
+
+                    Log::debug('THis local Chat ID ' . $chat_id);
+
+                    $chat_new_ins = UserOpenaiChatBio::updateOrCreate(
+                        ['chat_id_mobile' => $this->chat_id],
+                        ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
+                    );
+
+                    Log::debug('!!!!!!!!!!!!!!!!!! important new chats record in Bio !!!!!!!!!!!!!!!!!');
+                    Log::info($chat_new_ins);
+
+                    //$user_openai_chat_id =UserOpenaiChat::where('chat_id',$chat_id);
+                    $user_openai_chat_id = DB::connection('bio_db')->table('chats')->where('chat_id_mobile', $chat_id)->first();
+
+                    $time = time();
+                    //$time = intval($time);
+                    if (isset($user_openai_chat_id->chat_id)) {
+                        $user_openai_chat_id_ins = $user_openai_chat_id->chat_id;
+                        //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id, 'user_openai_chat_id_ins' => $user_openai_chat_id_ins,'updated_at' => $time]);
+
+                        $data_message = array(
+                            'user_id' => $user_id,
+                            'chat_id_mobile' => $chat_id,
+                            'user_openai_chat_id' => $user_openai_chat_id_ins,
+                            //updated_at' => $time,
+                        );
+                        $message_new_ins = DB::connection('bio_db')->table('chats_messages')->insertGetId($data_message, 'chat_message_id');
+
+                    } else {
+
+                        //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id,'updated_at' => $time ]);
+                        $data_message = array(
+                            'user_id' => $user_id,
+                            'chat_id_mobile' => $chat_id,
+                            //updated_at' => $time,
+                        );
+                        $message_new_ins = DB::connection('bio_db')->table('chats_messages')->insertGetId($data_message, 'chat_message_id');
+                    }
+
+                    $message_id = $message_new_ins;
+
+                    $message_response = ''; // Initialize here
+
+                    if (isset($response['choices'][0]['delta']['content']))
+                        $message_response = $response['choices'][0]['delta']['content'];
+                    if (isset($response['choices'][0]['message']['content']))
+                        $message_response = $response['choices'][0]['message']['content'];
+
+                    if (isset($params_json1['messages'][1]['content']))
+                        $message_response = $params_json1['messages'][1]['content'];
+
+                    if (isset($params_json1['response']))
+                        $message_response = $params_json1['response'];
+
+                    $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
+                    $output .= $messageFix;
+                    $responsedText .= $message_response;
+
+                    $message = UserOpenaiChatMessageBio::where('chat_message_id', $message_id)->first();
+
+                    if ($chat_id != NULL && $chat_id != '')
+                        $chat = UserOpenaiChatBio::where('chat_id_mobile', $chat_id)->first();
+                    else
+                        $chat = UserOpenaiChatBio::where('user_openai_chat_id', $this->chat_main_id)->first();
+
+
+                    if ($params_json1["model"] == 'whisper-1') {
+                        $message->response = serialize(json_encode($response_arr));
+
+                    } else {
+                        $message->response = $responsedText;
+
+                    }
+
+
+                    $message->output = $output;
+                    $message->hash = Str::random(256);
+                    $message->credits = $this->total_used_tokens;
+                    $message->words = 0;
+                    $message->save();
+
+                    $user = DB::connection('bio_db')->table('users')->where('user_id', $user_id)->first();
+                    //$user = UserMain::where('id',$user_id);
+
+                    $user_email = $user->email;
+                    $old_remaining_words = $user->remaining_words;
+
+                    $new_remaining_words = $old_remaining_words - $total_used_tokens;
+
+
+                    if ($new_remaining_words < 0) {
+                        $new_remaining_words = 0;
+                    }
+                    $remaining_words_arr = array(
+                        'remaining_words' => $new_remaining_words,
+                    );
+
+
+                    /* $user_update = DB::connection('mobileapp_db')->table('users')
                     ->where('id', $user_id)
                     ->update($remaining_words_arr); */
 
-                //$user->save();
+                    //$user->save();
 
-                //Define CHat Role Universal
-                
-
-                if (is_array($params_json1["prompt"])!=FALSE)
-                {
-                    $n_prompt = count($params_json1["prompt"]);
-
-                if (isset($response['choices'][0]['message']['role']))
-                    $this->chat_role = $response['choices'][0]['message']['role'];
-                else
-                    $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
+                    //Define CHat Role Universal
 
 
-                if ($n_prompt - 1 == 0) {
-                    $n_prompt -= 1;
+                    if (is_array($params_json1["prompt"]) != FALSE) {
+                        $n_prompt = count($params_json1["prompt"]);
 
-                    $name_chat = $params_json1["prompt"][$n_prompt]["content"];
-                    $role_chat = $params_json1["prompt"][$n_prompt]["role"];
-
-                    if($chat->name==NULL && $role_chat=='user' )
-                    $chat->name = $name_chat;
-                }
-
-            }
-            else{
-
-                $n_prompt = 2;
-
-                $this->chat_role = $params_json1['messages'][1]['role'];
-
-                //Define CHat Role Universal
-
-                if ($n_prompt > 0) {
-                    $n_prompt -= 1;
-
-                    $name_chat = $params_json1["messages"][$n_prompt]["content"];
-                    $role_chat = $params_json1["messages"][$n_prompt]["role"];
-
-                    if($chat->name==NULL && $role_chat=='user' )
-                    $chat->name = $name_chat;
-                }
-
-               
+                        if (isset($response['choices'][0]['message']['role']))
+                            $this->chat_role = $response['choices'][0]['message']['role'];
+                        else
+                            $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
 
 
-            }
+                        if ($n_prompt - 1 == 0) {
+                            $n_prompt -= 1;
 
+                            $name_chat = $params_json1["prompt"][$n_prompt]["content"];
+                            $role_chat = $params_json1["prompt"][$n_prompt]["role"];
 
-
-                $chat->chat_assistant_id = 1;
-                $chat->settings = '[]';
-                $chat->used_tokens += $total_used_tokens;
-                $chat->total_credits += $total_used_tokens;
-                $chat->openai_chat_category_id=$this->main_chat_category;
-                $chat->save();
-
-                $chat_openai_id = $chat->chat_id;
-                $save_user_request_chat = array(
-
-                    'chat_id_mobile' => $chat_openai_id,
-                    'response' => $responsedText,
-                );
-
-
-                if (is_array($params_json1["prompt"])!=FALSE)
-                {
-                    $n_prompt = count($params_json1["prompt"]);
-
-                    if (isset($response['choices'][0]['message']['role']))
-                        $this->chat_role = $response['choices'][0]['message']['role'];
-                    else
-                        $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
-    
-    
-                    if ($n_prompt > 0) {
-                        $n_prompt -= 1;
-                    }
-    
-                    Log::debug('Count n_prompt' . $n_prompt);
-                    $x = intval($n_prompt);
-    
-                    $description = Arr::last($params_json1["prompt"]);
-                    $description = implode(" ", $description);
-
-            }
-            else{
-
-                $n_prompt = 2;
-
-                $this->chat_role = $params_json1['messages'][1]['role'];
-
-                //Define CHat Role Universal
-
-                if ($n_prompt > 0) {
-                    $n_prompt -= 1;
-                }
-
-                Log::debug('Count n_prompt ' . $n_prompt);
-                $role_of_previous_chat = $params_json1['messages'][0]['role'];
-                Log::debug('Which Role is : ' . $this->chat_role);
-                $description = $params_json1['messages'][0]['content'];
-
-
-            }
-
-            if(!isset($save_user_request_chat["chat_id"]))
-                $save_user_request_chat["chat_id"]=$this->chat_main_id;
-
-
-            $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
-                $save_to_where = "Bio";
-                $save_user_request_chat["input"] = $description;
-                $save_user_q = new SMAIUpdateProfileController();
-                $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
-
-            } 
-            else 
-            {
-
-                $save_to_where = "Bio";
-               // Switch to Helper version SmartBio
-
-               // $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-           
-               Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-               
-                //bugging start
-               if($this->platform=='main_coin')
-               {
-                    if($this->platform=='main_coin')
-                    {
-                        try {
-                            $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-                            if(empty($message_arr)) 
-                                throw new Exception('Empty message array');
-                        } catch (Exception $e) {
-                            $message_arr = array();
-                            $message_arr[0] = '';
-                            
+                            if ($chat->name == NULL && $role_chat == 'user')
+                                $chat->name = $name_chat;
                         }
-                        Log::info($message_arr);
+
+                    } else {
+
+                        $n_prompt = 2;
+
+                        $this->chat_role = $params_json1['messages'][1]['role'];
+
+                        //Define CHat Role Universal
+
+                        if ($n_prompt > 0) {
+                            $n_prompt -= 1;
+
+                            $name_chat = $params_json1["messages"][$n_prompt]["content"];
+                            $role_chat = $params_json1["messages"][$n_prompt]["role"];
+
+                            if ($chat->name == NULL && $role_chat == 'user')
+                                $chat->name = $name_chat;
+                        }
+
+
                     }
-               }
-               else
-               $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
 
-               Log::info($message_arr);
-               
-               
-               //$response_decoded=json_decode($response_bk,true);
-               $response_decoded=$response_bk;
 
-          
-               Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-               Log::info($message_arr);
-               $return_message_array=[];
-               for($i=0; $i<count($message_arr); $i++)
-               {
-                   //if($i_arr!=NULL &&  $i==$i_arr)
-                   if($i_arr==0)
-                   {
-                              /*  if($this->platform=='main_coin')
+                    $chat->chat_assistant_id = 1;
+                    $chat->settings = '[]';
+                    $chat->used_tokens += $total_used_tokens;
+                    $chat->total_credits += $total_used_tokens;
+                    $chat->openai_chat_category_id = $this->main_chat_category;
+                    $chat->save();
+
+                    $chat_openai_id = $chat->chat_id;
+                    $save_user_request_chat = array(
+
+                        'chat_id_mobile' => $chat_openai_id,
+                        'response' => $responsedText,
+                    );
+
+
+                    if (is_array($params_json1["prompt"]) != FALSE) {
+                        $n_prompt = count($params_json1["prompt"]);
+
+                        if (isset($response['choices'][0]['message']['role']))
+                            $this->chat_role = $response['choices'][0]['message']['role'];
+                        else
+                            $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
+
+
+                        if ($n_prompt > 0) {
+                            $n_prompt -= 1;
+                        }
+
+                        Log::debug('Count n_prompt' . $n_prompt);
+                        $x = intval($n_prompt);
+
+                        $description = Arr::last($params_json1["prompt"]);
+                        $description = implode(" ", $description);
+
+                    } else {
+
+                        $n_prompt = 2;
+
+                        $this->chat_role = $params_json1['messages'][1]['role'];
+
+                        //Define CHat Role Universal
+
+                        if ($n_prompt > 0) {
+                            $n_prompt -= 1;
+                        }
+
+                        Log::debug('Count n_prompt ' . $n_prompt);
+                        $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                        Log::debug('Which Role is : ' . $this->chat_role);
+                        $description = $params_json1['messages'][0]['content'];
+
+
+                    }
+
+                    if (!isset($save_user_request_chat["chat_id"]))
+                        $save_user_request_chat["chat_id"] = $this->chat_main_id;
+
+
+                    $save_user_request_chat["chat_id_mobile"] = $this->chat_id;
+                    $save_to_where = "Bio";
+                    $save_user_request_chat["input"] = $description;
+                    $save_user_q = new SMAIUpdateProfileController();
+                    $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
+
+                } else {
+
+                    $save_to_where = "Bio";
+                    // Switch to Helper version SmartBio
+
+                    // $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+
+                    Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+
+                    //bugging start
+                    if ($this->platform == 'main_coin') {
+                        if ($this->platform == 'main_coin') {
+                            try {
+                                if ($this->response_json_array) {
+                                    if ($this->response_json_array != '[]' && $this->response_json_array != null) {
+                                        $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+                                    } else {
+                                        $message_arr = array();
+                                        $message_arr[0] = '';
+                                        // json is either empty or null, handle it here
+                                    }
+                                }
+                                if (empty($message_arr))
+                                    throw new Exception('Empty message array');
+                            } catch (Exception $e) {
+                                $message_arr = array();
+                                $message_arr[0] = '';
+
+                            }
+                            Log::info($message_arr);
+                        }
+                    } else
+                        $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+
+                    Log::info($message_arr);
+
+
+                    //$response_decoded=json_decode($response_bk,true);
+                    $response_decoded = $response_bk;
+
+
+                    Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                    Log::info($message_arr);
+                    $return_message_array = [];
+                    for ($i = 0; $i < count($message_arr); $i++) {
+                        //if($i_arr!=NULL &&  $i==$i_arr)
+                        if ($i_arr == 0) {
+                            /*  if($this->platform=='main_coin')
                                {
                                $message ='';
                                $response_arr='';
                                }
                                else */
-                               
-                               $message = $message_arr[$i];
 
-                               Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-                               Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
-                               $messageFix = Helper::remove_html($message);
-                               $output = $messageFix;
-                               $responsedText = $message;
-                               $total_used_tokens += Helper::countWords($messageFix);
-       
-                               $string_length = Str::length($messageFix);
-                               $needChars = 6000 - $string_length;
-                               $random_text = Str::random($needChars);
-                               //eof Test Swtich to Helper version
-                           if (is_array($params))
-                               $params_json = $params;
-                           else
-                               $params_json = json_decode($params, true);
-                           $keywords = '';
-                           $description = $params_json["prompt"];
-                           $creativity = 1;
-                           $number_of_results = 1;
-                           $tone_of_voice = 0;
-                           $maximum_length = 2000;
-                           $language = "en";
-                           $post_type = 'paragraph_generator';
-                           $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
+                            $message = $message_arr[$i];
+                            $response_arr = $message;
+
+                            Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                            Log::debug('!!!!!!!! This is message_array message_array $i ' . $i . ' ' . $message);
+                            $messageFix = Helper::remove_html($message);
+                            $output = $messageFix;
+                            $responsedText = $message;
+                            $total_used_tokens += Helper::countWords($messageFix);
+
+                            $string_length = Str::length($messageFix);
+                            $needChars = 6000 - $string_length;
+                            $random_text = Str::random($needChars);
+                            //eof Test Swtich to Helper version
+                            if (is_array($params))
+                                $params_json = $params;
+                            else
+                                $params_json = json_decode($params, true);
+                            $keywords = '';
+                            $description = $params_json["prompt"];
+                            $creativity = 1;
+                            $number_of_results = 1;
+                            $tone_of_voice = 0;
+                            $maximum_length = 2000;
+                            $language = "en";
+                            $post_type = 'paragraph_generator';
+                            $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
                        Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
                        ";
 
-                            // Save Users of Bio 
+                            // Save Users of Bio
                             $user = \DB::connection('bio_db')->table('users')->where('user_id', $user_id)->get();
                             //$users = DB::connection('second_db')->table('users')->get();
                             $post = OpenAIGenerator::where('slug', $post_type)->first();
-                            
+
                             //wait for fix bug to merge Template AI Docs
                             $entry = new UserBioOpenai();
-                            $entry->title = Str::limit($description, 50, $end = '...') ;
+                            $entry->title = Str::limit($description, 50, $end = '...');
 
-                           
-                           if ($params_json1["model"] == 'whisper-1') {
-                               $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-                           } else {
-                               $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
-                           }
-                           //$response = json_encode($response);
-                           Log::debug(' REsponse String');
-                           Log::info($response_bk);
-                           if ($params_json1["model"] == 'whisper-1') {
-                               $prompt = $description;
-                               $output = $response['text'];
-                           }
 
-                          
-                           $entry->user_id = $user_id;
-                           $entry->openai_id = $post->id;
-                           if (is_array($prompt)) {
-                               $prompt = json_encode($prompt);
-                           }
-                           
-                           /* if (is_array($response_arr)) {
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+                            } else {
+                                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+                            }
+                            //$response = json_encode($response);
+                            Log::debug(' REsponse String');
+                            Log::info($response_bk);
+                            if ($params_json1["model"] == 'whisper-1') {
+                                $prompt = $description;
+                                $output = $response['text'];
+                            }
+
+
+                            $entry->user_id = $user_id;
+                            $entry->openai_id = $post->id;
+                            if (is_array($prompt)) {
+                                $prompt = json_encode($prompt);
+                            }
+
+                            /* if (is_array($response_arr)) {
                                $response_arr = json_encode($response_arr);
                            }
                             */
-                           if (is_array($output)) {
-                               $output = json_encode($output);
-                           }
-                           $entry->input = $prompt;
-                           if( $this->platform=='main_coin' ||  (Str::contains($this->platform, 'main_coin')))
-                           {
-                              
-                           $main_message_id=$params_json["main_useropenai_message_id"];
-                               
-                           }
-                           else{
-                               $entry->response = $response_arr;
-                               $entry->output = $output;
-                           }
+                            if (is_array($output)) {
+                                $output = json_encode($output);
+                            }
+                            $entry->input = $prompt;
+                            if ($this->platform == 'main_coin' || (Str::contains($this->platform, 'main_coin'))) {
+
+                                $main_message_id = $params_json["main_useropenai_message_id"];
+
+                            } else {
+                                $entry->response = $response_arr;
+                                $entry->output = $output;
+                            }
 
 
-                                $entry->hash = str()->random(256);
-                                $entry->credits = 0;
-                                $entry->words = 0;
-                                $entry->main_user_openai_id = $main_message_id;
-                                $entry->name = $entry->title;
+                            $entry->hash = str()->random(256);
+                            $entry->credits = 0;
+                            $entry->words = 0;
+                            $entry->main_user_openai_id = $main_message_id;
+                            $entry->name = $entry->title;
 
-                                //when Text from Design or Socialpost
-                                if($this->chatGPT_catgory=='Text_Design' || $this->chatGPT_catgory=='DocText_SocialPost')
-                                {
-                                    $entry->template_id = 11;
-                                    $entry->type = 11;
-                                    $entry->template_category_id=2;
-                                    $entry->content=$entry->output;
+                            //when Text from Design or Socialpost
+                            if ($this->chatGPT_catgory == 'Text_Design' || $this->chatGPT_catgory == 'DocText_SocialPost') {
+                                $entry->template_id = 11;
+                                $entry->type = 11;
+                                $entry->template_category_id = 2;
+                                $entry->content = $entry->output;
 
-                                }
+                            }
 
-                                //fixed bug here for case Coding Text generator from Main_Coin
-                                if($this->chatGPT_catgory=='CodeGenerator_SmartContentCoIn')
-                                $entry->content=$message;
-
+                            //fixed bug here for case Coding Text generator from Main_Coin
+                            if ($this->chatGPT_catgory == 'CodeGenerator_SmartContentCoIn')
+                                $entry->content = $message;
 
 
-                                $entry->save();
+                            $entry->save();
 
-                                //for socialpost caption
-                                if($this->chatGPT_catgory=='Images_Design' || $this->platform=='design')
-                                $responsedText_backup =$entry->$output;
-                                else
-                                $responsedText_backup =$entry->response;
+                            //for socialpost caption
+                            if ($this->chatGPT_catgory == 'Images_Design' || $this->platform == 'design')
+                                $responsedText_backup = $entry->$output;
+                            else
+                                $responsedText_backup = $entry->response;
 
-                                if(isset($entry->id))
+                            if (isset($entry->id))
                                 $message_id = $entry->id;
-                                else
-                                $message_id =$entry->document_id ;
+                            else
+                                $message_id = $entry->document_id;
 
-                                Log::debug('Message_ID of Bio ' . $message_id);
+                            Log::debug('Message_ID of Bio ' . $message_id);
 
-                                // Create UserOpenai Models belong to OpenAIGenerator Models
-                                $message = UserBioOpenai::where('document_id',$message_id)->first();
-                                
+                            // Create UserOpenai Models belong to OpenAIGenerator Models
+                            $message = UserBioOpenai::where('document_id', $message_id)->first();
+
                             // new update gpt-4-0613
-                            if(isset($message->response))
-                            {
+                            if (isset($message->response)) {
                                 if ($params_json1["model"] == 'whisper-1') {
                                     $message->response = serialize(json_encode($response_arr));
 
@@ -2941,18 +2905,18 @@ if($params_json1['prompt']!='SKIP')
 
                                 }
                             }
-                                $message->output = $output;
-                                $message->hash = Str::random(256);
-                                $message->credits = $this->total_used_tokens;
-                                //bug fix already fix
-                                $message->words = $this->total_used_tokens;
-                                $UserOpenai_saved = $message->save();
+                            $message->output = $output;
+                            $message->hash = Str::random(256);
+                            $message->credits = $this->total_used_tokens;
+                            //bug fix already fix
+                            $message->words = $this->total_used_tokens;
+                            $UserOpenai_saved = $message->save();
 
-                                if (!$UserOpenai_saved) {
-                                    Log::debug('Save OpenAI SmartBIo Log Error ');
-                                } else {
-                                    Log::debug('Save OpenAI SmartBIo Log Success ');
-                                }
+                            if (!$UserOpenai_saved) {
+                                Log::debug('Save OpenAI SmartBIo Log Error ');
+                            } else {
+                                Log::debug('Save OpenAI SmartBIo Log Success ');
+                            }
 
                             // reset $output and $responsedText in each Loop
                             //$output = str_replace($messageFix, '', $output);
@@ -2960,297 +2924,298 @@ if($params_json1['prompt']!='SKIP')
                             // reset $output and $responsedText in each Loop
 
 
-                    }
-                            
-                }
-                //eof Switch for loop of helper version
-                return true;
+                        }
 
+                    }
+                    //eof Switch for loop of helper version
+                    return true;
+
+                }
+
+
+            } else {
+                //echo 'data: [Update Failed user not found]';
             }
 
-
-        } else {
-            //echo 'data: [Update Failed user not found]';
         }
-
-      }
     }
 
-    public function SMAI_UpdateGPT_SyncNodeJs($user_id, $usage, $response, $params, $from, $main_message_id = NULL,$i_arr=NULL)
+    public function SMAI_UpdateGPT_SyncNodeJs($user_id, $usage, $response, $params, $from, $main_message_id = NULL, $i_arr = NULL)
     {
         $settings = $this->settings;
         $settings_two = $this->settings_two;
         if (is_array($params))
-        $params_json1 = $params;
-    else
-        $params_json1 = json_decode($params, true);
+            $params_json1 = $params;
+        else
+            $params_json1 = json_decode($params, true);
 
-    if (isset($params_json1['gpt_category']))
-        $chatGPT_catgory = $params_json1['gpt_category'];
-    else
-        $chatGPT_catgory = NULL;
+        if (isset($params_json1['gpt_category']))
+            $chatGPT_catgory = $params_json1['gpt_category'];
+        else
+            $chatGPT_catgory = NULL;
 
-if($params_json1['prompt']!='SKIP')
-{
-
-
-        if (isset($user_id)) {
-
-            $responsedText = "";
-            $output = "";
-            $total_used_tokens = 0;
-
-            Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_SyncNodeJS from SMAIsyncController : ' . $user_id);
-
-            if (is_array($params))
-                $params_json1 = $params;
-            else
-                $params_json1 = json_decode($params, true);
+        if ($params_json1['prompt'] != 'SKIP') {
 
 
-            if (isset($params_json1['gpt_category']))
-                $chatGPT_catgory = $params_json1['gpt_category'];
-            else
-                $chatGPT_catgory = NULL;
+            if (isset($user_id)) {
 
-            $response_bk = $response;
-            $response = json_decode($response, true);
+                $responsedText = "";
+                $output = "";
+                $total_used_tokens = 0;
 
-            Log::debug('Debug after jSOn dEcode respone');
-            if (Str::contains($chatGPT_catgory, 'Chat_')) {
-                //add Sync GPT chat version here
+                Log::debug('User ID log in smaisync_tokens SMAI_UpdateGPT_SyncNodeJS from SMAIsyncController : ' . $user_id);
 
-                $total_used_tokens = $usage;
-
-                if(isset($this->chat_id))
-                {
-                $chat_id = $this->chat_id;
-                }
-
-                Log::debug('Debug after this _ chat_id');
-
-
-                $chat_new_ins = UserOpenaiChatSyncNodeJS::updateOrCreate(
-                    ['chat_id' => $chat_id],
-                    ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
-                );
-
-                //$user_openai_chat_id =UserOpenaiChat::where('chat_id',$chat_id);
-                $user_openai_chat_id = DB::connection('sync_db')->table('user_openai_chat')->where('chat_id', $chat_id)->first();
-
-                $time = time();
-                //$time = intval($time);
-                if (isset($user_openai_chat_id->id)) {
-                    $user_openai_chat_id_ins = $user_openai_chat_id->id;
-                    //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id, 'user_openai_chat_id_ins' => $user_openai_chat_id_ins,'updated_at' => $time]);
-
-                    $data_message = array(
-                        'user_id' => $user_id,
-                        'chat_id' => $chat_id,
-                        'user_openai_chat_id' => $user_openai_chat_id_ins,
-                        //updated_at' => $time,
-                    );
-                    $message_new_ins = DB::connection('sync_db')->table('stt')->insertGetId($data_message);
-
-                } else {
-
-                    //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id,'updated_at' => $time ]);
-                    $data_message = array(
-                        'user_id' => $user_id,
-                        'chat_id' => $chat_id,
-                        //updated_at' => $time,
-                    );
-                    $message_new_ins = DB::connection('sync_db')->table('stt')->insertGetId($data_message);
-                }
-
-                $message_id = $message_new_ins;
-
-                Log::debug('Debug after message_id');
-                if (isset($response['choices'][0]['delta']['content']))
-                    $message_response = $response['choices'][0]['delta']['content'];
-                if (isset($response['choices'][0]['message']['content']))
-                    $message_response = $response['choices'][0]['message']['content'];
-
-                    if(isset($params_json1['messages'][1]['content']))
-                    $message_response=$params_json1['messages'][1]['content'];
-                    
-                    if(isset($params_json1['response']))
-                    $message_response=$params_json1['response'];
-
-                $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
-                $output .= $messageFix;
-                $responsedText .= $message_response;
-
-                $message = UserOpenaiChatMessageSyncNodeJS::whereId($message_id)->first();
-                
-                if($chat_id != NULL && $chat_id !='')
-                $chat = UserOpenaiChatSyncNodeJS::where('chat_id', $chat_id)->first();
+                if (is_array($params))
+                    $params_json1 = $params;
                 else
-                $chat = UserOpenaiChatSyncNodeJS::where('user_openai_chat_id', $this->chat_main_id)->first();
-
-                
-                if ($params_json1["model"] == 'whisper-1') {
-                    $message->response = serialize(json_encode($response_arr));
-
-                } else {
-                    $message->response = $responsedText;
-
-                }
-                $message->output = $output;
-                $message->hash = Str::random(256);
-                $message->credits = $this->total_used_tokens;
-                $message->words = 0;
-                $message->save();
-
-                $user = DB::connection('sync_db')->table('user')->where('id', $user_id)->first();
-                //$user = UserMain::where('id',$user_id);
-
-                $user_email = $user->email;
-                $old_remaining_words = $user->remaining_words;
-
-                $new_remaining_words = $old_remaining_words - $total_used_tokens;
+                    $params_json1 = json_decode($params, true);
 
 
-                if ($new_remaining_words < 0) {
-                    $new_remaining_words = 0;
-                }
-                $remaining_words_arr = array(
-                    'remaining_words' => $new_remaining_words,
-                );
+                if (isset($params_json1['gpt_category']))
+                    $chatGPT_catgory = $params_json1['gpt_category'];
+                else
+                    $chatGPT_catgory = NULL;
+
+                $response_bk = $response;
+                $response = json_decode($response, true);
+
+                Log::debug('Debug after jSOn dEcode respone');
+                if (Str::contains($chatGPT_catgory, 'Chat_')) {
+                    //add Sync GPT chat version here
+
+                    $total_used_tokens = $usage;
+
+                    if (isset($this->chat_id)) {
+                        $chat_id = $this->chat_id;
+                    }
+
+                    Log::debug('Debug after this _ chat_id');
 
 
-                /* $user_update = DB::connection('mobileapp_db')->table('users')
+                    $chat_new_ins = UserOpenaiChatSyncNodeJS::updateOrCreate(
+                        ['chat_id' => $chat_id],
+                        ['user_id' => $user_id, 'openai_chat_category_id' => 1,]
+                    );
+
+                    //$user_openai_chat_id =UserOpenaiChat::where('chat_id',$chat_id);
+                    $user_openai_chat_id = DB::connection('sync_db')->table('user_openai_chat')->where('chat_id', $chat_id)->first();
+
+                    $time = time();
+                    //$time = intval($time);
+                    if (isset($user_openai_chat_id->id)) {
+                        $user_openai_chat_id_ins = $user_openai_chat_id->id;
+                        //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id, 'user_openai_chat_id_ins' => $user_openai_chat_id_ins,'updated_at' => $time]);
+
+                        $data_message = array(
+                            'user_id' => $user_id,
+                            'chat_id' => $chat_id,
+                            'user_openai_chat_id' => $user_openai_chat_id_ins,
+                            //updated_at' => $time,
+                        );
+                        $message_new_ins = DB::connection('sync_db')->table('stt')->insertGetId($data_message);
+
+                    } else {
+
+                        //$message_new_ins = UserOpenaiChatMessageMainMarketing::create(['user_id' => $user_id,'chat_id' => $chat_id,'updated_at' => $time ]);
+                        $data_message = array(
+                            'user_id' => $user_id,
+                            'chat_id' => $chat_id,
+                            //updated_at' => $time,
+                        );
+                        $message_new_ins = DB::connection('sync_db')->table('stt')->insertGetId($data_message);
+                    }
+
+                    $message_id = $message_new_ins;
+
+                    $message_response = ''; // Initialize here
+
+                    if (isset($response['choices'][0]['delta']['content']))
+                        $message_response = $response['choices'][0]['delta']['content'];
+                    if (isset($response['choices'][0]['message']['content']))
+                        $message_response = $response['choices'][0]['message']['content'];
+
+                    if (isset($params_json1['messages'][1]['content']))
+                        $message_response = $params_json1['messages'][1]['content'];
+
+                    if (isset($params_json1['response']))
+                        $message_response = $params_json1['response'];
+
+                    $messageFix = str_replace(["\r\n", "\r", "\n"], "<br/>", $message_response);
+                    $output .= $messageFix;
+                    $responsedText .= $message_response;
+
+                    $message = UserOpenaiChatMessageSyncNodeJS::whereId($message_id)->first();
+
+                    if ($chat_id != NULL && $chat_id != '')
+                        $chat = UserOpenaiChatSyncNodeJS::where('chat_id', $chat_id)->first();
+                    else
+                        $chat = UserOpenaiChatSyncNodeJS::where('user_openai_chat_id', $this->chat_main_id)->first();
+
+
+                    if ($params_json1["model"] == 'whisper-1') {
+                        $message->response = serialize(json_encode($response_arr));
+
+                    } else {
+                        $message->response = $responsedText;
+
+                    }
+                    $message->output = $output;
+                    $message->hash = Str::random(256);
+                    $message->credits = $this->total_used_tokens;
+                    $message->words = 0;
+                    $message->save();
+
+                    $user = DB::connection('sync_db')->table('user')->where('id', $user_id)->first();
+                    //$user = UserMain::where('id',$user_id);
+
+                    $user_email = $user->email;
+                    $old_remaining_words = $user->remaining_words;
+
+                    $new_remaining_words = $old_remaining_words - $total_used_tokens;
+
+
+                    if ($new_remaining_words < 0) {
+                        $new_remaining_words = 0;
+                    }
+                    $remaining_words_arr = array(
+                        'remaining_words' => $new_remaining_words,
+                    );
+
+
+                    /* $user_update = DB::connection('mobileapp_db')->table('users')
                     ->where('id', $user_id)
                     ->update($remaining_words_arr); */
 
-                //$user->save();
+                    //$user->save();
 
 
-                $chat->total_credits += $total_used_tokens;
-                $chat->openai_chat_category_id=$this->main_chat_category;
-                $chat->save();
+                    $chat->total_credits += $total_used_tokens;
+                    $chat->openai_chat_category_id = $this->main_chat_category;
+                    $chat->save();
 
-                $chat_openai_id = $chat->id;
-                $save_user_request_chat = array(
+                    $chat_openai_id = $chat->id;
+                    $save_user_request_chat = array(
 
-                    'chat_id' => $chat_openai_id,
-                    'response' => $responsedText,
-                );
+                        'chat_id' => $chat_openai_id,
+                        'response' => $responsedText,
+                    );
 
-                //Define CHat Role Universal
-               
-                if (is_array($params_json1["prompt"])!=FALSE)
-                {
-                    $n_prompt = count($params_json1["prompt"]);
+                    //Define CHat Role Universal
 
-                    if (isset($response['choices'][0]['message']['role']))
-                        $this->chat_role = $response['choices'][0]['message']['role'];
-                    else
-                        $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
-    
-    
-                    if ($n_prompt > 0) {
-                        $n_prompt -= 1;
-                    }
-    
-                    Log::debug('Count n_prompt' . $n_prompt);
-                    $x = intval($n_prompt);
-    
-                    $description = Arr::last($params_json1["prompt"]);
-                    $description = implode(" ", $description);
+                    if (is_array($params_json1["prompt"]) != FALSE) {
+                        $n_prompt = count($params_json1["prompt"]);
 
-            }
-            else{
-
-                $n_prompt = 2;
-
-                 if(isset($params_json1['messages'][1]['role']))
-                 $this->chat_role = $params_json1['messages'][1]['role'];
-
-                //Define CHat Role Universal
-
-                if ($n_prompt > 0) {
-                    $n_prompt -= 1;
-                }
-
-                Log::debug('Count n_prompt ' . $n_prompt);
-                $role_of_previous_chat = $params_json1['messages'][0]['role'];
-                Log::debug('Which Role is : ' . $this->chat_role);
-                $description = $params_json1['messages'][0]['content'];
+                        if (isset($response['choices'][0]['message']['role']))
+                            $this->chat_role = $response['choices'][0]['message']['role'];
+                        else
+                            $this->chat_role = $params_json1["prompt"][$n_prompt]["role"];
 
 
-            }
-
-            if(!isset($save_user_request_chat["chat_id"]))
-                $save_user_request_chat["chat_id"]=$this->chat_main_id;
-
-
-            $save_user_request_chat["chat_id_mobile"]=$this->chat_id;
-                $save_to_where = "SyncNodeJS";
-                $save_user_request_chat["input"] = $description;
-                $save_user_q = new SMAIUpdateProfileController();
-                $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
-
-            } else {
-
-                $save_to_where = "SyncNodeJS";
-                //Switch to Helper version Sync_db
-
-                //$message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-           
-                Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-                //bugging start
-                if($this->platform=='main_coin')
-                {
-                    if($this->platform=='main_coin')
-                    {
-                        try {
-                            $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-                            if(empty($message_arr)) 
-                                throw new Exception('Empty message array');
-                        } catch (Exception $e) {
-                            $message_arr = array();
-                            $message_arr[0] = '';
-                            
+                        if ($n_prompt > 0) {
+                            $n_prompt -= 1;
                         }
-                        Log::info($message_arr);
+
+                        Log::debug('Count n_prompt' . $n_prompt);
+                        $x = intval($n_prompt);
+
+                        $description = Arr::last($params_json1["prompt"]);
+                        $description = implode(" ", $description);
+
+                    } else {
+
+                        $n_prompt = 2;
+
+                        if (isset($params_json1['messages'][1]['role']))
+                            $this->chat_role = $params_json1['messages'][1]['role'];
+
+                        //Define CHat Role Universal
+
+                        if ($n_prompt > 0) {
+                            $n_prompt -= 1;
+                        }
+
+                        Log::debug('Count n_prompt ' . $n_prompt);
+                        $role_of_previous_chat = $params_json1['messages'][0]['role'];
+                        Log::debug('Which Role is : ' . $this->chat_role);
+                        $description = $params_json1['messages'][0]['content'];
+
+
                     }
-                }
-                else
-                $message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
-           
-                Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-                Log::info($message_arr);
-                $return_message_array=[];
-                for($i=0; $i<count($message_arr); $i++)
-                {
-                    //if($i_arr!=NULL &&  $i==$i_arr)
-                    if($i_arr==0)
-                    {
-                                /* if($this->platform=='main_coin')
+
+                    if (!isset($save_user_request_chat["chat_id"]))
+                        $save_user_request_chat["chat_id"] = $this->chat_main_id;
+
+
+                    $save_user_request_chat["chat_id_mobile"] = $this->chat_id;
+                    $save_to_where = "SyncNodeJS";
+                    $save_user_request_chat["input"] = $description;
+                    $save_user_q = new SMAIUpdateProfileController();
+                    $save_user_q->lowChatSave($save_user_request_chat, $user_id, $save_to_where, $user_email, $from, $this->chat_role);
+
+                } else {
+
+                    $save_to_where = "SyncNodeJS";
+                    //Switch to Helper version Sync_db
+
+                    //$message_arr=Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+
+                    Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                    //bugging start
+                    if ($this->platform == 'main_coin') {
+                        if ($this->platform == 'main_coin') {
+                            try {
+                                if ($this->response_json_array) {
+                                    if ($this->response_json_array != '[]' && $this->response_json_array != null) {
+                                        $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+                                    } else {
+                                        $message_arr = array();
+                                        $message_arr[0] = '';
+                                        // json is either empty or null, handle it here
+                                    }
+                                }
+                                if (empty($message_arr))
+                                    throw new Exception('Empty message array');
+                            } catch (Exception $e) {
+                                $message_arr = array();
+                                $message_arr[0] = '';
+
+                            }
+                            Log::info($message_arr);
+                        }
+                    } else
+                        $message_arr = Helper::parse_messages_from_response_jsonarr_html_cover($this->response_json_array);
+
+                    Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                    Log::info($message_arr);
+                    $return_message_array = [];
+                    for ($i = 0; $i < count($message_arr); $i++) {
+                        //if($i_arr!=NULL &&  $i==$i_arr)
+                        if ($i_arr == 0) {
+                            /* if($this->platform=='main_coin')
                                 {
                                 $message ='';
                                 $response_arr='';
                                 }
                                 else */
-                                $message = $message_arr[$i];
+                            $message = $message_arr[$i];
+                            $response_arr = $message;
 
-                                Log::debug('!!!!!!!! This is message_array message_array in Platfrom '.$save_to_where);
-                                Log::debug('!!!!!!!! This is message_array message_array $i '.$i.' '.$message);
-                                $messageFix = Helper::remove_html($message);
-                                $output = $messageFix;
-                                $responsedText = $message;
-                                $total_used_tokens += Helper::countWords($messageFix);
-        
-                                $string_length = Str::length($messageFix);
-                                $needChars = 6000 - $string_length;
-                                $random_text = Str::random($needChars);
-                                //eof Test Swtich to Helper version
+                            Log::debug('!!!!!!!! This is message_array message_array in Platfrom ' . $save_to_where);
+                            Log::debug('!!!!!!!! This is message_array message_array $i ' . $i . ' ' . $message);
+                            $messageFix = Helper::remove_html($message);
+                            $output = $messageFix;
+                            $responsedText = $message;
+                            $total_used_tokens += Helper::countWords($messageFix);
+
+                            $string_length = Str::length($messageFix);
+                            $needChars = 6000 - $string_length;
+                            $random_text = Str::random($needChars);
+                            //eof Test Swtich to Helper version
                             if (is_array($params))
                                 $params_json = $params;
                             else
                                 $params_json = json_decode($params, true);
-                            
+
                             $keywords = '';
                             $description = $params_json["prompt"];
                             $creativity = 1;
@@ -3262,8 +3227,8 @@ if($params_json1['prompt']!='SKIP')
                             $prompt = "Generate one paragraph about:  '$description'. Keywords are $keywords.
                         Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different paragraphs. Tone of voice must be $tone_of_voice
                         ";
-                            
-                            // Save Users of sync_db                            
+
+                            // Save Users of sync_db
                             $user = \DB::connection('sync_db')->table('user')->where('id', $user_id)->get();
                             //$users = DB::connection('second_db')->table('users')->get();
                             $post = OpenAIGenerator::where('slug', $post_type)->first();
@@ -3283,34 +3248,30 @@ if($params_json1['prompt']!='SKIP')
                                 $prompt = $description;
                                 $output = $response['text'];
                             }
-                           
+
                             $entry->user_id = $user_id;
                             $entry->openai_id = $post->id;
                             if (is_array($prompt)) {
                                 $prompt = json_encode($prompt);
                             }
-                            
-                           /*  if (is_array($response_arr)) {
+
+                            /*  if (is_array($response_arr)) {
                                 $response_arr = json_encode($response_arr);
                             } */
-                            
+
                             if (is_array($output)) {
                                 $output = json_encode($output);
                             }
                             $entry->input = $prompt;
-                            if( $this->platform=='main_coin' ||  (Str::contains($this->platform, 'main_coin')))
-                            {
-                               
-                                $main_message_id=$params_json["main_useropenai_message_id"];
-                                
-                           
-                            }
-                            else{
+                            if ($this->platform == 'main_coin' || (Str::contains($this->platform, 'main_coin'))) {
+
+                                $main_message_id = $params_json["main_useropenai_message_id"];
+
+
+                            } else {
                                 $entry->response = $response_arr;
                                 $entry->output = $output;
                             }
-
-
 
 
                             $entry->hash = str()->random(256);
@@ -3320,7 +3281,7 @@ if($params_json1['prompt']!='SKIP')
                             $entry->save();
 
                             //for socialpost caption
-                            $responsedText_backup =$entry->response;
+                            $responsedText_backup = $entry->response;
 
                             $message_id = $entry->id;
                             Log::debug('Message_ID of SyncNodeJS ' . $message_id);
@@ -3350,161 +3311,154 @@ if($params_json1['prompt']!='SKIP')
                             //$output = str_replace($messageFix, '', $output);
                             //$responsedText = str_replace($message, '', $responsedText);
                             // reset $output and $responsedText in each Loop
+                        }
+
                     }
+                    //eof for loop save OPENAI Text Switch to Helper version
+                    return true;
 
                 }
-                //eof for loop save OPENAI Text Switch to Helper version 
-                return true;
 
+
+            } else {
+                //echo 'data: [Update Failed user not found]';
             }
 
-
-        } else {
-            //echo 'data: [Update Failed user not found]';
         }
-
-    }
 
 
     }
 
     //working send to /social
-    public function SMAI_UpdateGPT_Social($user_id, $main_openai_id,$type=NULL)
+    public function SMAI_UpdateGPT_Social($user_id, $main_openai_id, $type = NULL)
     {
 
         //get post detail from main_openai
         $main_coin_openai = UserOpenai::where('id', $main_openai_id)->first();
-       
-        if($type=='image')
-        {
-            $description=$main_coin_openai->input;
 
-   
-        }
-        else
-        {
-            if(isset($main_coin_openai->output))
-            $description=$main_coin_openai->output;
+        if ($type == 'image') {
+            $description = $main_coin_openai->input;
+
+
+        } else {
+            if (isset($main_coin_openai->output))
+                $description = $main_coin_openai->output;
             else
-            $description='';
+                $description = '';
 
         }
 
-     
+
         if (is_array($main_openai_id)) {
             // if $main_openai_id is an array
-            Log::debug('Check main_message_id Before next Step: '.print_r($main_openai_id, true)); 
+            Log::debug('Check main_message_id Before next Step: ' . print_r($main_openai_id, true));
         } elseif (json_decode($main_openai_id) != null) {
             // if $main_openai_id is a JSON
-            Log::debug(' Check main_message_id Before next Step '.json_encode($main_openai_id));  
+            Log::debug(' Check main_message_id Before next Step ' . json_encode($main_openai_id));
         } else {
             // $main_openai_id is neither an array nor a JSON
-            Log::debug(' Check main_message_id Before next Step '.$main_openai_id);
+            Log::debug(' Check main_message_id Before next Step ' . $main_openai_id);
         }
 
 
-       // $SocialPost=PostSmartSocial::where('main_user_openai_id',$main_openai_id)->first();
+        // $SocialPost=PostSmartSocial::where('main_user_openai_id',$main_openai_id)->first();
         $SocialPost = PostSmartSocial::where('main_user_openai_id', $main_openai_id)->exists();
 
-if ($SocialPost) { 
-    Log::debug('The Social Timeline feed already found for main_openai_id '.$main_openai_id);
-}
-else {
+        if ($SocialPost) {
+            Log::debug('The Social Timeline feed already found for main_openai_id ' . $main_openai_id);
+        } else {
 
-        //add new post to social timeline
-        $post = new PostSmartSocial();
-        $post->user_id = $user_id;
-        $post->publisher = 'post';
-        $post->publisher_id = $user_id;
-        $post->post_type = "general";
-        $post->privacy = "private";
+            //add new post to social timeline
+            $post = new PostSmartSocial();
+            $post->user_id = $user_id;
+            $post->publisher = 'post';
+            $post->publisher_id = $user_id;
+            $post->post_type = "general";
+            $post->privacy = "private";
 
-        /* $post->tagged_user_ids = serialize([1, 2, 3]);
+            /* $post->tagged_user_ids = serialize([1, 2, 3]);
         $post->user_reacts = serialize(['like', 'love']);
         $post->shared_user = serialize(['userA', 'userB']); */
 
-        /* $post->tagged_user_ids = json_encode([1, 2, 3]);
+            /* $post->tagged_user_ids = json_encode([1, 2, 3]);
         $post->user_reacts = json_encode(['like', 'love']);
         $post->shared_user = json_encode(['userA', 'userB']); */
-       
 
-        //pattern1
-       /*  $post->tagged_user_ids = json_encode(array());
+
+            //pattern1
+            /*  $post->tagged_user_ids = json_encode(array());
         $post->user_reacts = json_encode(array());
-        $post->shared_user = json_encode(array());  */ 
+        $post->shared_user = json_encode(array());  */
 
 
-/*         $post->tagged_user_ids = preg_replace('/"/', '', $post->tagged_user_ids);
+            /*         $post->tagged_user_ids = preg_replace('/"/', '', $post->tagged_user_ids);
         $post->user_reacts = preg_replace('/"/', '', $post->user_reacts);
         $post->shared_user = preg_replace('/"/', '', $post->shared_user); */
 
-       /*  $post->tagged_user_ids = serialize([]);
+            /*  $post->tagged_user_ids = serialize([]);
         $post->user_reacts = serialize([]);
         $post->shared_user = serialize([]); */
 
-        $post->tagged_user_ids = [];
-        $post->user_reacts = [];
-        $post->shared_user = [];
+            $post->tagged_user_ids = [];
+            $post->user_reacts = [];
+            $post->shared_user = [];
 
 
-
-        //pattern2
-        /* $post->tagged_user_ids = "[]";
+            //pattern2
+            /* $post->tagged_user_ids = "[]";
         $post->user_reacts = "[]";
         $post->shared_user = "[]";  */
 
-        $smai_log_from=$this->platform;
-        $smai_log_type=$this->chatGPT_catgory;
+            $smai_log_from = $this->platform;
+            $smai_log_type = $this->chatGPT_catgory;
 
-        if(is_array($smai_log_from)){
-            $smai_log_from = json_encode($smai_log_from);
+            if (is_array($smai_log_from)) {
+                $smai_log_from = json_encode($smai_log_from);
+            }
+
+            if (is_array($smai_log_type)) {
+                $smai_log_type = json_encode($smai_log_type);
+            }
+
+            $main_user_openai_id = $main_openai_id;
+            if (is_array($main_user_openai_id)) {
+                $main_user_openai_id = json_encode($main_user_openai_id);
+            }
+
+            $origin_user_openai_id = $main_openai_id;
+            if (is_array($origin_user_openai_id)) {
+                $origin_user_openai_id = json_encode($origin_user_openai_id);
+            }
+
+            if (Str::length($description) >= 2)
+                $post->description = $description;
+
+
+            $post->status = 'active';
+
+            $time = time();
+            $post->created_at = $time;
+            $post->updated_at = $time;
+            $post->smai_log_from = $smai_log_from;
+            $post->smai_log_type = $smai_log_type;
+            $post->main_user_openai_id = $main_user_openai_id;
+            $post->origin_user_openai_id = $origin_user_openai_id;
+
+            $post->save();
+            $done = $post->id; // get the ID
+
+            if ($type == 'image') {
+                $file_name = $main_coin_openai->output;
+                $media_file_data = array('user_id' => $user_id, 'post_id' => $done, 'file_name' => $file_name, 'file_type' => 'image', 'privacy' => 'private');
+                $media_file_data['created_at'] = time();
+                $media_file_data['updated_at'] = $media_file_data['created_at'];
+                Media_files::create($media_file_data);
+            }
+
         }
-        
-        if(is_array($smai_log_type)){
-            $smai_log_type = json_encode($smai_log_type);
-        }
-        
-        $main_user_openai_id=$main_openai_id;
-       if(is_array($main_user_openai_id)){
-            $main_user_openai_id = json_encode($main_user_openai_id);
-        }
-        
-        $origin_user_openai_id= $main_openai_id;
-        if(is_array($origin_user_openai_id)){
-            $origin_user_openai_id = json_encode($origin_user_openai_id);
-        }
 
-        if(Str::length($description)>=2)
-        $post->description =$description;
-
-
-        $post->status = 'active';
-        
-        $time = time();
-        $post->created_at = $time;
-        $post->updated_at = $time;
-        $post->smai_log_from = $smai_log_from;
-        $post->smai_log_type =  $smai_log_type;
-        $post->main_user_openai_id = $main_user_openai_id;
-        $post->origin_user_openai_id = $origin_user_openai_id;
-
-        $post->save();
-        $done = $post->id; // get the ID
-
-        if($type=='image')
-        {
-            $file_name=$main_coin_openai->output;
-            $media_file_data = array('user_id' => $user_id, 'post_id' => $done, 'file_name' => $file_name, 'file_type' => 'image', 'privacy' => 'private');
-            $media_file_data['created_at'] = time();
-            $media_file_data['updated_at'] = $media_file_data['created_at'];
-            Media_files::create($media_file_data);
-        }
 
     }
-        
-
-
- }
 
 
 //Done
@@ -3619,7 +3573,7 @@ else {
         $entry->save();
 
         //for socialpost caption
-        $responsedText_backup =$entry->response;
+        $responsedText_backup = $entry->response;
 
         $message_id = $entry->id;
         Log::debug('Message_ID of working ' . $message_id);
@@ -3646,8 +3600,7 @@ else {
         //define Users
         $user = \DB::connection($database)->table('sp_team')->where('owner', $user_id)->get();
         //$users = DB::connection('second_db')->table('users')->get();
-        
-       
+
 
         $team_id = $user[0]->id;
         if (isset($openai_id) && $openai_id > 0)
@@ -3656,29 +3609,27 @@ else {
             $parentid = '';
 
         $parent_openai_data = SP_UserOpenai::where('id', $parentid)->first();
-        $response_from_parent= $parent_openai_data->response;
+        $response_from_parent = $parent_openai_data->response;
 
         $isUTF8 = preg_match('//u', $content);
 
-        if(Str::length($content)<2 || $content==NULL || $isUTF8==false) 
-        $content=$response_from_parent;
+        if (Str::length($content) < 2 || $content == NULL || $isUTF8 == false)
+            $content = $response_from_parent;
 
-        if(Str::contains($this->platform,'social') || Str::contains($this->platform,'design'))
-         $content=$response_from_parent;
-         else
-         $content=$content;
-
-
-
-
-        if(Str::length($content)<2 || $content==NULL )
-        $wait_fix=1;
+        if (Str::contains($this->platform, 'social') || Str::contains($this->platform, 'design'))
+            $content = $response_from_parent;
         else
-        $wait_fix=0;
+            $content = $content;
 
-        
+
+        if (Str::length($content) < 2 || $content == NULL)
+            $wait_fix = 1;
+        else
+            $wait_fix = 0;
+
+
         //clean html tag in content
-        $content=Helper::remove_html($content);
+        $content = Helper::remove_html($content);
 
 
         $entry = new SP_UserCaption();
@@ -3703,7 +3654,7 @@ else {
     }
 
 
-    public function imageOutput_save_main_coin($user_id, $usage, $response, $params, $size = NULL, $post = NULL, $style = NULL, $lighting = NULL, $mood = NULL, $number_of_images = 1, $image_generator = 'DE', $negative_prompt = NULL,$main_image_id=NULL)
+    public function imageOutput_save_main_coin($user_id, $usage, $response, $params, $size = NULL, $post = NULL, $style = NULL, $lighting = NULL, $mood = NULL, $number_of_images = 1, $image_generator = 'DE', $negative_prompt = NULL, $main_image_id = NULL)
     {
         $image_arr = array(
             'style' => $style,
@@ -3719,15 +3670,13 @@ else {
         Log::debug('response in imageOutput_save ' . $response);
         Log::info($response);
 
-        if(isset($response))
-        {
+        if (isset($response)) {
             //case if defind imgae_url from $data_image
-            $image_url_decode=json_decode($response,true);
-            if(isset($image_url_decode['image_url']))
-            {
-            $this->image_url=$image_url_decode['image_url'];
-            Log::debug(' Debug reponse url '.$this->image_url);
-            Log::info($this->image_url);
+            $image_url_decode = json_decode($response, true);
+            if (isset($image_url_decode['image_url'])) {
+                $this->image_url = $image_url_decode['image_url'];
+                Log::debug(' Debug reponse url ' . $this->image_url);
+                Log::info($this->image_url);
             }
         }
 
@@ -3781,15 +3730,11 @@ else {
 
                 if (isset($params_json['nameOfImage'])) {
 
-                    if($chatGPT_catgory == 'Images_Bio')
-                    {
+                    if ($chatGPT_catgory == 'Images_Bio') {
                         //Log::info($response);
                         //$image_url = $this->image_url;
                         $contents = $this->image_url;
-                    }
-                    
-                    else
-                    {
+                    } else {
                         $contents = $params_json['contents'];
                     }
 
@@ -3800,22 +3745,17 @@ else {
                     //send prompt to openai
                     if ($prompt == null) return response()->json(["status" => "error", "message" => "You must provide a prompt"]);
 
-                    if(is_array($response)==false)
-                    {
-                         $response = json_decode($response, true);
-                    
+                    if (is_array($response) == false) {
+                        $response = json_decode($response, true);
+
                     }
 
-                    if ($chatGPT_catgory == 'Images_Design' || $chatGPT_catgory == 'Images_SocialPost' )
-                    {
-                        
-                        if(isset($response['data'][0]['url']))
-                        {
+                    if ($chatGPT_catgory == 'Images_Design' || $chatGPT_catgory == 'Images_SocialPost') {
+
+                        if (isset($response['data'][0]['url'])) {
                             $image_url = $response['data'][0]['url'];
                             $contents = $image_url;
-                        }
-                        
-                        else if (
+                        } else if (
                             isset($response['data']['data']) &&
                             is_array($response['data']['data']) &&
                             isset($response['data']['data'][0]['url'])
@@ -3827,22 +3767,17 @@ else {
                             $contents = "NO_IMAGE_URL_FOUND";
                         }
 
-                    }
-                    else if($chatGPT_catgory == 'Images_Bio')
-                    {
-                        
+                    } else if ($chatGPT_catgory == 'Images_Bio') {
+
                         /* $image_url = $response['b64_json'];
                         $contents = base64_decode($image_url); */
                         $contents = $this->image_url;
-                    }
-                    else
-                    {
+                    } else {
                         $image_url = $response['data'][0]['b64_json'];
                         $contents = $image_url;
                     }
 
-                    
-                    
+
                     $nameOfImage = Str::random(12) . '-DALL-E-' . Str::slug($prompt) . '.png';
 
                 }
@@ -3855,20 +3790,16 @@ else {
 
                 if (isset($params_json['nameOfImage'])) {
 
-                    if($chatGPT_catgory == 'Images_Bio')
-                    {
-                      
-                       /*  $image_url = $response['b64_json'];
+                    if ($chatGPT_catgory == 'Images_Bio') {
+
+                        /*  $image_url = $response['b64_json'];
                         $contents = base64_decode($image_url); */
                         $contents = $this->image_url;
+                    } else {
+                        $contents = $params_json['contents'];
                     }
-                    
-                    else
-                    {
-                    $contents = $params_json['contents'];
-                    }
-                    
-                    
+
+
                     $nameOfImage = $params_json['nameOfImage'];
 
                 } else {
@@ -3898,7 +3829,7 @@ else {
 
             }
 
-            Log::debug('Image name '.$nameOfImage);
+            Log::debug('Image name ' . $nameOfImage);
             Log::debug(' Check Content before get ');
             //Log::info($contents);
             Storage::disk('topics')->put($nameOfImage, file_get_contents($contents));
@@ -3927,11 +3858,11 @@ else {
             $entry->user_id = $user_id;
             $entry->openai_id = $post->id;
 
-            if(is_array($prompt)==true)
-            $entry->input = json_encode($prompt);
+            if (is_array($prompt) == true)
+                $entry->input = json_encode($prompt);
             else
-            $entry->input = $prompt;
-        
+                $entry->input = $prompt;
+
             $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
             $entry->output = $image_storage == "s3" ? $path : '/' . $path;
             $entry->hash = Str::random(256);
@@ -3939,120 +3870,109 @@ else {
             $entry->words = 0;
             $entry->storage = UserOpenai::STORAGE_AWS;
             $entry->file_size = $file_ImageSize;
-            $entry->origin_user_openai_id =$this->image_origin_id;
+            $entry->origin_user_openai_id = $this->image_origin_id;
             $entry->save();
 
-            $image_arr['main_image_id'] =$entry->id;
-            $this->main_openai_id=$entry->id;
-            Log::debug('Image ID '.$entry->id);
+            $image_arr['main_image_id'] = $entry->id;
+            $this->main_openai_id = $entry->id;
+            Log::debug('Image ID ' . $entry->id);
 
 
+            if (Str::contains($this->chatGPT_catgory, '_SmartContentCoIn') == true || Str::contains($this->chatGPT_catgory, '_main_coin') == true) {
 
-              if(Str::contains($this->chatGPT_catgory,'_SmartContentCoIn')==true || Str::contains($this->chatGPT_catgory,'_main_coin') ==true )
-              {
-                
-              }
-              else{
+            } else {
 
-                      //Bio
-                      if(Str::contains($this->chatGPT_catgory,'_SmartBio')==true || Str::contains($this->chatGPT_catgory,'_Bio')==true )
-                      {
+                //Bio
+                if (Str::contains($this->chatGPT_catgory, '_SmartBio') == true || Str::contains($this->chatGPT_catgory, '_Bio') == true) {
 
-                          $image_origin_update=ImagesBio::where('image_id',$this->image_origin_id)->first();
-                      }
+                    $image_origin_update = ImagesBio::where('image_id', $this->image_origin_id)->first();
+                }
 
-                      //SocialPost
-                      if(Str::contains($this->chatGPT_catgory,'_SocialPost')==true || Str::contains($this->chatGPT_catgory,'_socialpost')==true || Str::contains($this->platform,'socialpost')==true )
-                      {
+                //SocialPost
+                if (Str::contains($this->chatGPT_catgory, '_SocialPost') == true || Str::contains($this->chatGPT_catgory, '_socialpost') == true || Str::contains($this->platform, 'socialpost') == true) {
 
-                        $post_type = 'ai_image_generator';
-                        $post = OpenAIGenerator::where('slug', $post_type)->first();
-                        $entrys = new SP_UserOpenai();
-                        $entrys->title = 'New Image';
-                        $entrys->slug = $entry->slug;
-                        $entrys->user_id = $user_id;
-                        $entrys->openai_id = $post->id;
-                        $entrys->input = $prompt;
-                        $entrys->response = $image_generator == "stablediffusion" ? "SD" : "DE";
-                        $entrys->output = $image_storage == "s3" ? $path : '/' . $path;
-                        $entrys->hash = Str::random(256);
-                        $entrys->credits = 1;
-                        $entrys->words = 0;
-                        $entrys->storage = UserOpenai::STORAGE_AWS;
+                    $post_type = 'ai_image_generator';
+                    $post = OpenAIGenerator::where('slug', $post_type)->first();
+                    $entrys = new SP_UserOpenai();
+                    $entrys->title = 'New Image';
+                    $entrys->slug = $entry->slug;
+                    $entrys->user_id = $user_id;
+                    $entrys->openai_id = $post->id;
+                    $entrys->input = $prompt;
+                    $entrys->response = $image_generator == "stablediffusion" ? "SD" : "DE";
+                    $entrys->output = $image_storage == "s3" ? $path : '/' . $path;
+                    $entrys->hash = Str::random(256);
+                    $entrys->credits = 1;
+                    $entrys->words = 0;
+                    $entrys->storage = UserOpenai::STORAGE_AWS;
 
-                        $entrys->main_user_openai_id =$entrys->id;
-                        $entrys->save();
+                    $entrys->main_user_openai_id = $entrys->id;
+                    $entrys->save();
 
-                        $this->image_origin_id=$entrys->id;
+                    $this->image_origin_id = $entrys->id;
 
-                        $entry->origin_user_openai_id =$this->image_origin_id;
-                        $entry->save();
-                          
-                        $image_origin_update=SP_UserOpenai ::where('id',$this->image_origin_id)->first();
-                      
-                      
-                        }
+                    $entry->origin_user_openai_id = $this->image_origin_id;
+                    $entry->save();
 
-                     /*  //BIo
+                    $image_origin_update = SP_UserOpenai::where('id', $this->image_origin_id)->first();
+
+
+                }
+
+                /*  //BIo
                       if(Str::contains($this->chatGPT_catgory,'_SmartBio')==true || Str::contains($this->chatGPT_catgory,'_Bio')==true )
                       {
                           $image_origin_update=UserBioOpenai::where('id',$this->image_origin_id)->first();
                       } */
 
-                      //Sync wait for update real image table
-                      if(Str::contains($this->chatGPT_catgory,'_SyncNodeJS')==true || Str::contains($this->chatGPT_catgory,'_sync')==true )
-                      {
-                          $image_origin_update=UserSyncNodeJSOpenai::where('id',$this->image_origin_id)->first();
-                      }
+                //Sync wait for update real image table
+                if (Str::contains($this->chatGPT_catgory, '_SyncNodeJS') == true || Str::contains($this->chatGPT_catgory, '_sync') == true) {
+                    $image_origin_update = UserSyncNodeJSOpenai::where('id', $this->image_origin_id)->first();
+                }
 
-                      //MobileV2 wait for update real image table
-                      if(Str::contains($this->chatGPT_catgory,'_mobile')==true || Str::contains($this->chatGPT_catgory,'_MobileApp')==true )
-                      {
-                          $image_origin_update=Mobile_UserOpenai::where('id',$this->image_origin_id)->first();
-                      }
+                //MobileV2 wait for update real image table
+                if (Str::contains($this->chatGPT_catgory, '_mobile') == true || Str::contains($this->chatGPT_catgory, '_MobileApp') == true) {
+                    $image_origin_update = Mobile_UserOpenai::where('id', $this->image_origin_id)->first();
+                }
 
-                      //Design Digital_asset
-                      if(Str::contains($this->chatGPT_catgory,'_design')==true || Str::contains($this->chatGPT_catgory,'_Design')==true || Str::contains($this->platform,'design')==true)
-                      {
-                          $image_origin_update=DigitalAsset_UserOpenai::where('id',$this->image_origin_id)->first();
-                      
-                          $post_type = 'ai_image_generator';
-                          $post = OpenAIGenerator::where('slug', $post_type)->first();
-                          $entrys = new DigitalAsset_UserOpenai();
-                          $entrys->title = 'New Image';
-                          $entrys->slug = $entry->slug;
-                          $entrys->user_id = $user_id;
-                          $entrys->openai_id = $post->id;
-                          $entrys->input = $prompt;
-                          $entrys->response = $image_generator == "stablediffusion" ? "SD" : "DE";
-                          $entrys->output = $image_storage == "s3" ? $path : '/' . $path;
-                          $entrys->hash = Str::random(256);
-                          $entrys->credits = 1;
-                          $entrys->words = 0;
-                          $entrys->storage = UserOpenai::STORAGE_AWS;
-  
-                          $entrys->main_user_openai_id =$entrys->id;
-                          $entrys->save();
-  
-                          $this->image_origin_id=$entrys->id;
-  
-                          $entry->origin_user_openai_id =$this->image_origin_id;
-                          $entry->save();
-                            
-                          $image_origin_update=DigitalAsset_UserOpenai::where('id',$this->image_origin_id)->first();
-                        
-                        }
+                //Design Digital_asset
+                if (Str::contains($this->chatGPT_catgory, '_design') == true || Str::contains($this->chatGPT_catgory, '_Design') == true || Str::contains($this->platform, 'design') == true) {
+                    $image_origin_update = DigitalAsset_UserOpenai::where('id', $this->image_origin_id)->first();
 
-                      if(isset($image_origin_update->main_user_openai_id))
-                      {
-                        $image_origin_update->main_user_openai_id = $entry->id;
-                     
-                        $image_origin_update->save();
-                      }
-                      else
-                      {
+                    $post_type = 'ai_image_generator';
+                    $post = OpenAIGenerator::where('slug', $post_type)->first();
+                    $entrys = new DigitalAsset_UserOpenai();
+                    $entrys->title = 'New Image';
+                    $entrys->slug = $entry->slug;
+                    $entrys->user_id = $user_id;
+                    $entrys->openai_id = $post->id;
+                    $entrys->input = $prompt;
+                    $entrys->response = $image_generator == "stablediffusion" ? "SD" : "DE";
+                    $entrys->output = $image_storage == "s3" ? $path : '/' . $path;
+                    $entrys->hash = Str::random(256);
+                    $entrys->credits = 1;
+                    $entrys->words = 0;
+                    $entrys->storage = UserOpenai::STORAGE_AWS;
 
-                             /* if(Str::contains($this->chatGPT_catgory,'_design')==true || Str::contains($this->chatGPT_catgory,'_Design')==true || Str::contains($this->platform,'design')==true)
+                    $entrys->main_user_openai_id = $entrys->id;
+                    $entrys->save();
+
+                    $this->image_origin_id = $entrys->id;
+
+                    $entry->origin_user_openai_id = $this->image_origin_id;
+                    $entry->save();
+
+                    $image_origin_update = DigitalAsset_UserOpenai::where('id', $this->image_origin_id)->first();
+
+                }
+
+                if (isset($image_origin_update->main_user_openai_id)) {
+                    $image_origin_update->main_user_openai_id = $entry->id;
+
+                    $image_origin_update->save();
+                } else {
+
+                    /* if(Str::contains($this->chatGPT_catgory,'_design')==true || Str::contains($this->chatGPT_catgory,'_Design')==true || Str::contains($this->platform,'design')==true)
                                 {
                                     UserOpenai::query()
                                         ->where('id','>', $entry->id)
@@ -4065,15 +3985,10 @@ else {
                                         });
 
                                 } */
-                      }
-                     
+                }
 
 
-                      
-
-                     
-
-              }
+            }
 
             //push each generated image to an array
             array_push($entries, $entry);
@@ -4121,7 +4036,7 @@ else {
     }
 
 
-    public function imageOutput_save_SocialPost_self($user_id, $size, $path, $img_width, $img_height, $image_arr, $prompt,$main_image_id=NULL)
+    public function imageOutput_save_SocialPost_self($user_id, $size, $path, $img_width, $img_height, $image_arr, $prompt, $main_image_id = NULL)
     {
 
         //update openai_usage_tokens
@@ -4160,7 +4075,7 @@ else {
 
     }
 
-    public function imageOutput_save_Bio_self($user_id, $size, $path, $img_width, $img_height, $image_arr, $prompt,$main_image_id=NULL)
+    public function imageOutput_save_Bio_self($user_id, $size, $path, $img_width, $img_height, $image_arr, $prompt, $main_image_id = NULL)
     {
 
 
@@ -4214,37 +4129,35 @@ else {
         ]);
 
         $image_bio_new_ins->save(); //returns true
-        $images_bio_new_ins_id=$image_bio_new_ins->id;
+        $images_bio_new_ins_id = $image_bio_new_ins->id;
 
         // $image_bio_new_ins = ImagesBio::create($data_image);
         Log::debug('Insert new image to self_Bio result');
         Log::info($image_bio_new_ins);
 
         //Check if double inserted
-        if(Str::contains($this->chatGPT_catgory,'_SmartBio')==true || Str::contains($this->chatGPT_catgory,'_Bio')==true )
-        {
-           $main_user_origin=UserOpenai::where('id',$main_image_id)->first();
-           $main_user_origin_id= $main_user_origin->origin_user_openai_id;
-           $images_bio_origin=ImagesBio::where('image_id',$main_user_origin_id)->first();
-           $images_bio_origin->image = $image_bio_new_ins->image ;
-           //update original
-           $images_bio_origin->save();
-           //del the new 
-           $image_bio_new_ins->delete();
+        if (Str::contains($this->chatGPT_catgory, '_SmartBio') == true || Str::contains($this->chatGPT_catgory, '_Bio') == true) {
+            $main_user_origin = UserOpenai::where('id', $main_image_id)->first();
+            $main_user_origin_id = $main_user_origin->origin_user_openai_id;
+            $images_bio_origin = ImagesBio::where('image_id', $main_user_origin_id)->first();
+            $images_bio_origin->image = $image_bio_new_ins->image;
+            //update original
+            $images_bio_origin->save();
+            //del the new
+            $image_bio_new_ins->delete();
 
         }
 
 
-
     }
 
-    public function imageOutput_save_Bio($user_id, $prompt, $number_of_images, $path_array, $image_array,$main_image_id=NULL)
+    public function imageOutput_save_Bio($user_id, $prompt, $number_of_images, $path_array, $image_array, $main_image_id = NULL)
     {
 
-        if(isset($this->image_generator))
-        $image_generator = $this->image_generator;
+        if (isset($this->image_generator))
+            $image_generator = $this->image_generator;
         else
-        $image_generator = 'DE';
+            $image_generator = 'DE';
 
         $entries = [];
         $user = UserBio::where('user_id', $user_id)->first();
@@ -4255,9 +4168,9 @@ else {
             $image_storage = "s3";
             $path = $path_array[$i];
             $post = OpenAIGenerator::where('slug', $post_type)->first();
-           
+
             // change to update not insert
-           /*  $entry = new ImagesBio();
+            /*  $entry = new ImagesBio();
             $entry->name = 'New Image';
             $entry->slug = Str::random(7) . Str::slug($user->name) . '-workbsook';
             $entry->user_id = $user_id;
@@ -4273,7 +4186,7 @@ else {
             $entry->save(); */
 
             //push each generated image to an array
-           
+
 
             Log::debug('Image array in  imageOutput_save_Bio');
             Log::info($image_array);
@@ -4281,15 +4194,15 @@ else {
             $size_arr = explode("x", $size);
             $img_width = $size_arr[0];
 
-            if(isset($size_arr[1]))
-            $img_height = $size_arr[1];
+            if (isset($size_arr[1]))
+                $img_height = $size_arr[1];
             else
-            $img_height =$img_width;
+                $img_height = $img_width;
 
-           
+
             // change this 2 method to Update data not insert incase from Bio
-            $this->imageOutput_save_Bio_self($user_id, $size, $path, $img_width, $img_height, $image_array, $prompt,$main_image_id);
-            
+            $this->imageOutput_save_Bio_self($user_id, $size, $path, $img_width, $img_height, $image_array, $prompt, $main_image_id);
+
         }
         //return response()->json(["status" => "success", "images" => $entries, "image_storage" => $image_storage]);
 
@@ -4298,13 +4211,13 @@ else {
 
     }
 
-    public function imageOutput_save_SocialPost($user_id, $prompt, $number_of_images, $path_array, $image_array,$main_image_id=NULL)
+    public function imageOutput_save_SocialPost($user_id, $prompt, $number_of_images, $path_array, $image_array, $main_image_id = NULL)
     {
-        
-        if(isset($this->image_generator))
-        $image_generator = $this->image_generator;
+
+        if (isset($this->image_generator))
+            $image_generator = $this->image_generator;
         else
-        $image_generator = 'DE';
+            $image_generator = 'DE';
 
 
         $entries = [];
@@ -4323,10 +4236,10 @@ else {
             $entry->user_id = $user_id;
             $entry->openai_id = $post->id;
 
-            if(is_array($prompt)==true)
-            $entry->input = json_encode($prompt);
+            if (is_array($prompt) == true)
+                $entry->input = json_encode($prompt);
             else
-            $entry->input = $prompt;
+                $entry->input = $prompt;
 
 
             $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
@@ -4335,7 +4248,7 @@ else {
             $entry->credits = 1;
             $entry->words = 0;
             $entry->storage = UserOpenai::STORAGE_AWS;
-            $entry->main_user_openai_id =$main_image_id;
+            $entry->main_user_openai_id = $main_image_id;
             $entry->save();
 
             //push each generated image to an array
@@ -4382,22 +4295,22 @@ else {
 
     }
 
-    public function imageOutput_save_Design($user_id, $prompt, $number_of_images, $path_array,$main_image_id=NULL)
+    public function imageOutput_save_Design($user_id, $prompt, $number_of_images, $path_array, $main_image_id = NULL)
     {
 
-         Log::debug('imageOutput_save_Design  User ID '.$user_id);
-        if(isset($this->image_generator))
-        $image_generator = $this->image_generator;
+        Log::debug('imageOutput_save_Design  User ID ' . $user_id);
+        if (isset($this->image_generator))
+            $image_generator = $this->image_generator;
         else
-        $image_generator = 'DE';
-        
-        
+            $image_generator = 'DE';
+
+
         $entries = [];
 
-        if($user_id==1)
-        $user_check_id=20;
+        if ($user_id == 1)
+            $user_check_id = 20;
         else
-        $user_check_id=$user_id;
+            $user_check_id = $user_id;
 
         $user = UserDesign::where('id', $user_check_id)->first();
 
@@ -4414,10 +4327,10 @@ else {
             $entry->user_id = $user_id;
             $entry->openai_id = $post->id;
 
-            if(is_array($prompt)==true)
-            $entry->input = json_encode($prompt);
+            if (is_array($prompt) == true)
+                $entry->input = json_encode($prompt);
             else
-            $entry->input = $prompt;
+                $entry->input = $prompt;
 
             $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
             $entry->output = $image_storage == "s3" ? $path : '/' . $path;
@@ -4425,7 +4338,7 @@ else {
             $entry->credits = 1;
             $entry->words = 0;
             $entry->storage = UserOpenai::STORAGE_AWS;
-            $entry->main_user_openai_id =$main_image_id;
+            $entry->main_user_openai_id = $main_image_id;
             $entry->save();
 
             //push each generated image to an array
@@ -4466,13 +4379,13 @@ else {
     }
 
 
-    public function imageOutput_save_Sync($user_id, $prompt, $number_of_images, $path_array,$main_image_id=NULL)
+    public function imageOutput_save_Sync($user_id, $prompt, $number_of_images, $path_array, $main_image_id = NULL)
     {
 
-        if(isset($this->image_generator))
-        $image_generator = $this->image_generator;
+        if (isset($this->image_generator))
+            $image_generator = $this->image_generator;
         else
-        $image_generator = 'DE';
+            $image_generator = 'DE';
 
 
         $entries = [];
@@ -4491,10 +4404,10 @@ else {
             $entry->user_id = $user_id;
             $entry->openai_id = $post->id;
 
-            if(is_array($prompt)==true)
-            $entry->input = json_encode($prompt);
+            if (is_array($prompt) == true)
+                $entry->input = json_encode($prompt);
             else
-            $entry->input = $prompt;
+                $entry->input = $prompt;
 
             $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
             $entry->output = $image_storage == "s3" ? $path : '/' . $path;
@@ -4502,7 +4415,7 @@ else {
             $entry->credits = 1;
             $entry->words = 0;
             $entry->storage = UserOpenai::STORAGE_AWS;
-            $entry->main_user_openai_id =$main_image_id;
+            $entry->main_user_openai_id = $main_image_id;
             $entry->save();
 
             //push each generated image to an array
@@ -4544,13 +4457,13 @@ else {
     }
 
 
-    public function imageOutput_save_MobileAppV2($user_id, $prompt, $number_of_images, $path_array,$main_image_id=NULL)
+    public function imageOutput_save_MobileAppV2($user_id, $prompt, $number_of_images, $path_array, $main_image_id = NULL)
     {
 
-        if(isset($this->image_generator))
-        $image_generator = $this->image_generator;
+        if (isset($this->image_generator))
+            $image_generator = $this->image_generator;
         else
-        $image_generator = 'DE';
+            $image_generator = 'DE';
 
 
         $entries = [];
@@ -4569,10 +4482,10 @@ else {
             $entry->user_id = $user_id;
             $entry->openai_id = $post->id;
 
-             if(is_array($prompt)==true)
-            $entry->input = json_encode($prompt);
+            if (is_array($prompt) == true)
+                $entry->input = json_encode($prompt);
             else
-            $entry->input = $prompt;
+                $entry->input = $prompt;
 
             $entry->response = $image_generator == "stablediffusion" ? "SD" : "DE";
             $entry->output = $image_storage == "s3" ? $path : '/' . $path;
@@ -4580,7 +4493,7 @@ else {
             $entry->credits = 1;
             $entry->words = 0;
             $entry->storage = UserOpenai::STORAGE_AWS;
-            $entry->main_user_openai_id =$main_image_id;
+            $entry->main_user_openai_id = $main_image_id;
             $entry->save();
 
             //push each generated image to an array
@@ -4628,8 +4541,8 @@ else {
         $total_user_tokens = $usage;
 
         Log::debug('Main Message or DocTextOpenAi AI ID in lowGenerateSaveAll' . $main_message_id);
-        Log::debug('Main response in lowGenerateSaveAll' . $response);
-        
+        Log::debug('Main response in lowGenerateSaveAll ' . $response);
+
 
         for ($i = 0; $i <= 4; $i++) {
             if ($i == 0)
@@ -4650,73 +4563,65 @@ else {
             Log::debug('Debug User Open AI ');
             Log::info($entry);
 
-            if($i == 3)
-            {
-                if($response==NULL || Str::length($response) <2 || Str::contains($response,'null'))
-                    {
-                        Log::debug('Case Output NULL or Empty ');
+            if ($i == 3) {
+                if ($response == NULL || Str::length($response) < 2 || Str::contains($response, 'null')) {
+                    Log::debug('Case Output NULL or Empty ');
 
-                        //$response_from_openai=DB::connection('main_db')->table('user_openai')->where('id',$this->main_openai_id)->first();
-                        $response_from_openai=SP_UserOpenai::where('id',$main_message_id)->first();
-                        $response=$response_from_openai->response;
-                        $output=$response_from_openai->output;
-                       
-
-                        //Log::debug('Debug response from Main '. $response_from_openai->response);
-                        //Log::debug('Debug output from Main '. $response_from_openai->output); 
+                    //$response_from_openai=DB::connection('main_db')->table('user_openai')->where('id',$this->main_openai_id)->first();
+                    $response_from_openai = SP_UserOpenai::where('id', $main_message_id)->first();
+                    $response = $response_from_openai->response;
+                    $output = $response_from_openai->output;
 
 
-                    }
+                    //Log::debug('Debug response from Main '. $response_from_openai->response);
+                    //Log::debug('Debug output from Main '. $response_from_openai->output);
 
-            } 
+
+                }
+
+            }
 
             if (isset($entry)) {
 
-                if(isset($output))
-                {
-                  $entry->output = $output;
-                 
-                }
-                else
-                {
-                  $entry->output = $response;
+                if (isset($output)) {
+                    $entry->output = $output;
+
+                } else {
+                    $entry->output = $response;
 
                 }
 
                 //SmartBio Update in lower update
-                if($i == 3)
-                {
-                    $entry->content  = $response;
+                if ($i == 3) {
+                    $entry->content = $response;
                     //update name and title of SmartBio from New Workbook
-                    $entry->name=Str::limit($response, 50) ;
+                    $entry->name = Str::limit($response, 50);
                 }
 
-                Log::debug('Found Total_token from Main usage in Lower SaveAll :'.$this->total_used_tokens);
+                Log::debug('Found Total_token from Main usage in Lower SaveAll :' . $this->total_used_tokens);
 
                 $entry->credits = $this->total_used_tokens;
                 $entry->words = $this->total_used_tokens;
-             
-                
+
+
                 $entry->save();
 
                 //Fix Social timeline
 
-                            if($main_message_id != NULL) {
-                 
+                if ($main_message_id != NULL) {
 
-                                $entry_timeline = DB::connection('social_db')->table('posts')->where('main_user_openai_id', $main_message_id)->first();
-                            
-                                if(isset($entry_timeline) && is_null($entry_timeline->description)) {
-                                    DB::connection('social_db')->table('posts')
-                                        ->where('main_user_openai_id', $main_message_id)
-                                        ->update(['description' => $entry->output]);
-                                }
-                            }
-                        
-                   
-                        
 
-             }
+                    $entry_timeline = DB::connection('social_db')->table('posts')->where('main_user_openai_id', $main_message_id)->first();
+
+                    if (isset($entry_timeline) && is_null($entry_timeline->description)) {
+                        DB::connection('social_db')->table('posts')
+                            ->where('main_user_openai_id', $main_message_id)
+                            ->update(['description' => $entry->output]);
+                    }
+                }
+
+
+            }
         }
 
         //back to Update Tokens remaining_words in APIsController
@@ -4752,17 +4657,15 @@ else {
     //if $params->'model' => 'SKIP', 'prompt' => 'SKIP', then  $this->new_chat_all_platforms()
     // and if !isset($chat->total_credits)  then $this->new_chat_all_platforms()
     //$this->chat_id  and $this->chat_name  should be completed
-    public function new_chat_all_platforms($chat_name,$chat_id,$user_id,$main_chat_id=NULL)
+    public function new_chat_all_platforms($chat_name, $chat_id, $user_id, $main_chat_id = NULL)
     {
 
-        Log::debug('ChatID case Bio start '.$chat_id);
+        Log::debug('ChatID case Bio start ' . $chat_id);
 
-        if($chat_name != NULL && $chat_id != NULL )
+        if ($chat_name != NULL && $chat_id != NULL) {
 
-        {
-        
-        //Main
-        /* if($this->check_exsist_chat('main_db','user_openai_chat',$chat_name,$chat_id) < 1)
+            //Main
+            /* if($this->check_exsist_chat('main_db','user_openai_chat',$chat_name,$chat_id) < 1)
         $chat_new_ins_main = UserOpenaiChat::Create(
             ['chat_id' => $chat_id],
             ['user_id' => $user_id,
@@ -4770,167 +4673,152 @@ else {
             'openai_chat_category_id' => 1,]
         ); */
 
-        
-    //Main
 
-    if($this->check_exsist_chat('main_db','user_openai_chat',$chat_name,$chat_id) < 1)
+            //Main
+
+            if ($this->check_exsist_chat('main_db', 'user_openai_chat', $chat_name, $chat_id) < 1) {
+                $data = [
+
+                    "chat_id" => $chat_id,
+                    "openai_chat_category_id" => 1,
+                    "user_id" => $user_id,
+                    "title" => $chat_name,
+
+                ];
+
+                $chat_new_ins_main_add_id = DB::connection('main_db')->table('user_openai_chat')->insertGetId($data);
+
+
+                if (isset($chat_new_ins_main_add_id))
+                    Log::debug('Sucess add new chat to UserOpenaiChatMain CoIN ' . $chat_new_ins_main_add_id);
+
+            }
+            if (isset($chat_new_ins_main_add_id))
+                $chat_ins_main = $chat_new_ins_main_add_id;
+            else
+                $chat_ins_main = $main_chat_id;
+
+
+            //Main.marketing
+            if ($this->check_exsist_chat('main_db', 'conversation_list', $chat_name, $chat_id) < 1)
+                $chat_new_ins_mar = UserOpenaiChatMainMarketing::Create(
+                    ['chat_id' => $chat_id],
+                    ['user_id' => $user_id,
+                        'title' => $chat_name,
+                        'user_openai_chat_id' => $chat_ins_main,
+                        'openai_chat_category_id' => 1,]
+                );
+
+            if (isset($chat_new_ins_mar->id))
+                Log::debug('Sucess add new chat to UserOpenaiChatMainMarketing ' . $chat_new_ins_mar->id);
+
+
+            //Design
+            if ($this->check_exsist_chat('digitalasset_db', 'user_openai_chat', $chat_name, $chat_id) < 1)
+                $chat_new_ins_design = UserOpenaiChatDesign::Create(
+                    ['chat_id' => $chat_id],
+                    ['user_id' => $user_id,
+                        'title' => $chat_name,
+                        'user_openai_chat_id' => $chat_ins_main,
+                        'openai_chat_category_id' => 1,]
+                );
+
+
+            if (isset($chat_new_ins_design->id))
+                Log::debug('Sucess add new chat to UserOpenaiChatDesign ' . $chat_new_ins_design->id);
+
+
+            //SocialPost
+            if ($this->check_exsist_chat('main_db', 'sp_user_openai_chat', $chat_name, $chat_id) < 1)
+                $chat_new_ins_social = UserOpenaiChatSocialPost::Create(
+                    ['chat_id' => $chat_id],
+                    ['user_id' => $user_id,
+                        'title' => $chat_name,
+                        'user_openai_chat_id' => $chat_ins_main,
+                        'openai_chat_category_id' => 1,]
+                );
+
+
+            if (isset($chat_new_ins_social->id))
+                Log::debug('Sucess add new chat to UserOpenaiChatSocialPost ' . $chat_new_ins_social->id);
+
+
+            //MobileAppV2
+            if ($this->check_exsist_chat('mobileapp_db', 'user_openai_chat', $chat_name, $chat_id) < 1)
+                $chat_new_ins_mobile = UserOpenaiChatMobile::Create(
+                    ['chat_id' => $chat_id],
+                    ['user_id' => $user_id,
+                        'title' => $chat_name,
+                        'user_openai_chat_id' => $chat_ins_main,
+                        'openai_chat_category_id' => 1,]
+                );
+
+
+            if (isset($chat_new_ins_mobile->id))
+                Log::debug('Sucess add new chat to UserOpenaiChatMessageMobile ' . $chat_new_ins_mobile->id);
+
+
+            //SyncNodeJS
+            if ($this->check_exsist_chat('sync_db', 'user_openai_chat', $chat_name, $chat_id) < 1)
+                $chat_new_ins_sync = UserOpenaiChatSyncNodeJS::Create(
+                    ['chat_id' => $chat_id],
+                    ['user_id' => $user_id,
+                        'title' => $chat_name,
+                        'user_openai_chat_id' => $chat_ins_main,
+                        'openai_chat_category_id' => 1,]
+                );
+
+
+            if (isset($chat_new_ins_sync->id))
+                Log::debug('Sucess add new chat to UserOpenaiChatSyncNodeJS ' . $chat_new_ins_sync->id);
+
+
+            //Bio
+            if ($this->check_exsist_chat('bio_db', 'chats', $chat_name, $chat_id) < 1) {
+
+                $data = [
+
+                    "chat_id_mobile" => $chat_id,
+                    "openai_chat_category_id" => 1,
+                    "user_id" => $user_id,
+
+                    "title" => $chat_name,
+                    "name" => $chat_name,
+                    "chat_assistant_id" => 1,
+                    "settings" => '[]',
+
+                ];
+
+                $chat_new_ins_bio_add_id = DB::connection('bio_db')->table('chats')->insertGetId($data);
+
+
+            }
+            if (isset($chat_new_ins_bio_add_id))
+                Log::debug('Sucess add new chat to UserOpenaiChatBio ' . $chat_new_ins_bio_add_id);
+
+
+            return $chat_ins_main;
+        } else {
+            return 0;
+        }
+
+    }
+
+    public function check_exsist_chat($db, $table, $chat_name, $chat_id)
     {
-        $data = [
+        if ($chat_id != NULL) {
 
-            "chat_id" => $chat_id,
-            "openai_chat_category_id" => 1,
-            "user_id" => $user_id,
-            "title" => $chat_name,
-            
-        ];
-
-        $chat_new_ins_main_add_id =  DB::connection('main_db')->table('user_openai_chat')->insertGetId($data);
-        
-       
-
-        if(isset($chat_new_ins_main_add_id ))
-        Log::debug('Sucess add new chat to UserOpenaiChatMain CoIN '.$chat_new_ins_main_add_id );
-
-    }
-    if(isset($chat_new_ins_main_add_id ))
-    $chat_ins_main=$chat_new_ins_main_add_id ;
-    else
-    $chat_ins_main=$main_chat_id;
-
-      
-        //Main.marketing
-         if($this->check_exsist_chat('main_db','conversation_list',$chat_name,$chat_id) < 1)
-        $chat_new_ins_mar = UserOpenaiChatMainMarketing::Create(
-            ['chat_id' => $chat_id],
-            ['user_id' => $user_id,
-            'title' => $chat_name,
-            'user_openai_chat_id' =>$chat_ins_main,
-            'openai_chat_category_id' => 1,]
-        );
-
-        if(isset($chat_new_ins_mar->id))
-        Log::debug('Sucess add new chat to UserOpenaiChatMainMarketing '.$chat_new_ins_mar->id);
+            if ($db == 'bio_db')
+                $check_chat = DB::connection($db)->table($table)->where('chat_id_mobile', $chat_id)->where('name', $chat_name)->get();
+            else
+                $check_chat = DB::connection($db)->table($table)->where('chat_id', $chat_id)->where('title', $chat_name)->get();
 
 
-        //Design
-        if($this->check_exsist_chat('digitalasset_db','user_openai_chat',$chat_name,$chat_id) < 1)
-        $chat_new_ins_design = UserOpenaiChatDesign::Create(
-            ['chat_id' => $chat_id],
-            ['user_id' => $user_id,
-            'title' => $chat_name,
-            'user_openai_chat_id' =>$chat_ins_main,
-            'openai_chat_category_id' => 1,]
-        );
-
-
-        if(isset($chat_new_ins_design->id))
-        Log::debug('Sucess add new chat to UserOpenaiChatDesign '.$chat_new_ins_design->id);
-
-
-        //SocialPost
-        if($this->check_exsist_chat('main_db','sp_user_openai_chat',$chat_name,$chat_id) < 1)
-        $chat_new_ins_social = UserOpenaiChatSocialPost::Create(
-            ['chat_id' => $chat_id],
-            ['user_id' => $user_id,
-            'title' => $chat_name,
-            'user_openai_chat_id' =>$chat_ins_main,
-            'openai_chat_category_id' => 1,]
-        );
-
-
-        if(isset($chat_new_ins_social->id))
-        Log::debug('Sucess add new chat to UserOpenaiChatSocialPost '.$chat_new_ins_social->id);
-
-
-
-        //MobileAppV2
-        if($this->check_exsist_chat('mobileapp_db','user_openai_chat',$chat_name,$chat_id) < 1)
-        $chat_new_ins_mobile = UserOpenaiChatMobile::Create(
-            ['chat_id' => $chat_id],
-            ['user_id' => $user_id,
-            'title' => $chat_name,
-            'user_openai_chat_id' =>$chat_ins_main,
-            'openai_chat_category_id' => 1,]
-        );
-
-
-        if(isset($chat_new_ins_mobile->id))
-        Log::debug('Sucess add new chat to UserOpenaiChatMessageMobile '.$chat_new_ins_mobile->id);
-
-
-
-
-        //SyncNodeJS
-        if($this->check_exsist_chat('sync_db','user_openai_chat',$chat_name,$chat_id) < 1)
-        $chat_new_ins_sync = UserOpenaiChatSyncNodeJS::Create(
-            ['chat_id' => $chat_id],
-            ['user_id' => $user_id,
-            'title' => $chat_name,
-            'user_openai_chat_id' =>$chat_ins_main,
-            'openai_chat_category_id' => 1,]
-        );
-
-
-        if(isset($chat_new_ins_sync->id))
-        Log::debug('Sucess add new chat to UserOpenaiChatSyncNodeJS '.$chat_new_ins_sync->id);
-
-
-
-
-
-        //Bio
-        if($this->check_exsist_chat('bio_db','chats',$chat_name,$chat_id) < 1)
-       {
-       
-        $data = [
-
-            "chat_id_mobile" => $chat_id,
-            "openai_chat_category_id" => 1,
-            "user_id" => $user_id,
-
-            "title" => $chat_name,
-            "name" => $chat_name,
-            "chat_assistant_id" => 1,
-            "settings" => '[]',
-            
-        ];
-
-        $chat_new_ins_bio_add_id =  DB::connection('bio_db')->table('chats')->insertGetId($data);
- 
-
-    }
-        if(isset($chat_new_ins_bio_add_id))
-        Log::debug('Sucess add new chat to UserOpenaiChatBio '.$chat_new_ins_bio_add_id);
-
-
-        return $chat_ins_main;
-    }
-    else
-    {
-        return 0;
-    }
-
-    }
-
-    public function check_exsist_chat($db,$table,$chat_name,$chat_id)
-    {
-        if($chat_id!=NULL)
-       {
-
-        if($db=='bio_db')
-        $check_chat = DB::connection($db)->table($table)->where('chat_id_mobile',$chat_id)->where('name',$chat_name)->get();
-        else
-        $check_chat = DB::connection($db)->table($table)->where('chat_id',$chat_id)->where('title',$chat_name)->get();
-
-
-
-        $found_chat = $check_chat->count();
-        return $found_chat;
-       }
-       else
-       {
-        return 0;
-       }
+            $found_chat = $check_chat->count();
+            return $found_chat;
+        } else {
+            return 0;
+        }
 
     }
 
@@ -4938,172 +4826,156 @@ else {
     {
 
 
+        if ($from == 'bio') {
 
-                if($from=='bio')
-                   {
+            Log::debug('!!!!!! Debug fine Bio old ChatID in Function !!!!!');
+            // $chat_id_find=UserOpenaiChatBio::where('chat_id',$this->chat_main_id)->first();
+            $db = 'bio_db';
+            $table = 'chats';
+            $column = 'chat_id';
 
-                   Log::debug('!!!!!! Debug fine Bio old ChatID in Function !!!!!' );
-                   // $chat_id_find=UserOpenaiChatBio::where('chat_id',$this->chat_main_id)->first();
-                     $db='bio_db';
-                     $table='chats';
-                     $column='chat_id';
+        }
 
-                   }
+        if ($from == 'main_coin') {
 
-                   if($from=='main_coin')
-                   {
+            Log::debug('!!!!!! Debug fine MainCoIN old ChatID in Function !!!!!');
+            // $chat_id_find=UserOpenaiChatBio::where('chat_id',$this->chat_main_id)->first();
+            $db = 'main_db';
+            $table = 'user_openai_chat';
+            $column = 'id';
 
-                   Log::debug('!!!!!! Debug fine MainCoIN old ChatID in Function !!!!!' );
-                   // $chat_id_find=UserOpenaiChatBio::where('chat_id',$this->chat_main_id)->first();
-                     $db='main_db';
-                     $table='user_openai_chat';
-                     $column='id';
+        }
 
-                   }
+        if ($from == 'MobileAppV2') {
 
-                   if($from=='MobileAppV2')
-                   {
+            Log::debug('!!!!!! Debug fine MobileAppV2 ChatID in Function !!!!!');
+            // $chat_id_find=UserOpenaiChatMobile::where('chat_id',$this->chat_main_id)->first();
+            $db = 'mobile_db';
+            $table = 'willdev_user_chat';
+            $column = 'id';
 
-                   Log::debug('!!!!!! Debug fine MobileAppV2 ChatID in Function !!!!!' );
-                   // $chat_id_find=UserOpenaiChatMobile::where('chat_id',$this->chat_main_id)->first();
-                     $db='mobile_db';
-                     $table='willdev_user_chat';
-                     $column='id';
+        }
 
-                   }
-
-                   $chat_id_find=DB::connection($db)->table($table)->where($column,$this->chat_main_id)->first();
-                 
-                  
-                   if($from=='bio')
-                   $new_chat_id=$chat_id_find->chat_id_mobile;
-                   else
-                   $new_chat_id=$chat_id_find->chat_id;
+        $chat_id_find = DB::connection($db)->table($table)->where($column, $this->chat_main_id)->first();
 
 
-                   $this->chat_id = $new_chat_id;
-
-                           if($this->chat_id==NULL)
-                           {
-                                   $chat_mobile_id= "chat_";
-                                   $chat_mobile_id.= strval(time());
-                                   $ran = rand(100, 999);
-                                   $chat_mobile_id.= $ran;
-
-                                   $new_chat_id=array(
-                                       'chat_id_mobile' => $chat_mobile_id,
-                                   );
-
-                                $chatData = DB::connection('bio_db')->table('chats')
-                                ->where('chat_id',$this->chat_main_id)
-                                ->update($new_chat_id);
-
-                                 //$chat_id_find->update($new_chat_id);
-                                   
-
-                                   $this->chat_id =$chat_mobile_id;
+        if ($from == 'bio')
+            $new_chat_id = $chat_id_find->chat_id_mobile;
+        else
+            $new_chat_id = $chat_id_find->chat_id;
 
 
+        $this->chat_id = $new_chat_id;
 
-                           }
+        if ($this->chat_id == NULL) {
+            $chat_mobile_id = "chat_";
+            $chat_mobile_id .= strval(time());
+            $ran = rand(100, 999);
+            $chat_mobile_id .= $ran;
 
-                           return  $this->chat_id;
-                   
+            $new_chat_id = array(
+                'chat_id_mobile' => $chat_mobile_id,
+            );
 
+            $chatData = DB::connection('bio_db')->table('chats')
+                ->where('chat_id', $this->chat_main_id)
+                ->update($new_chat_id);
 
-         }
-
-
-         public function fix_user_openai_chat_ID($db,$table,$chat_id)
-
-         {
-
-            if($db=='bio_db')
-            $column='chat_id_mobile';
-            else
-            $column='chat_id';
-
-
-            $chat_main_id_find=DB::connection($db)->table($table)->where($column,$chat_id)->first();
-                 
-                  
-            if(isset($chat_main_id_find->id) || isset($chat_main_id_find->chat_id))
-            {
-                return $chat_main_id_find->id;
-
-            }
-            else
-            {
-                return 0;
-            }
+            //$chat_id_find->update($new_chat_id);
 
 
-         }
+            $this->chat_id = $chat_mobile_id;
 
 
-         
-         public function Save_Bio_Documents($params, $output,$response,$user_id,$usage,$main_message_id)
-         {
+        }
 
-            if (is_array($params))
+        return $this->chat_id;
+
+
+    }
+
+
+    public function fix_user_openai_chat_ID($db, $table, $chat_id)
+
+    {
+
+        if ($db == 'bio_db')
+            $column = 'chat_id_mobile';
+        else
+            $column = 'chat_id';
+
+
+        $chat_main_id_find = DB::connection($db)->table($table)->where($column, $chat_id)->first();
+
+
+        if (isset($chat_main_id_find->id) || isset($chat_main_id_find->chat_id)) {
+            return $chat_main_id_find->id;
+
+        } else {
+            return 0;
+        }
+
+
+    }
+
+
+    public function Save_Bio_Documents($params, $output, $response, $user_id, $usage, $main_message_id)
+    {
+
+        if (is_array($params))
             $params_json1 = $params;
-            else
+        else
             $params_json1 = json_decode($params, true);
 
 
+        // Save Users of Bio
+        $user = \DB::connection('bio_db')->table('users')->where('user_id', $user_id)->get();
+        //$users = DB::connection('second_db')->table('users')->get();
 
-            // Save Users of Bio
-             $user = \DB::connection('bio_db')->table('users')->where('user_id', $user_id)->get();
-            //$users = DB::connection('second_db')->table('users')->get();
+        $post_type = 'paragraph_generator';
+        //linkedin-advertisement-PCiTr3
+        $post = OpenAIGenerator::where('slug', $post_type)->first();
+        $entry = new UserBioOpenai();
 
-            $post_type = 'paragraph_generator';
-            //linkedin-advertisement-PCiTr3
-            $post = OpenAIGenerator::where('slug', $post_type)->first();
-            $entry = new UserBioOpenai();
-
-            Log::debug('Check if create AI Bio Doc success'.$entry->document_id);
-
-
-            if (!empty($output)) {
-                $entry->title = \Illuminate\Support\Str::limit($output, 50);
-            }
-            else if(!empty($response))
-            {
-                $entry->title = \Illuminate\Support\Str::limit($response, 50);
-            }
-            else{
-                $entry->title = "New Workbook";
-            }
-
-            if ($params_json1["model"] == 'whisper-1') {
-
-                $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
-            } else {
-                $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
-            }
+        Log::debug('Check if create AI Bio Doc success' . $entry->document_id);
 
 
-            if($main_message_id==NULL)
-            $main_message_id=$params_json1['main_useropenai_message_id'];
+        if (!empty($output)) {
+            $entry->title = \Illuminate\Support\Str::limit($output, 50);
+        } else if (!empty($response)) {
+            $entry->title = \Illuminate\Support\Str::limit($response, 50);
+        } else {
+            $entry->title = "New Workbook";
+        }
 
-            if($this->main_openai_id>0)
-            $main_message_id=$this->main_openai_id;
+        if ($params_json1["model"] == 'whisper-1') {
 
-         
+            $entry->slug = Str::random(7) . Str::slug($user[0]->name) . '-speech-to-text-workbook';
+        } else {
+            $entry->slug = str()->random(7) . str($user[0]->name)->slug() . '-workbook';
+        }
 
-            //Bio section
-        
-            /* Settings of request */
-                $settings = json_encode([
-                    'language' => 'English',
-                    'variants' => 1,
-                    'max_words_per_variant' => 255900,
-                    'creativity_level' => 'optimal',
-                    'creativity_level_custom' => null,
-                ]);
 
-            /* Prepare the statement and execute query */
-           /*  $document_id = db()->insert('documents', [
+        if ($main_message_id == NULL)
+            $main_message_id = $params_json1['main_useropenai_message_id'];
+
+        if ($this->main_openai_id > 0)
+            $main_message_id = $this->main_openai_id;
+
+
+        //Bio section
+
+        /* Settings of request */
+        $settings = json_encode([
+            'language' => 'English',
+            'variants' => 1,
+            'max_words_per_variant' => 255900,
+            'creativity_level' => 'optimal',
+            'creativity_level_custom' => null,
+        ]);
+
+        /* Prepare the statement and execute query */
+        /*  $document_id = db()->insert('documents', [
                 'user_id' => $this->user->user_id,
                 'project_id' => $_POST['project_id'],
                 'template_category_id' => $templates[$_POST['type']]->template_category_id,
@@ -5119,171 +4991,141 @@ else {
                 'datetime' => \Altum\Date::$date,
             ]); */
 
-          
 
-            //$template_id   $openai_id
-            if($this->main_template_id != NULL)
-            {
-                Log::debug('Debug still found Main Template ID in Bio save Docs '. $this->main_template_id);
-                $template_ins=UserBioOpenaiTemplate::where('openai_id',$this->main_template_id)->first();
+        //$template_id   $openai_id
+        if ($this->main_template_id != NULL) {
+            Log::debug('Debug still found Main Template ID in Bio save Docs ' . $this->main_template_id);
+            $template_ins = UserBioOpenaiTemplate::where('openai_id', $this->main_template_id)->first();
 
-                if(isset($template_ins->template_id))
-                Log::debug('Debug after Qry Main Template ID in Bio save Docs '. $template_ins->template_id);
-                               
-            }
-            else
-            {
-                $find_main_template_id=UserOpenai::where('id',$main_message_id)->first();
-                $this->main_template_id=$find_main_template_id->openai_id;
-                $template_ins=UserBioOpenaiTemplate::where('openai_id',$this->main_template_id)->first();
+            if (isset($template_ins->template_id))
+                Log::debug('Debug after Qry Main Template ID in Bio save Docs ' . $template_ins->template_id);
 
-            }
+        } else {
+            $find_main_template_id = UserOpenai::where('id', $main_message_id)->first();
+            $this->main_template_id = $find_main_template_id->openai_id;
+            $template_ins = UserBioOpenaiTemplate::where('openai_id', $this->main_template_id)->first();
 
-            Log::debug('Debug Output '.$output);
-            Log::debug('Debug Response '.$response);
+        }
 
-            if($output==NULL || Str::length($output) <2 || Str::contains($response,'null'))
-            {
-                Log::debug('Case Output NULL or Empty ');
+        Log::debug('Debug Output ' . $output);
+        Log::debug('Debug Response ' . $response);
 
-                //$response_from_openai=DB::connection('main_db')->table('user_openai')->where('id',$this->main_openai_id)->first();
-                $response_from_openai=UserOpenai::where('id',$this->main_openai_id)->first();
+        if ($output == NULL || Str::length($output) < 2 || Str::contains($response, 'null')) {
+            Log::debug('Case Output NULL or Empty ');
 
-                Log::info($response_from_openai);
+            //$response_from_openai=DB::connection('main_db')->table('user_openai')->where('id',$this->main_openai_id)->first();
+            $response_from_openai = UserOpenai::where('id', $this->main_openai_id)->first();
 
-                $response=$response_from_openai->response;
-                $output=$response_from_openai->output;
+            Log::info($response_from_openai);
 
-                
-                $prompt=json_encode([
-
-                    "name"=> $response_from_openai->title,
-                    "description" => $response_from_openai->input,
-                   ]);
+            $response = $response_from_openai->response;
+            $output = $response_from_openai->output;
 
 
-                /* Log::debug('Debug response from Main '. $response_from_openai->response);
+            $prompt = json_encode([
+
+                "name" => $response_from_openai->title,
+                "description" => $response_from_openai->input,
+            ]);
+
+
+            /* Log::debug('Debug response from Main '. $response_from_openai->response);
                 Log::debug('Debug output from Main '. $response_from_openai->output); */
 
 
-            }
-            
-            if(isset($template_ins->template_id))
+        }
+
+        if (isset($template_ins->template_id))
             $entry->template_id = $template_ins->template_id;
-        
-            $entry->template_category_id  = $template_ins->template_category_id;
-            $entry->name  = $entry->title;
-            $entry->type  = $template_ins->template_id;
-            $entry->content  = $response;
-            $entry->settings  = $settings;
+
+        $entry->template_category_id = $template_ins->template_category_id;
+        $entry->name = $entry->title;
+        $entry->type = $template_ins->template_id;
+        $entry->content = $response;
+        $entry->settings = $settings;
 
 
-            $entry->user_id = $user_id;
-            $entry->openai_id = $post->id;
-            $entry->input = $prompt;
-           // $entry->response = serialize(json_encode($response_arr));
-            $entry->response =$response;
-            $entry->output = $output;
-            $entry->hash = str()->random(256);
-            $entry->credits = $usage;
-            $entry->words = $usage;
-            $entry->main_user_openai_id = $main_message_id;
-            $entry->save();
+        $entry->user_id = $user_id;
+        $entry->openai_id = $post->id;
+        $entry->input = $prompt;
+        // $entry->response = serialize(json_encode($response_arr));
+        $entry->response = $response;
+        $entry->output = $output;
+        $entry->hash = str()->random(256);
+        $entry->credits = $usage;
+        $entry->words = $usage;
+        $entry->main_user_openai_id = $main_message_id;
+        $entry->save();
 
 
+    }
 
-         }
 
+    public function create_new_chat_main_id($from, $user_id, $chat_id)
+    {
+        if ($from == 'bio') {
+            $db = 'bio_db';
+            $table = 'chats';
+            $column = 'chat_id_mobile';
+        } else if ($from == 'main_coin') {
+            $db = 'main_db';
+            $table = 'user_openai_chat';
+            $column = 'id';
+        } else if ($from == 'MobileAppV2') {
+            $db = 'mobile_db';
+            $table = 'willdev_user_chat';
+            $column = 'id';
+        } else if ($from == 'SyncNodeJS') {
+            $db = 'sync_db';
+            $table = 'user_openai_chat';
+            $column = 'id';
+        } else if ($from == 'Design') {
+            $db = 'digitalasset_db';
+            $table = 'user_openai_chat';
+            $column = 'id';
+        } else if ($from == 'SocialPost') {
+            $db = 'main_db';
+            $table = 'sp_user_openai_chat';
+            $column = 'id';
+        } else if ($from == 'Bio') {
+            $db = 'bio_db';
+            $table = 'chats';
+            $column = 'chat_id_mobile';
+        } else {
+            $db = 'main_db';
+            $table = 'user_openai_chat';
+            $column = 'chat_id';
+        }
 
-         public function create_new_chat_main_id($from,$user_id,$chat_id)
-         {
-            if($from=='bio')
-            {
-                $db='bio_db';
-                $table='chats';
-                $column='chat_id_mobile';
+        if ($from == 'MobileAppV2') {
+
+            $category = OpenaiGeneratorChatCategory::where('id', 1)->firstOrFail();
+            $chat = new UserOpenaiChatMobile();
+            $chat->user_id = $user_id;
+            $chat->openai_chat_category_id = $category->id;
+            $chat->title = $category->name . ' Chat';
+            $chat->total_credits = 0;
+            $chat->total_words = 0;
+            $chat->chat_id = $chat_id;
+            $chat->save();
+
+            $openai_chat_id = $chat->id;
+
+            //update user_openai_chat_id in user_openai_chat_message_mobile
+            $chat_messages = UserOpenaiChatMessageMobile::where('chat_id', $chat_id)->get();
+            foreach ($chat_messages as $chat_message) {
+                $chat_message->user_openai_chat_id = $openai_chat_id;
+                $chat_message->save();
             }
-            else if($from=='main_coin')
-            {
-                $db='main_db';
-                $table='user_openai_chat';
-                $column='id';
-            }
-            else if($from=='MobileAppV2')
-            {
-                $db='mobile_db';
-                $table='willdev_user_chat';
-                $column='id';
-            }
-            else if($from=='SyncNodeJS')
-            {
-                $db='sync_db';
-                $table='user_openai_chat';
-                $column='id';
-            }
-            else if($from=='Design')
-            {
-                $db='digitalasset_db';
-                $table='user_openai_chat';
-                $column='id';
-            }
-            else if($from=='SocialPost')
-            {
-                $db='main_db';
-                $table='sp_user_openai_chat';
-                $column='id';
-            }
-            else if($from=='Bio')
-            {
-                $db='bio_db';
-                $table='chats';
-                $column='chat_id_mobile';
-            }
-            else
-            {
-                $db='main_db';
-                $table='user_openai_chat';
-                $column='chat_id';
-            }
-
-            if($from=='MobileAppV2')
-            {
-              
-               $category = OpenaiGeneratorChatCategory::where('id', 1)->firstOrFail();
-               $chat = new UserOpenaiChatMobile();
-               $chat->user_id = $user_id;
-               $chat->openai_chat_category_id = $category->id;
-               $chat->title = $category->name . ' Chat';
-               $chat->total_credits = 0;
-               $chat->total_words = 0;
-               $chat->chat_id = $chat_id;
-               $chat->save();
-       
-               $openai_chat_id=$chat->id;
-
-               //update user_openai_chat_id in user_openai_chat_message_mobile
-               $chat_messages=UserOpenaiChatMessageMobile::where('chat_id',$chat_id)->get();
-               foreach($chat_messages as $chat_message)
-               {
-                   $chat_message->user_openai_chat_id=$openai_chat_id;
-                   $chat_message->save();
-               }
 
 
-
-            }
-        
+        }
 
 
-             return $openai_chat_id;
+        return $openai_chat_id;
 
 
-
-
-         }
-      
-
-    
+    }
 
 
 }
