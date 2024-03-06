@@ -26,9 +26,37 @@
   </IfModule>
 </FilesMatch>
 
-# php -- BEGIN cPanel-generated handler, do not edit
-# Set the “ea-php81” package as the default “PHP” programming language.
-<IfModule mime_module>
-  AddHandler application/x-httpd-ea-php81 .php .php8 .phtml
-</IfModule>
-# php -- END cPanel-generated handler, do not edit
+# SOFTACULOUS Block xmlrpc
+<files xmlrpc.php>
+	Require all denied
+</files>
+# SOFTACULOUS Block xmlrpc End
+
+# SOFTACULOUS Block .htaccess and .htpasswd
+<FilesMatch ^(?i:\.ht.*)$>
+	Require all denied
+</FilesMatch>
+# SOFTACULOUS Block .htaccess and .htpasswd End
+
+# SOFTACULOUS Block author scans
+RewriteEngine On
+RewriteBase /
+RewriteCond %{QUERY_STRING} (author=\d+) [NC]
+RewriteRule .* - [F]
+# SOFTACULOUS Block author scans End
+
+# SOFTACULOUS Block directory browsing
+Options -Indexes
+# SOFTACULOUS Block directory browsing End
+
+# SOFTACULOUS Block access sensitive files
+<FilesMatch "^.*(((?:wp-config)\.(?:php|bak|swp))|php.ini|\.[hH][tT][aApP].*|((?:error_log|readme|license|changelog|-config|-sample)\.(?:php|md|log|txt|htm|html)))$">
+	Require all denied
+</FilesMatch>
+# SOFTACULOUS Block access sensitive files End
+
+# SOFTACULOUS Enable bot protection
+RewriteEngine on
+RewriteCond %{HTTP_USER_AGENT} (?:virusbot|spambot|evilbot|acunetix|BLEXBot|domaincrawler\.com|LinkpadBot|MJ12bot/v|majestic12\.co\.uk|AhrefsBot|TwengaBot|SemrushBot|nikto|winhttp|Xenu\s+Link\s+Sleuth|Baiduspider|HTTrack|clshttp|harvest|extract|grab|miner|python-requests) [NC]
+RewriteRule ^(.*)$ http://no.access/
+# SOFTACULOUS Enable bot protection End

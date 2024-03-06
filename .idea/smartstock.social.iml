@@ -2,43 +2,13 @@
 <module type="WEB_MODULE" version="4">
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
-      <sourceFolder url="file://$MODULE_DIR$/_OLD/core/app" isTestSource="false" packagePrefix="App\" />
-      <sourceFolder url="file://$MODULE_DIR$/_OLD/core/database/factories" isTestSource="false" packagePrefix="Database\Factories\" />
-      <sourceFolder url="file://$MODULE_DIR$/_OLD/core/database/seeders" isTestSource="false" packagePrefix="Database\Seeders\" />
-      <sourceFolder url="file://$MODULE_DIR$/_OLD/core/tests" isTestSource="true" packagePrefix="Tests\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/AoraPageBuilder/" isTestSource="false" packagePrefix="Modules\AoraPageBuilder\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Appearance/" isTestSource="false" packagePrefix="Modules\Appearance\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Backup/" isTestSource="false" packagePrefix="Modules\Backup\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/BankPayment/" isTestSource="false" packagePrefix="Modules\BankPayment\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Blog/" isTestSource="false" packagePrefix="Modules\Blog\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Certificate/" isTestSource="false" packagePrefix="Modules\Certificate\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Coupons/" isTestSource="false" packagePrefix="Modules\Coupons\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/CourseSetting/" isTestSource="false" packagePrefix="Modules\CourseSetting\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/FooterSetting/" isTestSource="false" packagePrefix="Modules\FooterSetting\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/FrontendManage/" isTestSource="false" packagePrefix="Modules\FrontendManage\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Instamojo/" isTestSource="false" packagePrefix="Modules\Instamojo\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Localization/" isTestSource="false" packagePrefix="Modules\Localization\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Midtrans/" isTestSource="false" packagePrefix="Modules\Midtrans\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Mobilpay/" isTestSource="false" packagePrefix="Modules\Mobilpay\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/ModuleManager/" isTestSource="false" packagePrefix="Modules\ModuleManager\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Newsletter/" isTestSource="false" packagePrefix="Modules\Newsletter\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/NotificationSetup/" isTestSource="false" packagePrefix="Modules\NotificationSetup\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/OfflinePayment/" isTestSource="false" packagePrefix="Modules\OfflinePayment\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/PayStack/" isTestSource="false" packagePrefix="Modules\PayStack\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Payeer/" isTestSource="false" packagePrefix="Modules\Payeer\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Payment/" isTestSource="false" packagePrefix="Modules\Payment\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/PaymentMethodSetting/" isTestSource="false" packagePrefix="Modules\PaymentMethodSetting\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Paytm/" isTestSource="false" packagePrefix="Modules\Paytm\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Pesapal/" isTestSource="false" packagePrefix="Modules\Pesapal\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/PopupContent/" isTestSource="false" packagePrefix="Modules\PopupContent\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/Modules/Quiz/" isTestSource="false" packagePrefix="Modules\Quiz\" />
+      <sourceFolder url="file://$MODULE_DIR$/_OLD/core/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/core/app" isTestSource="false" packagePrefix="App\" />
       <sourceFolder url="file://$MODULE_DIR$/core/database/factories" isTestSource="false" packagePrefix="Database\Factories\" />
       <sourceFolder url="file://$MODULE_DIR$/core/database/seeders" isTestSource="false" packagePrefix="Database\Seeders\" />
       <sourceFolder url="file://$MODULE_DIR$/core/tests" isTestSource="true" packagePrefix="Tests\" />
-      <sourceFolder url="file://$MODULE_DIR$/core/spec" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/spec" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/core/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/core/app/Helpers" isTestSource="false" packagePrefix="App\Helpers\" />
       <excludeFolder url="file://$MODULE_DIR$/_OLD/core/vendor/alexusmai/laravel-file-manager" />
       <excludeFolder url="file://$MODULE_DIR$/_OLD/core/vendor/anhskohbo/no-captcha" />
       <excludeFolder url="file://$MODULE_DIR$/_OLD/core/vendor/brick/math" />
@@ -310,6 +280,10 @@
       <excludeFolder url="file://$MODULE_DIR$/core/vendor/aws/aws-sdk-php" />
       <excludeFolder url="file://$MODULE_DIR$/core/vendor/league/flysystem-aws-s3-v3" />
       <excludeFolder url="file://$MODULE_DIR$/core/vendor/mtdowling/jmespath.php" />
+      <excludeFolder url="file://$MODULE_DIR$/core/vendor/carbonphp/carbon-doctrine-types" />
+      <excludeFolder url="file://$MODULE_DIR$/core/vendor/nwidart/laravel-modules" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/composer" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/facebook/graph-sdk" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

@@ -2029,15 +2029,6 @@ class SMAIUpdateProfileController extends Controller
                 //this is the key that make $plus_bio_remaining_words = 0
                 // $case = 'fix_main_plan_from_fresh_upgrade_Bio';
 
-                //because Bio added itself so deduct it
-                //$user_old_data->total_words=$user_old_data_plan['words_per_month_limit'];
-                //$user_old_data->total_images=$user_old_data_plan['images_per_month_limit'];
-
-                /* $userdata['remaining_words']-=$user_old_data->aix_words_current_month;
-                $userdata['remaining_images']-=$user_old_data->aix_images_current_month;
-                $user_old_data->remaining_words-=$user_old_data->aix_words_current_month;
-                $user_old_data->remaining_images-=$user_old_data->aix_images_current_month; */
-                // $user_old_data->save();
 
             } else {
                 $plus_bio_remaining_images = 0;
@@ -3786,7 +3777,6 @@ class SMAIUpdateProfileController extends Controller
         if ($return_token_update['log_token_id'] != NULL || $return_token_update['log_token_plus_id'] != NULL || $return_token_update['log_token_plus_id2'] != NULL) {
 
 
-
             if ($from_payment == 'SubscriptionMain') {
 
                 //$where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
@@ -3902,7 +3892,7 @@ class SMAIUpdateProfileController extends Controller
             $newDesignUser->user_id = $user_id;
             $newDesignUser->plan_period_start = Carbon::now();
 
-            
+
             $newDesignUser->plan_period_end = Carbon::now()->addDays(31);
 
 
@@ -4073,7 +4063,6 @@ class SMAIUpdateProfileController extends Controller
         // all of above do the sae thing to SocialPost and both Bio and SocialPost should
         // keep Plan ID or Package to "Team"
 
-       
 
         if ($main_coin_plan !== null && $main_coin_plan->plan_id !== null && $main_coin_plan->plan_id > 0) {
             $PlansFromMain = Plan::where('id', $main_coin_plan->plan_id)->first();
@@ -4093,7 +4082,7 @@ class SMAIUpdateProfileController extends Controller
                 Log::debug('update_bio_users_plan_settings Bio Plan SHoud be ' . 'free from Team plan invited');
 
                 // $Bio_plan_should_be='free';
-                
+
                 $Bio_plan_should_be = 'team';
                 //fixing  Bio_plan_should_be = Team
                 // fixing then when user are using Team Package then
@@ -4103,7 +4092,6 @@ class SMAIUpdateProfileController extends Controller
                 //fixing fixing
 
 
- 
             }
         }
 
@@ -4166,7 +4154,7 @@ class SMAIUpdateProfileController extends Controller
                 }
 
                 if ($key == 'images_per_month_limit') {
-                    $value += intval($user_bio['aix_images_current_month']) ;
+                    $value += intval($user_bio['aix_images_current_month']);
 
                     Log::debug('New images value + is' . $value);
                 }
@@ -4187,10 +4175,10 @@ class SMAIUpdateProfileController extends Controller
         } else if (is_array($plan_settings)) {
             trim($plan_settings, '"');
             if ($key == 'words_per_month_limit')
-                $value += intval($user_bio['aix_words_current_month']) ;
+                $value += intval($user_bio['aix_words_current_month']);
 
             if ($key == 'images_per_month_limit')
-                $value += intval($user_bio['aix_images_current_month']) ;
+                $value += intval($user_bio['aix_images_current_month']);
 
 
             //fixing fixing should add Token log from this and every time Plan correction Token    
@@ -4212,12 +4200,12 @@ class SMAIUpdateProfileController extends Controller
 
         $user_bio->plan_settings = stripslashes($plan_settings);
 
-       
+
         //$plan_settings_array->$key= $value;
         $user_bio_update = $user_bio->save();
 
         if ($user_bio_update > 0) {
-           
+
 
             Log::debug('Sucess update Bio user plan_settings ' . $key);
         }
