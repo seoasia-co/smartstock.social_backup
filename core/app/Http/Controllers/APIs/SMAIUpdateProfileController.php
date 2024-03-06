@@ -656,6 +656,8 @@ class SMAIUpdateProfileController extends Controller
                 $new_checkuserplan = new SMAISyncPlanController();
 
                 //Sync PLan that Buy from Bio ..... Stop to Buy from Bio
+                //Fixing No No  this case mean Log in from Bio not only Buy from Bio
+                //But Whythis case Fix Main only so Do not use it
                 //if($this->upFromWhere=='bio')
                 if ($this->upFromWhere == 'bio_main_cancel_this_to_use_main_coin_only') {
                     $main_user_at_middle = UserMain::where('id', $user_id)->first();
@@ -801,6 +803,8 @@ class SMAIUpdateProfileController extends Controller
 
                     }
 
+                    //Fixing if wabt to use this case as login from Bio it should has case
+                    // $have_to_fix_bio_plan = 1;
 
                 }
 
