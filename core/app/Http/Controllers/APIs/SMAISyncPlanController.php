@@ -61,6 +61,7 @@ class SMAISyncPlanController extends Controller
     public function SMAI_Check_Universal_UserPlans($user_id, $database, $platform)
     {
 
+        $case_fix_expiration_date_from=" No Where ";
         //1.where's the Plan of each $platform
         //2.when the Plan was or will be changed
 
@@ -144,6 +145,7 @@ class SMAISyncPlanController extends Controller
             // user plan from Main table sp_users
             if ($database == 'main_db' && ($platform == 'MainCoIn' || $platform == 'maincoin' || $platform == 'main_coin')) {
 
+                $case_fix_expiration_date_from.=" Updated to Main None Team Plan ";
                 Log::debug('case main_db and MainCoIn with Expired');
                 $user_main_plan = $user->plan;
                 $user_plan_expire = $user->expired_date;
@@ -177,6 +179,8 @@ class SMAISyncPlanController extends Controller
                     //Add Check Teamm Plan case here
                     //Fixing 7 March 2024
                     // Find $user_plan_expire from Team Manager
+
+                    $case_fix_expiration_date_from.=" Update From Main Team PLan ";
                     if($user_main_plan >=200 && $user_main_plan <300)
                     {
                         Log::debug("Detect Found Team Plan From User ID ".$user_id);
@@ -191,7 +195,7 @@ class SMAISyncPlanController extends Controller
 
                         //Check if Team Manager Subscription has right Plan
                         if ($Team_Manager_user_main_subscription) {
-                            $user_main_plan = $Team_Manager_user_main_subscription->plan_id;
+                            $Team_Manager_user_main_plan = $Team_Manager_user_main_subscription->plan_id;
                             $endsAt = Carbon::parse($Team_Manager_user_main_subscription->ends_at);
                             $trialEndsAt = Carbon::parse($Team_Manager_user_main_subscription->trial_ends_at);
 
@@ -204,11 +208,14 @@ class SMAISyncPlanController extends Controller
                                 // Handle accordingly
                                 $user_plan_expire = $Team_Manager_user_main_subscription->trial_ends_at;
                             }
+                        }
+                        //eof case Get Expiration date from Team Manager
 
                     }
 
 
                 }
+                //eof Fixing User Main Expiration Date From Team Plan
 
                 $user_main = UserMain::where('id', $user_id)->orderBy('id', 'asc')->first();
                 $user_main->expired_date = $user_plan_expire;
@@ -218,7 +225,7 @@ class SMAISyncPlanController extends Controller
                 $user_bio = UserBio::where('user_id', $user_id)->orderBy('user_id', 'asc')->first();
                 $user_bio->plan_expiration_date = $user_plan_expire;
                 $user_bio->save();
-                Log::debug('Expired of User BIo is ' . $user_bio->plan_expiration_date);
+                Log::debug('Expired of User BIo is ' . $user_bio->plan_expiration_date." and was Fixed from ".$case_fix_expiration_date_from);
 
                 //fixing the expired date and plan is NULL
                 if ($user_plan_expire == NULL || $user_main_plan == NULL) {
