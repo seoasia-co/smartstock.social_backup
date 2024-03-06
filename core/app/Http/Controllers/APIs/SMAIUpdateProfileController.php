@@ -814,6 +814,7 @@ class SMAIUpdateProfileController extends Controller
                     $main_subscription = SubscriptionMain::where('user_id', $user_id)->where('stripe_status', 'active')->orWhere('stripe_status', 'trialing')->first();
                     if (isset($main_subscription->id)) {
                         if ($main_subscription->id > 0 && $main_subscription->id != 8) {
+                            //check Subscription But How about in case Team Plan
                             if ($main_subscription->stripe_status != 'active' && $main_subscription->stripe_status != 'trialing') {
                                 Log::debug('Debug Case Plan ID in Main is not 0 or 8 but Subscription not found');
                                 $main_users = UserMain::where('id', $user_id)->first();
@@ -2567,7 +2568,7 @@ class SMAIUpdateProfileController extends Controller
 
             //bug now in main_coin is main_token_sync=0 so it should be 1 and update when in mail Paypal or Stripe is success
             //fixing fixing Double check by add Subscription ID to TokenLogs table
-            //to record that reamining_words or images already added 
+            //to record that reamining_words or images already added
             if ($main_token_synced == 0) {
                 $plus_remaining_images = $check_main_plan->total_images;
                 $plus_remaining_words = $check_main_plan->total_words;
@@ -4042,7 +4043,7 @@ class SMAIUpdateProfileController extends Controller
     }
 
 
-    //This function not for add Tokens for Sync it should add to $value 
+    //This function not for add Tokens for Sync it should add to $value
     //มันต้องอัพเดทผ่านค่า $value ซึ่งต้องไปตั้งเงื่อนไขก่อนหน้านี้ ไม่ใช่ใน function นี้
     public function update_bio_users_plan_settings($key, $value, $user_id = 0)
     {
@@ -4159,7 +4160,7 @@ class SMAIUpdateProfileController extends Controller
                     Log::debug('New images value + is' . $value);
                 }
 
-                //fixing fixing should add Token log from this and every time Plan correction Token 
+                //fixing fixing should add Token log from this and every time Plan correction Token
 
 
                 $plan_settings_json[$key] = $value;
@@ -4181,7 +4182,7 @@ class SMAIUpdateProfileController extends Controller
                 $value += intval($user_bio['aix_images_current_month']);
 
 
-            //fixing fixing should add Token log from this and every time Plan correction Token    
+            //fixing fixing should add Token log from this and every time Plan correction Token
             $plan_settings[$key] = $value;
             trim($plan_settings, '"');
             $plan_settings = json_encode($plan_settings);
