@@ -3494,7 +3494,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
         $user_bio = UserBio::where('user_id', $user_id)->first();
         if ($user_bio->plan_id)
-            Log::debug("Check update Bio user plain ID LINE 3569 before APIsController BioReset " . $user_bio->plan_id);
+            Log::debug("Check update Bio user plain ID LINE 3497 before APIsController BioReset " . $user_bio->plan_id);
 
 
         if (in_array("BioReset", $whatup)) {
@@ -3503,7 +3503,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         }
 
         $user_bio = UserBio::where('user_id', $user_id)->first();
-        Log::debug("Check update Bio user plain ID LINE 3578 after APIsController BioReset " . $user_bio->plan_id);
+        Log::debug("Check update Bio user plain ID LINE 3506 after APIsController BioReset " . $user_bio->plan_id);
         $user_bio_login_arr = array(
             "bio_plain_id" => $user_bio->plan_id,
         );

@@ -1035,6 +1035,29 @@ class Helper
     }
 
 
+    // Fix Json SocialPost permission for Team user
+    function correctJson($owner_json, $team_json) {
+    
+        // first, convert the JSON into associative arrays
+        $owner_data = json_decode($owner_json, true);
+        $team_data = json_decode($team_json, true);
+    
+        foreach ($owner_data as $key => $value) {
+            // check if this property exists in the team member's json
+            if(!isset($team_data[$key])) {
+                // if it doesn't exist in the team member's json and the owner's value is 1, set it to 1
+                // else add the owner's key to the team member's JSON with whatever value the owner has
+                $team_data[$key] = $value == '1' ? '1' : $value;
+            }
+        }
+        return json_encode($team_data);
+    }
+    // Usage:
+        /* $owner_json = '...'; // the owner's JSON goes here
+        $team_json = '...'; // the team's JSON goes here
+        $corrected_json = correctJson($owner_json, $team_json); */
+
+
 }
 
 ?>

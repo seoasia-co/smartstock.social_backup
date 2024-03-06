@@ -794,8 +794,8 @@ class SMAIUpdateProfileController extends Controller
                             /* if (isset($request['plan_expiration_date']))
                                     $userdata['plan_expiration_date'] = $current_bio_plan_expire; */
 
-
-                            $this->up_plan_bio($userdata, $user_id, $user_email, 'fix_main_plan');
+                            // fixing move to Active Plan from Main only
+                            //$this->up_plan_bio($userdata, $user_id, $user_email, 'fix_main_plan');
                         }
 
 
@@ -964,6 +964,7 @@ class SMAIUpdateProfileController extends Controller
                             $userdata['plan_expiration_date'] = $current_bio_plan_expire; */
 
 
+                            //fixing fixing
                             $this->up_plan_main_coin($userdata, $user_id, $user_email, 'fix_bio_plan');
                         }
 
@@ -1831,6 +1832,8 @@ class SMAIUpdateProfileController extends Controller
         if ($user_old_data->plan_settings == NULL) {
             if ($user_old_data->plan_id == 'free')
                 $user_bio_plan_id = 0;
+            else if ($user_old_data->plan_id == 'team')
+                $user_bio_plan_id = 99;
             else
                 $user_bio_plan_id = $user_old_data->plan_id;
 
@@ -1967,6 +1970,9 @@ class SMAIUpdateProfileController extends Controller
                 if ($userdata['plan'] == 'free')
                     $userdata['plan'] = 0;
 
+                if ($userdata['plan'] == 'team')
+                    $userdata['plan'] = 99;
+
                 $user_main_plans_id = array(
                     'sp_plan' => $sp_cur_plan,
                     'design_plan' => $design_cur_plan,
@@ -1994,16 +2000,11 @@ class SMAIUpdateProfileController extends Controller
             $central_remaining = UserDesign::where('id', $user_id)->first();
 
 
-            $where_payment_bundle_from = SubscriptionBio::where('user_id', $user_id)->whereIn('plan_id', [4, 4])->latest()->first();
-            if ($where_payment_bundle_from) {
-
-                $from_payment = 'SubscriptionBio';
-                Log::debug('FOund bundle subscription in Bio then use it');
-            } else {
-                $from_payment = 'SubscriptionMain';
-                //$where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
-                $where_payment_bundle_from = SubscriptionMain::where('stripe_status', 'active')->orWhere('stripe_status', 'trialing')->where('user_id', $user_id)->latest()->first();
-            }
+            //Fixing Move to Main Plan only
+            $from_payment = 'SubscriptionMain';
+            //$where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
+            $where_payment_bundle_from = SubscriptionMain::where('stripe_status', 'active')->orWhere('stripe_status', 'trialing')->where('user_id', $user_id)->latest()->first();
+            //eof Fixing Move to Main Plan only
 
             $bio_token_synced = $where_payment_bundle_from->bio_token_sync;
             $main_token_synced = $where_payment_bundle_from->main_token_sync;
@@ -2026,7 +2027,7 @@ class SMAIUpdateProfileController extends Controller
                 Log::debug(' Case Bio Token Synced =0 and the DocText Token plus will be add is' . $plus_bio_remaining_words);
 
                 //this is the key that make $plus_bio_remaining_words = 0
-                $case = 'fix_main_plan_from_fresh_upgrade_Bio';
+                // $case = 'fix_main_plan_from_fresh_upgrade_Bio';
 
                 //because Bio added itself so deduct it
                 //$user_old_data->total_words=$user_old_data_plan['words_per_month_limit'];
@@ -2036,7 +2037,7 @@ class SMAIUpdateProfileController extends Controller
                 $userdata['remaining_images']-=$user_old_data->aix_images_current_month;
                 $user_old_data->remaining_words-=$user_old_data->aix_words_current_month;
                 $user_old_data->remaining_images-=$user_old_data->aix_images_current_month; */
-                $user_old_data->save();
+                // $user_old_data->save();
 
             } else {
                 $plus_bio_remaining_images = 0;
@@ -2048,6 +2049,7 @@ class SMAIUpdateProfileController extends Controller
 
             //because this happending in Main so
             //comapre old data from Main with the Central remaining
+
             if ($user_old_data->remaining_words < $central_remaining->remaining_words + $plus_remaining_words) {
                 Log::debug('The Old remaining Main < than Central maybe because subscription RESET Token reason');
                 //$plus_remaining_images=0;
@@ -2320,7 +2322,7 @@ class SMAIUpdateProfileController extends Controller
     }
 
     //Done
-    // up_plan_series should devided to 3 major 1.Feature Sync 2.Token Sync 3.TimeSync
+    //fixing fixing up_plan_series should devided to 3 major 1.Feature Sync 2.Token Sync 3.TimeSync
     public function up_plan_main_coin($userdata, $user_id, $user_email, $case = NULL)
     {
         $golden_tokens = 0;
@@ -2552,6 +2554,7 @@ class SMAIUpdateProfileController extends Controller
             //Step 1. Check Where is the Bundle payment or transaction subscription come from
             //2. check column main_token_synced, bio_token_synced
 
+            //fixing move to Main Plan only
             $central_remaining = UserDesign::where('id', $user_id)->first();
 
             //$where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
@@ -2572,6 +2575,8 @@ class SMAIUpdateProfileController extends Controller
             $main_token_synced = $where_payment_bundle_from->main_token_sync;
 
             //bug now in main_coin is main_token_sync=0 so it should be 1 and update when in mail Paypal or Stripe is success
+            //fixing fixing Double check by add Subscription ID to TokenLogs table
+            //to record that reamining_words or images already added 
             if ($main_token_synced == 0) {
                 $plus_remaining_images = $check_main_plan->total_images;
                 $plus_remaining_words = $check_main_plan->total_words;
@@ -2694,28 +2699,6 @@ class SMAIUpdateProfileController extends Controller
             );
 
             Log::debug('Before send  Token reamaining Array to Centalize' . json_encode($token_plus_array));
-
-            //move this to centralize Token
-            /* $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'main_db', 'users');
-
-            $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'main_db', 'sp_users');
-
-            $this->update_column_all( $userdata_remaining_words,$user_id,$user_email,'bio_db','users');
-
-            $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'digitalasset_db', 'users');
-
-            $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'mobileapp_db', 'users');
-
-
-            $userdata_remaining_words['gpt_words_limit'] = $userdata['remaining_words'];
-            $userdata_remaining_words['dalle_limit'] = $userdata['remaining_images'];
-
-            $this->update_column_all($userdata_remaining_words, $user_id, $user_email, 'sync_db', 'user');
-
-            unset($userdata_remaining_words['gpt_words_limit']);
-            unset($userdata_remaining_words['dalle_limit']); */
-
-            //move this to centralize Token
 
 
         }
@@ -3386,18 +3369,6 @@ class SMAIUpdateProfileController extends Controller
         //set this $value to 0 if want to reset token usage
         //$this->update_team_permissions('openai_usage_tokens', $total_token,$team_id,$user_id);
 
-
-        // blog Bio.bio   $token_array
-        /*  $db="bio_blog_db";
-         $table="users";
-         $this->update_column_all($userdata_token_arr,$user_id,$user_email,$db,$table); */
-
-        // SEO  $token_array
-        /* $db="seo_db";
-        $table="users";
-        $this->update_column_all($token_array,$user_id,$user_email,$db,$table);
- */
-
         // Sync tts_words_limit,  dalle_limit, gpt_words_limit, $token_array
 
         $token_array['dalle_limit'] = $token_array['remaining_images'];
@@ -3803,6 +3774,7 @@ class SMAIUpdateProfileController extends Controller
         //add checked if updated token success
 
 
+        //fixing fixing  add case = Team  package update
         $return_token_update = $this->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory, $token_update_type, $token_plus_array, $case);
 
         /*  $return_log_array=array(
@@ -3814,20 +3786,6 @@ class SMAIUpdateProfileController extends Controller
         if ($return_token_update['log_token_id'] != NULL || $return_token_update['log_token_plus_id'] != NULL || $return_token_update['log_token_plus_id2'] != NULL) {
 
 
-            /* if($from_payment=='SubscriptionBio')
-           {
-            $where_payment_bundle_from=SubscriptionBio::where('user_id',$user_id)->whereIn('plan_id', [4,4])->latest()->first();
-
-            $where_payment_bundle_from->bio_token_sync=1;
-             $where_payment_bundle_from->main_token_sync=1;
-             $where_payment_bundle_from->save();
-
-             $Biouser=UserBio::where('user_id',$user_id)->first();
-             $Biouser->token_upgraded=1;
-             $Biouser->save();
-
-
-           } */
 
             if ($from_payment == 'SubscriptionMain') {
 
@@ -3944,9 +3902,7 @@ class SMAIUpdateProfileController extends Controller
             $newDesignUser->user_id = $user_id;
             $newDesignUser->plan_period_start = Carbon::now();
 
-            /* if($expired!=NULL)
-        $newDesignUser->plan_period_end=$expired;
-        else */
+            
             $newDesignUser->plan_period_end = Carbon::now()->addDays(31);
 
 
@@ -4089,11 +4045,21 @@ class SMAIUpdateProfileController extends Controller
 
     //Update Bio plan_settings Plan Sync
     // ************************* Important for Pland Upgrade / Downgrade ***************
+    public function update_bio_users_plan_settings_team($key, $value, $user_id = 0)
+    {
 
+
+    }
+
+
+    //This function not for add Tokens for Sync it should add to $value 
+    //มันต้องอัพเดทผ่านค่า $value ซึ่งต้องไปตั้งเงื่อนไขก่อนหน้านี้ ไม่ใช่ใน function นี้
     public function update_bio_users_plan_settings($key, $value, $user_id = 0)
     {
         //Checking Bio Plan Correct
+        //fixing or  stripe_status = trialing
         $main_coin_plan = SubscriptionMain::where('stripe_status', 'active')
+            ->orWhere('stripe_status', 'trialing')
             ->where('user_id', $user_id)
             ->first();
 
@@ -4104,8 +4070,10 @@ class SMAIUpdateProfileController extends Controller
         //2. proved that user was invited to join in Team
         //3. then copy Free Plan setting or current setting from Bio users table
         //and then update remaining_words and remaining_images
-        $override_remaining_words = 0;
-        $override_remaining_images = 0;
+        // all of above do the sae thing to SocialPost and both Bio and SocialPost should
+        // keep Plan ID or Package to "Team"
+
+       
 
         if ($main_coin_plan !== null && $main_coin_plan->plan_id !== null && $main_coin_plan->plan_id > 0) {
             $PlansFromMain = Plan::where('id', $main_coin_plan->plan_id)->first();
@@ -4116,6 +4084,8 @@ class SMAIUpdateProfileController extends Controller
             Log::debug('update_bio_users_plan_settings Bio Plan SHoud be ' . $Bio_plan_should_be);
         } else {
 
+
+            //maybe this user is using Team package
             $team_check = Team_Members_Main::where('user_id', $user_id)->first();
 
             if ($team_check !== null && $team_check->id !== null && $team_check->id > 0) {
@@ -4123,15 +4093,17 @@ class SMAIUpdateProfileController extends Controller
                 Log::debug('update_bio_users_plan_settings Bio Plan SHoud be ' . 'free from Team plan invited');
 
                 // $Bio_plan_should_be='free';
-                //bug fixing  $override_remaining_images add Tokens from main to Bio and others in Team
-                $Bio_plan_should_be = 1;
+                
+                $Bio_plan_should_be = 'team';
+                //fixing  Bio_plan_should_be = Team
+                // fixing then when user are using Team Package then
+                // find the real package from The owner of Team Package
+                // Or from the log setting when this user was inviting
+                // to join Team
+                //fixing fixing
 
 
-                if ($team_check->team_token_added_tobio == 0) {
-                    $override_remaining_images = $team_check->remaining_images;
-                    $override_remaining_words = $team_check->remaining_words;
-                }
-
+ 
             }
         }
 
@@ -4189,15 +4161,17 @@ class SMAIUpdateProfileController extends Controller
             $plan_settings_json = json_decode(trim($plan_settings, '"'), true);
             if (is_array($plan_settings_json)) {
                 if ($key == 'words_per_month_limit') {
-                    $value += intval($user_bio['aix_words_current_month']) + $override_remaining_words;
+                    $value += intval($user_bio['aix_words_current_month']);
                     Log::debug('New words value + is' . $value);
                 }
 
                 if ($key == 'images_per_month_limit') {
-                    $value += intval($user_bio['aix_images_current_month']) + $override_remaining_images;
+                    $value += intval($user_bio['aix_images_current_month']) ;
 
                     Log::debug('New images value + is' . $value);
                 }
+
+                //fixing fixing should add Token log from this and every time Plan correction Token 
 
 
                 $plan_settings_json[$key] = $value;
@@ -4213,11 +4187,13 @@ class SMAIUpdateProfileController extends Controller
         } else if (is_array($plan_settings)) {
             trim($plan_settings, '"');
             if ($key == 'words_per_month_limit')
-                $value += intval($user_bio['aix_words_current_month']) + $override_remaining_words;
+                $value += intval($user_bio['aix_words_current_month']) ;
 
             if ($key == 'images_per_month_limit')
-                $value += intval($user_bio['aix_images_current_month']) + $override_remaining_images;
+                $value += intval($user_bio['aix_images_current_month']) ;
 
+
+            //fixing fixing should add Token log from this and every time Plan correction Token    
             $plan_settings[$key] = $value;
             trim($plan_settings, '"');
             $plan_settings = json_encode($plan_settings);
@@ -4236,22 +4212,12 @@ class SMAIUpdateProfileController extends Controller
 
         $user_bio->plan_settings = stripslashes($plan_settings);
 
-        if ($override_remaining_words > 0) {
-            $user_bio->remaining_words = $override_remaining_words;
-            $user_bio->remaining_images = $override_remaining_images;
-
-        }
-
+       
         //$plan_settings_array->$key= $value;
         $user_bio_update = $user_bio->save();
 
         if ($user_bio_update > 0) {
-            if ($override_remaining_words > 0) {
-                $team_check->team_token_added_tobio = 1;
-                $team_check->save();
-
-                Log::debug('Sucess Add Remaining_Images and WOrds Overide from Team Main to Bio user');
-            }
+           
 
             Log::debug('Sucess update Bio user plan_settings ' . $key);
         }
@@ -5075,6 +5041,8 @@ class SMAIUpdateProfileController extends Controller
 
                     if ($userbio_plan_id == 'free')
                         $userbio_plan_id = 0;
+                    else if ($userbio_plan_id == 'team')
+                        $userbio_plan_id = 99;
                     else
                         $userbio_plan_id = intval($userbio_plan_id) + 100;
 
@@ -5182,6 +5150,8 @@ class SMAIUpdateProfileController extends Controller
 
                 if ($userbio_plan_id == 'free')
                     $userbio_plan_id = 0;
+                else if ($userbio_plan_id == 'team')
+                    $userbio_plan_id = 99;
                 else if ($userbio_plan_id > 100 && $userbio_plan_id > 0)
                     $userbio_plan_id = intval($userbio_plan_id);
                 else
@@ -5388,6 +5358,12 @@ class SMAIUpdateProfileController extends Controller
 
 
     }
+
+    public function socialpost_permission_update_user_team($user_id, $plan_id)
+    {
+
+    }
+
 
     public function socialpost_permission_update_user($user_id, $plan_id)
     {
@@ -5624,6 +5600,7 @@ class SMAIUpdateProfileController extends Controller
 
 
             if (isset($team_main_check->user_id)) {
+                //fixing fixing bug case $token_id_save is NULL because it never save both case text and image never save
                 Log::debug('Found User ID in Case Main to record Team ID ' . $team_main_check->team_id . " and User ID " . $team_main_check->user_id);
 
                 $token_log->team_main_id = $team_main_check->team_id;
