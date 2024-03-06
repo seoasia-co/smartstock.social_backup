@@ -810,6 +810,8 @@ class SMAIUpdateProfileController extends Controller
 
                 //case 2
                 //!important Sync PLan that Buy from MainCOIn
+                //Updated 7 March 2024 Checked Both login from Bio and Main are Trigger update
+                //Both Login From Bio and Main can Detect Plan From Main
                 if ($check_upFromMain > 0 || $this->upFromWhere == 'main_coin' || Str::contains(strtolower($this->upFromWhere), 'main_coin') || Str::contains(strtolower($this->upFromWhere), 'maincoin')) {
                     //fixed bug case plan id in Main is not 0 or 8 but Subscription not found
                     //fixed added Subscription status is active or trialing

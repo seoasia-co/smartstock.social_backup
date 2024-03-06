@@ -57,6 +57,7 @@ class SMAISyncPlanController extends Controller
 
     //Working almost done
 
+    //Fixing adding Team Plan
     public function SMAI_Check_Universal_UserPlans($user_id, $database, $platform)
     {
 
@@ -171,6 +172,42 @@ class SMAISyncPlanController extends Controller
                         // Handle accordingly
                         $user_plan_expire = $user_main_subscription->trial_ends_at;
                     }
+                }
+                else{
+                    //Add Check Teamm Plan case here
+                    //Fixing 7 March 2024
+                    // Find $user_plan_expire from Team Manager
+                    if($user_main_plan >=200 && $user_main_plan <300)
+                    {
+                        Log::debug("Detect Found Team Plan From User ID ".$user_id);
+                        $Team_Manager_find=UserMain::where('id', $user_id)->orderBy('id', 'asc')->first();
+                        $Team_Manager_User_id=$Team_Manager_find->parent_user_id;
+                        $Team_Manager_user_main_subscription = SubscriptionMain::where('user_id', $Team_Manager_User_id)
+                            ->where(function ($query) {
+                                $query->where('stripe_status', 'active')
+                                    ->orWhere('stripe_status', 'trialing');
+                            })
+                            ->latest()->first();
+
+                        //Check if Team Manager Subscription has right Plan
+                        if ($Team_Manager_user_main_subscription) {
+                            $user_main_plan = $Team_Manager_user_main_subscription->plan_id;
+                            $endsAt = Carbon::parse($Team_Manager_user_main_subscription->ends_at);
+                            $trialEndsAt = Carbon::parse($Team_Manager_user_main_subscription->trial_ends_at);
+
+                            if ($endsAt->greaterThan($trialEndsAt)) {
+                                // ends_at is later than trial_ends_at
+                                // Handle accordingly
+                                $user_plan_expire = $Team_Manager_user_main_subscription->ends_at;
+                            } else {
+                                // trial_ends_at is later than or equal to ends_at
+                                // Handle accordingly
+                                $user_plan_expire = $Team_Manager_user_main_subscription->trial_ends_at;
+                            }
+
+                    }
+
+
                 }
 
                 $user_main = UserMain::where('id', $user_id)->orderBy('id', 'asc')->first();
