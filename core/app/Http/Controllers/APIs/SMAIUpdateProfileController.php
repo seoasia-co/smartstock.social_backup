@@ -4090,13 +4090,33 @@ class SMAIUpdateProfileController extends Controller
 
                 // $Bio_plan_should_be='free';
 
-                $Bio_plan_should_be = 'team';
+                
                 //fixing  Bio_plan_should_be = Team
                 // fixing then when user are using Team Package then
                 // find the real package from The owner of Team Package
                 // Or from the log setting when this user was inviting
                 // to join Team
                 //fixing fixing
+
+                //$Bio_plan_should_be = 'team'; cancel use normal algorythm
+
+                Log::debug("Detect Found UserBio Team Plan From User ID ".$user_id);
+                $Team_Manager_find=UserMain::where('id', $user_id)->orderBy('id', 'asc')->first();
+                $Team_Manager_User_id=$Team_Manager_find->parent_user_id;
+                $Team_Manager_user_main_subscription = SubscriptionMain::where('user_id', $Team_Manager_User_id)
+                    ->where(function ($query) {
+                        $query->where('stripe_status', 'active')
+                            ->orWhere('stripe_status', 'trialing');
+                    })
+                    ->latest()->first();
+
+                $main_coin_plan = $Team_Manager_user_main_subscription;
+
+
+
+
+
+
 
 
             }
