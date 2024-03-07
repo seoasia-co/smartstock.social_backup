@@ -3784,6 +3784,7 @@ class SMAIUpdateProfileController extends Controller
         if ($return_token_update['log_token_id'] != NULL || $return_token_update['log_token_plus_id'] != NULL || $return_token_update['log_token_plus_id2'] != NULL) {
 
 
+            //Fixing case Team Plan
             if ($from_payment == 'SubscriptionMain') {
 
                 //$where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
@@ -5397,9 +5398,30 @@ class SMAIUpdateProfileController extends Controller
         if (!empty($plan_item)) {
             $plan = $plan_item[0]->id;
             $permissions = $plan_item[0]->permissions;
-            if ($plan_item[0]->trial_day != -1) {
+            
+            
+            //This use in case trial only that from SOcialPost Plan
+            //change to use the expiration date from Main is better
+
+            /* if ($plan_item[0]->trial_day != -1) {
                 $expiration_date = time() + $plan_item[0]->trial_day * 86400;
             }
+            else{
+
+            } */
+            // Get from MainUser table or from Subscirtion table or from Manager Subscription table
+            // Start from simple
+            $user_main=UserMain::where('id',$user_id)->first();
+
+            if($user_main->plan_expire_date)
+            $expiration_date =$user_main->plan_expire_date;
+            else
+            $expiration_date =NULL;
+            // add elf if Use Subscription userMain
+            // elf if Use Team Subscription
+            //Fixing 
+
+
         }
 
         $save_team = [
