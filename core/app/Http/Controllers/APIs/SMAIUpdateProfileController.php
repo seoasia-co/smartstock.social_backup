@@ -1597,6 +1597,10 @@ class SMAIUpdateProfileController extends Controller
             if (isset($request->password) && $this->skip_update_pss != 1) {
                 $privatehash_password = $this->hash_password;
             }
+            else
+            {
+                $privatehash_password='';
+            }
 
             if (isset($request->avatar))
                 $profile_pic = $request->avatar;
@@ -1609,7 +1613,18 @@ class SMAIUpdateProfileController extends Controller
 
             Log::debug('while Insert new Design Name found user :' . $total);
 
-            $update_id = DB::connection('digitalasset_db')->table('users')->update($array);
+            $userdata = [
+                'id' => $main_id,
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => $privatehash_password,
+                'profile_pic' => $profile_pic,
+                'remaining_words' => $this->freetrial_plan_words,
+                'remaining_images' => $this->freetrial_plan_images,
+
+            ];
+
+            $update_id = DB::connection('digitalasset_db')->table('users')->update($userdata);
 
 
         }
@@ -4091,7 +4106,7 @@ class SMAIUpdateProfileController extends Controller
 
                 // $Bio_plan_should_be='free';
 
-                
+
                 //fixing  Bio_plan_should_be = Team
                 // fixing then when user are using Team Package then
                 // find the real package from The owner of Team Package
@@ -5398,8 +5413,8 @@ class SMAIUpdateProfileController extends Controller
         if (!empty($plan_item)) {
             $plan = $plan_item[0]->id;
             $permissions = $plan_item[0]->permissions;
-            
-            
+
+
             //This use in case trial only that from SOcialPost Plan
             //change to use the expiration date from Main is better
 
@@ -5419,7 +5434,7 @@ class SMAIUpdateProfileController extends Controller
             $expiration_date =NULL;
             // add elf if Use Subscription userMain
             // elf if Use Team Subscription
-            //Fixing 
+            //Fixing
 
 
         }
