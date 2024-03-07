@@ -3780,7 +3780,7 @@ class SMAIUpdateProfileController extends Controller
     public function plans_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL, $expired = NULL, $design_plan_id, $token_plus_array, $from_payment = NULL, $case = NULL)
     {
 
-        //check Token changed after upgrade/downgrade Plan
+       //check Token changed after upgrade/downgrade Plan
         //1. when change plan still not yet insert token_logs
         // 1.1 Check How Many tokens must be add ?
         // 1.2 that token in 1.1 from where?  and which Plan ID
@@ -3789,8 +3789,14 @@ class SMAIUpdateProfileController extends Controller
 
         //add checked if updated token success
 
-
         //fixing fixing  add case = Team  package update
+
+        //so conclusion use if else  below in case if  Team package then
+        //process the below $return_token_update = $this->update_token_centralize()
+        // else if not team Have to check that if Transaction ID of Subscription existing then stop adding token
+        // not add token 
+
+
         $return_token_update = $this->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory, $token_update_type, $token_plus_array, $case);
 
         /*  $return_log_array=array(
@@ -3798,6 +3804,14 @@ class SMAIUpdateProfileController extends Controller
             'log_token_plus_id'=>$log_token_plus_id,
             'log_token_plus_id2'=>$log_token_plus_id2,
         ); */
+
+       //ok the algorythm is
+        // 1. Can use the the last Token ID that < $return_token_update['log_token_id'] of same UserID
+        // 2. also compare the Team Token transaction that case_log = UpgradePlan and same UserID or TeamManagerID with ame transaction ID
+        //  3. form step 1.  can compare the total remaining_images + remaining_words  how much it diffence?
+        // then the difference is + or - amount  that should be in this TokenLogs
+        // and in case same transaction ID of same user_id or Team manager id use for Team package only
+
 
         if ($return_token_update['log_token_id'] != NULL || $return_token_update['log_token_plus_id'] != NULL || $return_token_update['log_token_plus_id2'] != NULL) {
 
@@ -3870,12 +3884,29 @@ class SMAIUpdateProfileController extends Controller
                     //Fixing Fixing   in Case of Team Package Need to 
                     // Use data from table   cafealth_smartcontent_pen.team_members
 
-                    $start_bio_images_per_month_limit = $this->get_bio_plan_settings('images_per_month_limit', $user_bio_plan_id);
-                    Log::debug('Start Bio Images Per Month Limit : ' . $start_bio_images_per_month_limit);
-                    $start_bio_words_per_month_limit = $this->get_bio_plan_settings('words_per_month_limit', $user_bio_plan_id);
-                    Log::debug('Start Bio Words Per Month Limit : ' . $start_bio_words_per_month_limit);
-                    
+                    if(isset($Team_Manager_User_id) && $Team_Manager_User_id >0 )
+                    {
+                        //get Tokens remaining_words and remaining_images from Team_members table
+                        $user_team_member=Team_Members_Main::where('user_id',$user_id)->first();
+                        
+                        $start_bio_images_per_month_limit = $user_team_member->remaining_images;
+                        Log::debug('Update Team Main Tokens from team_member Table Config to Start Bio Images Per Month Limit : ' . $start_bio_images_per_month_limit);
+                        $start_bio_words_per_month_limit = $user_team_member->remaining_words;
+                        Log::debug('Update Team Main Tokens from team_member Table Config to Start Bio Words Per Month Limit : ' . $start_bio_words_per_month_limit);
+
+
+
+                    }
+                    else {
+
+                        $start_bio_images_per_month_limit = $this->get_bio_plan_settings('images_per_month_limit', $user_bio_plan_id);
+                        Log::debug('Start Bio Images Per Month Limit : ' . $start_bio_images_per_month_limit);
+                        $start_bio_words_per_month_limit = $this->get_bio_plan_settings('words_per_month_limit', $user_bio_plan_id);
+                        Log::debug('Start Bio Words Per Month Limit : ' . $start_bio_words_per_month_limit);
+                    }
                     // eof Use data from table   cafealth_smartcontent_pen.team_members
+
+
                     
                     $start_bio_synthesized_characters_per_month_limit = $this->get_bio_plan_settings('synthesized_characters_per_month_limit', $user_bio_plan_id);
                     Log::debug('Start Bio Synthesized Characters Per Month Limit : ' . $start_bio_synthesized_characters_per_month_limit);
