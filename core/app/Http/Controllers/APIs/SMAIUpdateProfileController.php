@@ -3601,6 +3601,7 @@ class SMAIUpdateProfileController extends Controller
                     'token_text_after' => $token_array['remaining_words'],
                     'token_image_before' => $token_before_image + $token_plus_array['plus_remaining_images'],
                     'token_image_after' => $token_array['remaining_images'],
+                    'case_log' => $case,
 
 
                 );
@@ -3741,6 +3742,7 @@ class SMAIUpdateProfileController extends Controller
                     'token_text_after' => $token_array['remaining_words'],
                     'token_image_before' => $token_before_image,
                     'token_image_after' => $token_array['remaining_images'],
+                    'case_log' => $case,
 
 
                 );
@@ -3773,6 +3775,7 @@ class SMAIUpdateProfileController extends Controller
 
 
     }
+    //eof update_token_centralize
 
     public function plans_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL, $expired = NULL, $design_plan_id, $token_plus_array, $from_payment = NULL, $case = NULL)
     {
@@ -3800,17 +3803,56 @@ class SMAIUpdateProfileController extends Controller
 
 
             //Fixing case Team Plan
+            
+            //1. Fix the Team Package Type and get data from Team type
+            //2. Fix by adddouble check by add Subscription ID to Token Log
+
             if ($from_payment == 'SubscriptionMain') {
 
+                //defind current MainUser
+                $Mainuser = UserMain::where('id', $user_id)->first();
+                $Mainuser->token_upgraded = 1;
+
+
+                //check case Team Plan
+                $Plan_Mainuser=Plan::where('id',$Mainuser->plan);
+                $Checked_IsTeam= $Plan_Mainuser->is_team_plan_child;
+
+                if($Checked_IsTeam>0 &&  ( $Plan_Mainuser->id >= 200 &&  $Plan_Mainuser->id < 300 ) )
+                {
+                    // Use Team Manager ID in case the Plan is Team type
+                    $Team_Manager_User_id=$Mainuser->parent_user_id;
+                   
+                }
+            
+
                 //$where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
-                $where_payment_bundle_from = SubscriptionMain::where('stripe_status', 'active')->orWhere('stripe_status', 'trialing')->where('user_id', $user_id)->latest()->first();
+                
+
+                if(isset($Team_Manager_User_id) && $Team_Manager_User_id >0 )
+                $find_user_id=$Team_Manager_User_id;
+                else
+                $find_user_id=$user_id;
+
+                //search Subscripttion from $user_id or Team Manager ID
+                $where_payment_bundle_from = SubscriptionMain::where('stripe_status', 'active')->orWhere('stripe_status', 'trialing')->where('user_id', $find_user_id)->latest()->first();
+                
+                
                 if ($where_payment_bundle_from->bio_token_sync == NULL || $where_payment_bundle_from->bio_token_sync < 1) {
-                    $where_payment_bundle_from->bio_token_sync = 1;
-                    $where_payment_bundle_from->main_token_sync = 1;
+                    
+                    if($where_payment_bundle_from->bio_token_sync == NULL)
+                    $where_payment_bundle_from->bio_token_sync=0;
 
+                    if( $where_payment_bundle_from->main_token_sync == NULL)
+                    $where_payment_bundle_from->main_token_sync=0;
 
-                    $Mainuser = UserMain::where('id', $user_id)->first();
-                    $Mainuser->token_upgraded = 1;
+                    //then plus times How many Tokens (remaining_words,remaining_images)
+                    $where_payment_bundle_from->bio_token_sync += 1;
+                    $where_payment_bundle_from->main_token_sync += 1;
+
+                   
+                    //Fixing Fixing  not too fast butmake this sure
+
 
                     //add reset 1st time Bio Plan here
                     //for example images_per_month_limit
@@ -3818,15 +3860,23 @@ class SMAIUpdateProfileController extends Controller
                     //synthesized_characters_per_month_limit
                     //transcriptions_per_month_limit
                     // pull from BioPlan->settings
+
+
                     $user_main_plan_id = $Mainuser->plan;
 
                     $user_bio_plan = PlanBio::where('main_plan_id', $user_main_plan_id)->first();
                     $user_bio_plan_id = $user_bio_plan->plan_id;
 
+                    //Fixing Fixing   in Case of Team Package Need to 
+                    // Use data from table   cafealth_smartcontent_pen.team_members
+
                     $start_bio_images_per_month_limit = $this->get_bio_plan_settings('images_per_month_limit', $user_bio_plan_id);
                     Log::debug('Start Bio Images Per Month Limit : ' . $start_bio_images_per_month_limit);
                     $start_bio_words_per_month_limit = $this->get_bio_plan_settings('words_per_month_limit', $user_bio_plan_id);
                     Log::debug('Start Bio Words Per Month Limit : ' . $start_bio_words_per_month_limit);
+                    
+                    // eof Use data from table   cafealth_smartcontent_pen.team_members
+                    
                     $start_bio_synthesized_characters_per_month_limit = $this->get_bio_plan_settings('synthesized_characters_per_month_limit', $user_bio_plan_id);
                     Log::debug('Start Bio Synthesized Characters Per Month Limit : ' . $start_bio_synthesized_characters_per_month_limit);
                     $start_bio_transcriptions_per_month_limit = $this->get_bio_plan_settings('transcriptions_per_month_limit', $user_bio_plan_id);
@@ -3835,6 +3885,10 @@ class SMAIUpdateProfileController extends Controller
                     $stat_bio_chats_per_month_limit = $this->get_bio_plan_settings('chats_per_month_limit', $user_bio_plan_id);
 
                     $Biouser = UserBio::where('user_id', $user_id)->first();
+
+
+
+
 
                     if ($stat_bio_chats_per_month_limit != NULL)
                         $Biouser->chats_per_month_limit = $stat_bio_chats_per_month_limit;
