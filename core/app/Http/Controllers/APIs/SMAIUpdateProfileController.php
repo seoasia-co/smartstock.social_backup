@@ -3289,7 +3289,7 @@ class SMAIUpdateProfileController extends Controller
     }
 
     //Done
-    public function update_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL, $token_plus_array = NULL, $case = NULL)
+    public function update_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL, $token_plus_array = NULL, $case = NULL, $subscription_id=NULL)
     {
 
 
@@ -3577,7 +3577,7 @@ class SMAIUpdateProfileController extends Controller
                     'token_text_after' => $token_array['remaining_words'] - $token_plus_array['plus_bio_remaining_words'],
                     'token_image_before' => $token_before_image,
                     'token_image_after' => $token_array['remaining_images'] - $token_plus_array['plus_bio_remaining_images'],
-
+                    'subscriptions_id'  => $subscription_id
 
                 );
 
@@ -3602,6 +3602,7 @@ class SMAIUpdateProfileController extends Controller
                     'token_image_before' => $token_before_image + $token_plus_array['plus_remaining_images'],
                     'token_image_after' => $token_array['remaining_images'],
                     'case_log' => $case,
+                    'subscriptions_id'  => $subscription_id
 
 
                 );
@@ -3743,6 +3744,7 @@ class SMAIUpdateProfileController extends Controller
                     'token_image_before' => $token_before_image,
                     'token_image_after' => $token_array['remaining_images'],
                     'case_log' => $case,
+                    'subscriptions_id'  => $subscription_id
 
 
                 );
@@ -3796,9 +3798,56 @@ class SMAIUpdateProfileController extends Controller
         // else if not team Have to check that if Transaction ID of Subscription existing then stop adding token
         // not add token 
 
+        $Mainuser = UserMain::where('id', $user_id)->first();
+        $Mainuser->token_upgraded = 1;
 
-        $return_token_update = $this->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory, $token_update_type, $token_plus_array, $case);
 
+        //check case Team Plan
+        $Plan_Mainuser=Plan::where('id',$Mainuser->plan);
+        $Checked_IsTeam= $Plan_Mainuser->is_team_plan_child;
+
+        if($Checked_IsTeam>0 &&  ( $Plan_Mainuser->id >= 200 &&  $Plan_Mainuser->id < 300 ) )
+          {
+                    // Use Team Manager ID in case the Plan is Team type
+                    $Team_Manager_User_id=$Mainuser->parent_user_id;
+                   
+           }
+            
+
+                //$where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
+                
+
+        if(isset($Team_Manager_User_id) && $Team_Manager_User_id >0 )
+          $find_user_id=$Team_Manager_User_id;
+          else
+          $find_user_id=$user_id;
+
+          $where_payment_bundle_from = SubscriptionMain::where('stripe_status', 'active')->orWhere('stripe_status', 'trialing')->where('user_id', $find_user_id)->latest()->first();
+
+
+
+        if(isset($Team_Manager_User_id) && $Team_Manager_User_id >0 )
+        {
+            $return_token_update = $this->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory, $token_update_type, $token_plus_array, $case);
+        }
+        else
+        {
+           //check if Subscription ID never add Tokens for start up Package
+
+           if(isset($where_payment_bundle_from->id) && $where_payment_bundle_from->id > 0 )
+           {
+             $token_id_added=$where_payment_bundle_from->id;
+             $token_log_added=TokenLogs::where('$token_log_added',$token_id_added)->first();
+
+           }
+
+           if($token_log_added->id >0)
+           Log::debug('This Subscription ID  '. $token_id_added.' was ever added the StartUp Tokens of Plan so SKIP Tokens start Up add');
+           else
+           $return_token_update = $this->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory, $token_update_type, $token_plus_array, $case,$where_payment_bundle_from->id);
+          
+        
+        }
         /*  $return_log_array=array(
             'log_token_id'=>$log_token_id,
             'log_token_plus_id'=>$log_token_plus_id,

@@ -24,6 +24,8 @@ class TokenLogs extends Model
             'token_text_after' ,
             'token_image_before' ,
             'token_image_after',
+            'case_log',
+            'subscriptions_id'
 
            
     ];
