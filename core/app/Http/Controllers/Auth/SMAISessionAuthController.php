@@ -642,7 +642,7 @@ class SMAISessionAuthController extends Controller
             if(isset($insert_id))
             {
 				$folder = 'user_'.$insert_id;
-                $design_folder = str_replace("smartstock.social","smartcontent.co.in",$_SERVER["DOCUMENT_ROOT"]);
+                $design_folder = str_replace("syncapi.smartcontentcrm.com","smartcontent.co.in",$_SERVER["DOCUMENT_ROOT"]);
 
                 $design_folder .="/digital_asset/uploads/";
 

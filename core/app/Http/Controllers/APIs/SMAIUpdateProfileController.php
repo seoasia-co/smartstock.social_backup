@@ -642,7 +642,7 @@ class SMAIUpdateProfileController extends Controller
 
                 $login_session_bio->db_session_create($user_id, $session_php);
 
-                //Subscription CHECK
+                //step1 Subscription CHECK
                 $current_active_subscription_main = SubscriptionMain::where('user_id', $user_id)->where("bio_token_sync", 0)->where('stripe_status', 'active')->orWhere('stripe_status', 'trialing')->first();
 
                 $check_upFromMain = 0;
@@ -651,13 +651,18 @@ class SMAIUpdateProfileController extends Controller
                     $check_upFromMain = 1;
 
 
-                //recheck user Plan
+                //step2 recheck user Plan
                 //$this->up_plan_bio($userdata, $user_id, $user_email);
                 $new_checkuserplan = new SMAISyncPlanController();
 
                 //Sync PLan that Buy from Bio ..... Stop to Buy from Bio
                 //Fixing No No  this case mean Log in from Bio not only Buy from Bio
                 //But Whythis case Fix Main only so Do not use it
+                
+                
+                //ถึงแม้ความหมาย ไม่ได้หมายถึงว่าไม่ใช่แค่การซื้อแพ็คเกจจาก Bio
+                //แต่กระบวนการภายในเงื่อนไขนี้เป็นการอัพเดท Main config ดังนั้นไม่จำเป็นต้องใช้
+                //เพราะเป้าหมายคือการอัพดเดท Platforms อื่นๆ ที่ไม่ใช่ Main
                 //if($this->upFromWhere=='bio')
                 if ($this->upFromWhere == 'bio_main_cancel_this_to_use_main_coin_only') {
                     $main_user_at_middle = UserMain::where('id', $user_id)->first();
@@ -808,6 +813,16 @@ class SMAIUpdateProfileController extends Controller
 
                 }
 
+
+
+
+                //case1 and others use this replace the above case to force check plan from Main only in others platforms
+                if($this->upFromWhere=='bio')
+                {
+                    $check_upFromMain = 1;
+                }
+
+
                 //case 2
                 //!important Sync PLan that Buy from MainCOIn
                 //Updated 7 March 2024 Checked Both login from Bio and Main are Trigger update
@@ -819,6 +834,8 @@ class SMAIUpdateProfileController extends Controller
                     //fixing bugging case
                     $main_subscription = SubscriptionMain::where('user_id', $user_id)->where('stripe_status', 'active')->orWhere('stripe_status', 'trialing')->first();
                     if (isset($main_subscription->id)) {
+
+                        //step2.1 reset plan to free plan in case if main subscription active or trialing not found
                         if ($main_subscription->id > 0 && $main_subscription->id != 8) {
                             //check Subscription But How about in case Team Plan
                             if ($main_subscription->stripe_status != 'active' && $main_subscription->stripe_status != 'trialing') {
@@ -832,7 +849,7 @@ class SMAIUpdateProfileController extends Controller
 
                     }
 
-
+                    //step2.2 recheck user main Plan
                     $current_main_plan_array = $new_checkuserplan->SMAI_Check_Universal_UserPlans($user_id, 'main_db', 'main_coin');
 
                     $current_main_plan_id = $current_main_plan_array['plan_id'];
@@ -848,9 +865,13 @@ class SMAIUpdateProfileController extends Controller
 
 
                     $have_to_fix_bio_plan = 0;
+                    //step2.3 check if Bio Plan is same as Main Plan
                     if ($Bio_plan_should_be == $current_main_plan_id) {
+                        
                         Log::debug('Bio Plan ID is same from DB and Setting');
                         //then check main Plan expired date
+
+                        //step2.4 check if Bio Plan Expired Date is same as Main Plan Expired Date
                         $bio_cur_plan_from_main = UserBio::where('user_id', $user_id)->first();
                         $user_plan_expire_from_bio = $bio_cur_plan_from_main->plan_expiration_date;
                         Log::debug('Current Time of Expired in BIo ' . $user_plan_expire_from_bio);
@@ -873,6 +894,8 @@ class SMAIUpdateProfileController extends Controller
                     }
 
                     Log::debug('Debug Main Plan from DB TYpe ' . $Main_Plan_from_DB_package_type);
+                    
+                    //step2.5 check if Bio Plan is not same as Main Plan
                     if (($current_bio_plan_id != $Bio_plan_should_be || $have_to_fix_bio_plan > 0) && $Main_Plan_from_DB_package_type == 'bundle') {
                         Log::debug('Debug Case Bio Plan have to be fix to ' . $Bio_plan_should_be);
                         $have_to_fix_bio_plan = 2;
@@ -892,7 +915,7 @@ class SMAIUpdateProfileController extends Controller
 
                             //plan main_coin
                             /* if (isset($request['remaining_words_plus']))
-                        $userdata['remaining_words_plus'] = $request['remaining_words_plus']; */
+                            $userdata['remaining_words_plus'] = $request['remaining_words_plus']; */
 
                             /* if (isset($request['remaining_images_plus']))
                             $userdata['remaining_images_plus'] = $request['remaining_images_plus']; */
@@ -971,7 +994,8 @@ class SMAIUpdateProfileController extends Controller
                             $userdata['plan_expiration_date'] = $current_bio_plan_expire; */
 
 
-                            //fixing fixing
+                            
+                            //step2.6 fixing bio plan by call fucntion up_plan_main_coin
                             $this->up_plan_main_coin($userdata, $user_id, $user_email, 'fix_bio_plan');
                         }
 
@@ -1596,10 +1620,8 @@ class SMAIUpdateProfileController extends Controller
 
             if (isset($request->password) && $this->skip_update_pss != 1) {
                 $privatehash_password = $this->hash_password;
-            }
-            else
-            {
-                $privatehash_password='';
+            } else {
+                $privatehash_password = '';
             }
 
             if (isset($request->avatar))
@@ -2335,6 +2357,8 @@ class SMAIUpdateProfileController extends Controller
     }
 
     //Done
+    //continue from step2.6 above
+    //step2.7 ยึดตามการสมัครใช้งานหรือซื้อแพคเกจหรือการล๊อคอินจาก Main Platform
     //fixing fixing up_plan_series should devided to 3 major 1.Feature Sync 2.Token Sync 3.TimeSync
     public function up_plan_main_coin($userdata, $user_id, $user_email, $case = NULL)
     {
@@ -2345,6 +2369,8 @@ class SMAIUpdateProfileController extends Controller
 
         //1.update plan to all platforms
         if (isset($userdata['plan']) && ($this->upFromWhere == 'main_coin' || Str::contains($this->upFromWhere, 'MainCoIn_'))) {
+            
+            //check if user is golden
             if ($userdata['plan'] == 7 || $userdata['plan'] == 4) {
                 $golden_tokens = 1;
 
@@ -2352,7 +2378,7 @@ class SMAIUpdateProfileController extends Controller
 
         }
 
-
+        //step2.7.1 Update social post and all platforms as it should be from main config
         if (isset($userdata['plan'])) {
 
             Log::debug('Yes userdata_plan has been set');
@@ -2369,8 +2395,7 @@ class SMAIUpdateProfileController extends Controller
             else
                 Log::debug('Error _userdata_plan not set');
 
-            //Update social post
-
+            //step2.7.1.1 Update social post
             if (isset($each_plan)) {
 
                 $bio_plan_id = $each_plan->bio_id;
@@ -2395,6 +2420,7 @@ class SMAIUpdateProfileController extends Controller
             $this->update_column_all($userdata_plan, $user_id, $user_email, 'main_db', 'sp_users');
 
             Log::debug('Success passed socialpost_permission_update_user');
+            //eof step2.7.1.1 Update social post
 
 
             $main_coin_plan = $userdata['plan'];
@@ -2405,6 +2431,7 @@ class SMAIUpdateProfileController extends Controller
             }
 
 
+            //step2.7.1.2 Update MainCoIn back to free Plan if it's trial end or package end
             if ($main_coin_plan === 0 || $main_coin_plan == 8) {
                 //Update MainCoIn back to free Plan
                 $main_subscription = SubscriptionMain::where('user_id', $user_id)->where('stripe_status', 'trialing')->latest('id')->first();
@@ -2414,12 +2441,7 @@ class SMAIUpdateProfileController extends Controller
                 }
             }
 
-
-            //call from main_coin need not to update itself
-            /* $userdata_plan['plan']=$main_coin_plan;
-            $this->update_column_all( $userdata_plan,$user_id,$user_email,'main_db','users');
-     */
-
+            //get Bio pln from main if it not set
             if (!isset($bio_plan_id)) {
                 //try other ways to get bio plan id
                 $bioplan_id_from_main = UserMain::where('id', $user_id)->first();
@@ -2489,6 +2511,7 @@ class SMAIUpdateProfileController extends Controller
 
         if (isset($userdata['remaining_words'])) {
 
+             //add condition if TokensLog not yet added this transaction id then  add remaining_num tokens
 
             //ระวัง!!!!!!!!!!! ตรงนี้อาจบวก Token ซ้ำหลายรอบได้
             // add then column name  token_upgraded and token_downgraded to users table
@@ -2506,6 +2529,8 @@ class SMAIUpdateProfileController extends Controller
             }
 
             $check_plus_remaining = PlanBio::where('plan_id', $plan_bio_check_id)->orderBy('plan_id', 'asc')->first();
+
+
 
             $plus_remaining_images = $check_plus_remaining->total_images;
             $plus_remaining_words = $check_plus_remaining->total_words;
@@ -2884,6 +2909,7 @@ class SMAIUpdateProfileController extends Controller
             $remaining_words_check = $main_user_check->remaining_words;
             Log::debug('Before send Token Array to Centalize Remaining_word check ' . $remaining_words_check);
 
+            //step2 final centralize token
             $this->plans_token_centralize($user_id, $user_email, $token_array, $usage = 0, $from = 'main_coin', $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory = "PlanUpgrade_from_MainCoIn", $token_update_type = 'both', $expired, $design_plan_id, $token_plus_array, $from_payment, $case);
 
         }
@@ -3289,7 +3315,7 @@ class SMAIUpdateProfileController extends Controller
     }
 
     //Done
-    public function update_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL, $token_plus_array = NULL, $case = NULL, $subscription_id=NULL)
+    public function update_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL, $token_plus_array = NULL, $case = NULL, $subscription_id = NULL)
     {
 
 
@@ -3577,7 +3603,7 @@ class SMAIUpdateProfileController extends Controller
                     'token_text_after' => $token_array['remaining_words'] - $token_plus_array['plus_bio_remaining_words'],
                     'token_image_before' => $token_before_image,
                     'token_image_after' => $token_array['remaining_images'] - $token_plus_array['plus_bio_remaining_images'],
-                    'subscriptions_id'  => $subscription_id
+                    'subscriptions_id' => $subscription_id
 
                 );
 
@@ -3602,7 +3628,7 @@ class SMAIUpdateProfileController extends Controller
                     'token_image_before' => $token_before_image + $token_plus_array['plus_remaining_images'],
                     'token_image_after' => $token_array['remaining_images'],
                     'case_log' => $case,
-                    'subscriptions_id'  => $subscription_id
+                    'subscriptions_id' => $subscription_id
 
 
                 );
@@ -3744,7 +3770,7 @@ class SMAIUpdateProfileController extends Controller
                     'token_image_before' => $token_before_image,
                     'token_image_after' => $token_array['remaining_images'],
                     'case_log' => $case,
-                    'subscriptions_id'  => $subscription_id
+                    'subscriptions_id' => $subscription_id
 
 
                 );
@@ -3777,12 +3803,13 @@ class SMAIUpdateProfileController extends Controller
 
 
     }
+
     //eof update_token_centralize
 
     public function plans_token_centralize($user_id, $user_email, $token_array, $usage = NULL, $from = NULL, $old_reamaining_word = NULL, $old_reamaining_image = NULL, $chatGPT_catgory = NULL, $token_update_type = NULL, $expired = NULL, $design_plan_id, $token_plus_array, $from_payment = NULL, $case = NULL)
     {
 
-       //check Token changed after upgrade/downgrade Plan
+        //check Token changed after upgrade/downgrade Plan
         //1. when change plan still not yet insert token_logs
         // 1.1 Check How Many tokens must be add ?
         // 1.2 that token in 1.1 from where?  and which Plan ID
@@ -3798,55 +3825,71 @@ class SMAIUpdateProfileController extends Controller
         // else if not team Have to check that if Transaction ID of Subscription existing then stop adding token
         // not add token 
 
-        $Mainuser = UserMain::where('id', $user_id)->first();
-        $Mainuser->token_upgraded = 1;
 
-
-        //check case Team Plan
-        $Plan_Mainuser=Plan::where('id',$Mainuser->plan);
-        $Checked_IsTeam= $Plan_Mainuser->is_team_plan_child;
-
-        if($Checked_IsTeam>0 &&  ( $Plan_Mainuser->id >= 200 &&  $Plan_Mainuser->id < 300 ) )
-          {
-                    // Use Team Manager ID in case the Plan is Team type
-                    $Team_Manager_User_id=$Mainuser->parent_user_id;
-                   
-           }
-            
-
-                //$where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
-                
-
-        if(isset($Team_Manager_User_id) && $Team_Manager_User_id >0 )
-          $find_user_id=$Team_Manager_User_id;
-          else
-          $find_user_id=$user_id;
-
-          $where_payment_bundle_from = SubscriptionMain::where('stripe_status', 'active')->orWhere('stripe_status', 'trialing')->where('user_id', $find_user_id)->latest()->first();
-
-
-
-        if(isset($Team_Manager_User_id) && $Team_Manager_User_id >0 )
-        {
-            $return_token_update = $this->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory, $token_update_type, $token_plus_array, $case);
-        }
-        else
-        {
-           //check if Subscription ID never add Tokens for start up Package
-
-           if(isset($where_payment_bundle_from->id) && $where_payment_bundle_from->id > 0 )
-           {
-             $token_id_added=$where_payment_bundle_from->id;
-             $token_log_added=TokenLogs::where('$token_log_added',$token_id_added)->first();
-
-           }
-
-           if($token_log_added->id >0)
-           Log::debug('This Subscription ID  '. $token_id_added.' was ever added the StartUp Tokens of Plan so SKIP Tokens start Up add');
-           else
-           $return_token_update = $this->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory, $token_update_type, $token_plus_array, $case,$where_payment_bundle_from->id);
-          
+        try {
+            $user_id = 123; // Replace with the actual user ID
+            $Mainuser = UserMain::where('id', $user_id)->first();
         
+            if ($Mainuser) {
+                // Log the user information
+                Log::debug('User found:', ['id' => $Mainuser->id, 'name' => $Mainuser->name]);
+        
+                $Mainuser = UserMain::where('id', $user_id)->first();
+                $Mainuser->token_upgraded = 1;
+                
+                //check case Team Plan
+                $Plan_Mainuser = Plan::where('id', $Mainuser->plan);
+                $Checked_IsTeam = $Plan_Mainuser->is_team_plan_child;
+
+        if ($Checked_IsTeam > 0 && ($Plan_Mainuser->id >= 200 && $Plan_Mainuser->id < 300)) {
+            // Use Team Manager ID in case the Plan is Team type
+            $Team_Manager_User_id = $Mainuser->parent_user_id;
+
+        }
+            } else {
+                Log::debug('User not found for ID: ' . $user_id);
+            }
+        } catch (\Exception $e) {
+            // Handle any exceptions (e.g., database connection issues)
+            Log::error('Error fetching user: ' . $e->getMessage());
+        }
+
+        
+
+        
+
+
+        
+
+
+        //$where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
+
+
+        if (isset($Team_Manager_User_id) && $Team_Manager_User_id > 0)
+            $find_user_id = $Team_Manager_User_id;
+        else
+            $find_user_id = $user_id;
+
+        $where_payment_bundle_from = SubscriptionMain::where('stripe_status', 'active')->orWhere('stripe_status', 'trialing')->where('user_id', $find_user_id)->latest()->first();
+
+
+        if (isset($Team_Manager_User_id) && $Team_Manager_User_id > 0) {
+            $return_token_update = $this->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory, $token_update_type, $token_plus_array, $case);
+        } else {
+            //check if Subscription ID never add Tokens for start up Package
+
+            if (isset($where_payment_bundle_from->id) && $where_payment_bundle_from->id > 0) {
+                $token_id_added = $where_payment_bundle_from->id;
+                $token_log_added = TokenLogs::where('$token_log_added', $token_id_added)->first();
+
+            }
+
+            if ($token_log_added->id > 0)
+                Log::debug('This Subscription ID  ' . $token_id_added . ' was ever added the StartUp Tokens of Plan so SKIP Tokens start Up add');
+            else
+                $return_token_update = $this->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory, $token_update_type, $token_plus_array, $case, $where_payment_bundle_from->id);
+
+
         }
         /*  $return_log_array=array(
             'log_token_id'=>$log_token_id,
@@ -3854,7 +3897,7 @@ class SMAIUpdateProfileController extends Controller
             'log_token_plus_id2'=>$log_token_plus_id2,
         ); */
 
-       //ok the algorythm is
+        //ok the algorythm is
         // 1. Can use the the last Token ID that < $return_token_update['log_token_id'] of same UserID
         // 2. also compare the Team Token transaction that case_log = UpgradePlan and same UserID or TeamManagerID with ame transaction ID
         //  3. form step 1.  can compare the total remaining_images + remaining_words  how much it diffence?
@@ -3866,7 +3909,7 @@ class SMAIUpdateProfileController extends Controller
 
 
             //Fixing case Team Plan
-            
+
             //1. Fix the Team Package Type and get data from Team type
             //2. Fix by adddouble check by add Subscription ID to Token Log
 
@@ -3878,42 +3921,41 @@ class SMAIUpdateProfileController extends Controller
 
 
                 //check case Team Plan
-                $Plan_Mainuser=Plan::where('id',$Mainuser->plan);
-                $Checked_IsTeam= $Plan_Mainuser->is_team_plan_child;
+                $Plan_Mainuser = Plan::where('id', $Mainuser->plan);
+                $Checked_IsTeam = $Plan_Mainuser->is_team_plan_child;
 
-                if($Checked_IsTeam>0 &&  ( $Plan_Mainuser->id >= 200 &&  $Plan_Mainuser->id < 300 ) )
-                {
+                if ($Checked_IsTeam > 0 && ($Plan_Mainuser->id >= 200 && $Plan_Mainuser->id < 300)) {
                     // Use Team Manager ID in case the Plan is Team type
-                    $Team_Manager_User_id=$Mainuser->parent_user_id;
-                   
+                    $Team_Manager_User_id = $Mainuser->parent_user_id;
+
                 }
-            
+
 
                 //$where_payment_bundle_from=SubscriptionMain::where('stripe_status','active')->orWhere('stripe_status', 'trialing')->where('user_id',$user_id)->whereIn('plan_id', [5,7,10,11])->latest()->first();
-                
 
-                if(isset($Team_Manager_User_id) && $Team_Manager_User_id >0 )
-                $find_user_id=$Team_Manager_User_id;
+
+                if (isset($Team_Manager_User_id) && $Team_Manager_User_id > 0)
+                    $find_user_id = $Team_Manager_User_id;
                 else
-                $find_user_id=$user_id;
+                    $find_user_id = $user_id;
 
                 //search Subscripttion from $user_id or Team Manager ID
                 $where_payment_bundle_from = SubscriptionMain::where('stripe_status', 'active')->orWhere('stripe_status', 'trialing')->where('user_id', $find_user_id)->latest()->first();
-                
-                
-                if ($where_payment_bundle_from->bio_token_sync == NULL || $where_payment_bundle_from->bio_token_sync < 1) {
-                    
-                    if($where_payment_bundle_from->bio_token_sync == NULL)
-                    $where_payment_bundle_from->bio_token_sync=0;
 
-                    if( $where_payment_bundle_from->main_token_sync == NULL)
-                    $where_payment_bundle_from->main_token_sync=0;
+
+                if ($where_payment_bundle_from->bio_token_sync == NULL || $where_payment_bundle_from->bio_token_sync < 1) {
+
+                    if ($where_payment_bundle_from->bio_token_sync == NULL)
+                        $where_payment_bundle_from->bio_token_sync = 0;
+
+                    if ($where_payment_bundle_from->main_token_sync == NULL)
+                        $where_payment_bundle_from->main_token_sync = 0;
 
                     //then plus times How many Tokens (remaining_words,remaining_images)
                     $where_payment_bundle_from->bio_token_sync += 1;
                     $where_payment_bundle_from->main_token_sync += 1;
 
-                   
+
                     //Fixing Fixing  not too fast butmake this sure
 
 
@@ -3933,20 +3975,17 @@ class SMAIUpdateProfileController extends Controller
                     //Fixing Fixing   in Case of Team Package Need to 
                     // Use data from table   cafealth_smartcontent_pen.team_members
 
-                    if(isset($Team_Manager_User_id) && $Team_Manager_User_id >0 )
-                    {
+                    if (isset($Team_Manager_User_id) && $Team_Manager_User_id > 0) {
                         //get Tokens remaining_words and remaining_images from Team_members table
-                        $user_team_member=Team_Members_Main::where('user_id',$user_id)->first();
-                        
+                        $user_team_member = Team_Members_Main::where('user_id', $user_id)->first();
+
                         $start_bio_images_per_month_limit = $user_team_member->remaining_images;
                         Log::debug('Update Team Main Tokens from team_member Table Config to Start Bio Images Per Month Limit : ' . $start_bio_images_per_month_limit);
                         $start_bio_words_per_month_limit = $user_team_member->remaining_words;
                         Log::debug('Update Team Main Tokens from team_member Table Config to Start Bio Words Per Month Limit : ' . $start_bio_words_per_month_limit);
 
 
-
-                    }
-                    else {
+                    } else {
 
                         $start_bio_images_per_month_limit = $this->get_bio_plan_settings('images_per_month_limit', $user_bio_plan_id);
                         Log::debug('Start Bio Images Per Month Limit : ' . $start_bio_images_per_month_limit);
@@ -3956,7 +3995,6 @@ class SMAIUpdateProfileController extends Controller
                     // eof Use data from table   cafealth_smartcontent_pen.team_members
 
 
-                    
                     $start_bio_synthesized_characters_per_month_limit = $this->get_bio_plan_settings('synthesized_characters_per_month_limit', $user_bio_plan_id);
                     Log::debug('Start Bio Synthesized Characters Per Month Limit : ' . $start_bio_synthesized_characters_per_month_limit);
                     $start_bio_transcriptions_per_month_limit = $this->get_bio_plan_settings('transcriptions_per_month_limit', $user_bio_plan_id);
@@ -3965,9 +4003,6 @@ class SMAIUpdateProfileController extends Controller
                     $stat_bio_chats_per_month_limit = $this->get_bio_plan_settings('chats_per_month_limit', $user_bio_plan_id);
 
                     $Biouser = UserBio::where('user_id', $user_id)->first();
-
-
-
 
 
                     if ($stat_bio_chats_per_month_limit != NULL)
@@ -4250,9 +4285,9 @@ class SMAIUpdateProfileController extends Controller
 
                 //$Bio_plan_should_be = 'team'; cancel use normal algorythm
 
-                Log::debug("Detect Found UserBio Team Plan From User ID ".$user_id);
-                $Team_Manager_find=UserMain::where('id', $user_id)->orderBy('id', 'asc')->first();
-                $Team_Manager_User_id=$Team_Manager_find->parent_user_id;
+                Log::debug("Detect Found UserBio Team Plan From User ID " . $user_id);
+                $Team_Manager_find = UserMain::where('id', $user_id)->orderBy('id', 'asc')->first();
+                $Team_Manager_User_id = $Team_Manager_find->parent_user_id;
                 $Team_Manager_user_main_subscription = SubscriptionMain::where('user_id', $Team_Manager_User_id)
                     ->where(function ($query) {
                         $query->where('stripe_status', 'active')
@@ -4261,12 +4296,6 @@ class SMAIUpdateProfileController extends Controller
                     ->latest()->first();
 
                 $main_coin_plan = $Team_Manager_user_main_subscription;
-
-
-
-
-
-
 
 
             }
@@ -5560,12 +5589,12 @@ class SMAIUpdateProfileController extends Controller
             } */
             // Get from MainUser table or from Subscirtion table or from Manager Subscription table
             // Start from simple
-            $user_main=UserMain::where('id',$user_id)->first();
+            $user_main = UserMain::where('id', $user_id)->first();
 
-            if($user_main->plan_expire_date)
-            $expiration_date =$user_main->plan_expire_date;
+            if ($user_main->plan_expire_date)
+                $expiration_date = $user_main->plan_expire_date;
             else
-            $expiration_date =NULL;
+                $expiration_date = NULL;
             // add elf if Use Subscription userMain
             // elf if Use Team Subscription
             //Fixing

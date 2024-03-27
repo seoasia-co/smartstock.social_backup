@@ -3833,7 +3833,7 @@ class SMAISyncTokenController extends Controller
             Log::debug(' Check Content before get ');
             //Log::info($contents);
             Storage::disk('topics')->put($nameOfImage, file_get_contents($contents));
-            $path = 'https://smartstock.social/uploads/topics/' . $nameOfImage;
+            $path = 'https://syncapi.smartcontentcrm.com/uploads/topics/' . $nameOfImage;
             $path_s3 = 'uploads/topics/' . $nameOfImage;
             $uploadedFile = new File($path_s3);
             $aws_path = Storage::disk('s3')->put('', $uploadedFile);

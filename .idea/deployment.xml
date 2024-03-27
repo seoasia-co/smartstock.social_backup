@@ -9,7 +9,7 @@
           </mappings>
         </serverdata>
       </paths>
-      <paths name="SmartStock.Social API">
+      <paths name="syncapi.smartcontentcrm.com API">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />

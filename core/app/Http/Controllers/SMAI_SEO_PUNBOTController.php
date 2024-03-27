@@ -1,11 +1,16 @@
 <?php
-
+//synced to CRM API 26/03/2024
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\SEOAiAutomation;
 use PDO;
-use Log;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use App\Models\FileUploader;
+use Aws\S3\S3Client;
+use App\Models\PicStat;
+use GuzzleHttp\Client;
 
 
 class SMAI_SEO_PUNBOTController extends Controller
@@ -24,7 +29,7 @@ class SMAI_SEO_PUNBOTController extends Controller
           // Database Username
           $db_username = 'cafealth_punbot_seo';
           // Database Password
-          $db_password = 'V.W3vty,zV$w';
+          $db_password = 'YSvKdba1e2}k';
           try {
 
               $conn = new PDO("mysql:host=$db_hostname;dbname=$db_name",$db_username,$db_password, array(PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"));
@@ -37,6 +42,47 @@ class SMAI_SEO_PUNBOTController extends Controller
           }
 
   }
+
+  public function getConn() {
+    return $this->conn;
+  }
+
+  
+  public function sanitize_filename($filename) {
+  if (!mb_check_encoding($filename, 'UTF-8')) {
+      $filename = iconv(mb_detect_encoding($filename, mb_detect_order(), true), 'UTF-8', $filename);
+  }
+  // Replacing forbidden characters in filenames
+  $filename = str_replace(array('<','>',':', '"', '/', '\\', '|', '?', '*'), '_', $filename);
+  // Making sure the filename only ends with .jpg
+  if (pathinfo($filename, PATHINFO_EXTENSION) != "jpg") {
+      $filename = pathinfo($filename, PATHINFO_FILENAME) . ".jpg";
+  }
+  return $filename;
+}
+
+public function transliteration($str) {
+  // Same array as before
+  $translit = array(
+      'ก' => 'k', 'ข' => 'kh', 'ฃ' => 'kh', 'ค' => 'kh',
+      'ฅ' => 'kh', 'ฆ' => 'kh', 'ง' => 'ng', 'จ' => 'j',
+      'ฉ' => 'ch', 'ช' => 'ch', 'ซ' => 's', 'ฌ' => 'ch',
+      'ญ' => 'y', 'ฎ' => 'd', 'ฏ' => 't', 'ฐ' => 'th',
+      'ฑ' => 'th', 'ฒ' => 'th', 'ณ' => 'n', 'ด' => 'd',
+      'ต' => 't', 'ถ' => 'th', 'ท' => 'th', 'ธ' => 'th',
+      'น' => 'n', 'บ' => 'b', 'ป' => 'p', 'ผ' => 'ph',
+      'ฝ' => 'f', 'พ' => 'ph', 'ฟ' => 'f', 'ภ' => 'ph',
+      'ม' => 'm', 'ย' => 'y', 'ร' => 'r', 'ฤ' => 'rue',
+      'ล' => 'l', 'ว' => 'w', 'ศ' => 's', 'ษ' => 's',
+      'ส' => 's', 'ห' => 'h', 'ฬ' => 'l', 'อ' => 'o',
+      'ฮ' => 'h'
+  );
+
+  $str = strtr($str, $translit); // Transliterate the characters in the array 
+
+  // This will remove any other characters
+  return preg_replace('/[^a-z]/i', '', $str); 
+}
    
     
     public function  get_wp_user_app_password($website_id,$conn)
@@ -1059,27 +1105,20 @@ class SMAI_SEO_PUNBOTController extends Controller
     
     public function  get_origi_post_img_fromLocal($img_id,$keyword,$title,$conn)
     {
-    
       $statement = $conn->prepare( "SELECT * FROM pic_stat WHERE post_image='wait.png' AND id = ? ORDER BY id ASC LIMIT 1" );
         $statement->execute( array($img_id) );
         $total = $statement->rowCount();
         $result = $statement->fetch( PDO::FETCH_ASSOC );
         $img_id=str_replace( '"', '',$result['id'])  ;
-      //$current_count=$result['counts'];
     
       $local_stock_url=str_replace( '"', '',$result['large'])  ;
-      //$n_post_title=clean_sp_backup($title);
+      //$n_post_title=$this->clean_sp_backup($title);
       $n_post_title=$title;
       $post_img_newname = str_replace(" ", "-", $n_post_title );
       $post_img_newname = str_replace("'", "-", $post_img_newname );
-      $post_img_newname =clean_file_title_dash($post_img_newname);
+      $post_img_newname =$this->clean_file_title_dash($post_img_newname);
       $post_img_newname =trim($post_img_newname);
-      $post_img_newname =clean_file_title($post_img_newname);
-    
-      //cut the title to the proper lenght
-      //limit_filename_length($post_img_newname, 100);
-      $post_img_newname=substr($post_img_newname,0,55);
-      $post_img_newname =clean_file_title($post_img_newname);
+      $post_img_newname =$this->clean_file_title($post_img_newname);
       //$post_img_newname = preg_replace("[^a-zA-Z_0-9ก-๙]","", $post_img_newname);
       //$post_img_newname = preg_replace('/[^0-9A-Za-zก-ฮ๐-๙]/','',$post_img_newname);
       $post_img_newname = str_replace("\\0", "", $post_img_newname);
@@ -1107,69 +1146,191 @@ class SMAI_SEO_PUNBOTController extends Controller
     
     
       $post_img_newname .= '.jpg';
-    
-    
+      $img_file_size=0;
+      //Log::debug("Final file Image name is Before while loop is ". $post_img_newname);
+      //Log::debug("before try to get image from: $local_stock_url");
+
+        // the new way  S3
+        // File saved on local disk, save it to S3  
+        $filePath = 'uploads/posts/' . $post_img_newname; // Added this new line
+        $client = new Client(['timeout' => 5.0]);
+
+        while (true) {
+          try {
+              $response = $client->request('GET', $local_stock_url);
       
-    
-    
-    
-      if (!file_exists('uploads/posts/' . $post_img_newname)) {   
-         // Image path
-         $post_img_newname_path = 'uploads/posts/' . $post_img_newname;
-    
-              
-         // Save image
-         $ch = curl_init( $local_stock_url );
-         $fp = fopen( $post_img_newname_path, 'wb' );
-         curl_setopt( $ch, CURLOPT_FILE, $fp );
-         curl_setopt( $ch, CURLOPT_HEADER, 0 );
-         curl_exec( $ch );
-         curl_close( $ch );
-         fclose( $fp );
-         //eof pixarbay
-    
-    
-        }
-        else
-        {
-    
-             $post_img_newname_path = 'uploads/posts/' . $post_img_newname;
-    
-             $n=1;
-    
-            while(file_exists($post_img_newname_path))
-            {
-    
-              
-              $post_img_newname=$post_img_newname.=$n;
-              $post_img_newname .= '.jpg';
-    
-              // Image path
-              $post_img_newname_path = 'uploads/posts/' . $post_img_newname;
-              if(file_exists($post_img_newname_path))
-              {
-              $post_img_newname=str_replace($n,'', $post_img_newname);
-              $post_img_newname=str_replace('.jpg','', $post_img_newname);
+              // We only accept status code 200
+              if ($response->getStatusCode() !== 200) {
+                  throw new \Exception('Non 200 status code');
               }
-    
-    
-              $n++;
+      
+              break;
+      
+          } catch (\Exception $e) {
+              Log::debug("Cannot get file content from: $local_stock_url");
+      
+              // Update the PicStat model
+              PicStat::where('id', $img_id)->update(['post_image' => 'expired.png']);
+      
+              // Query for the last id that have column "post_image" = "wait.png"
+              $picStat = PicStat::where('post_image', 'wait.png')->orderBy('id', 'desc')->first();
+      
+              // If no 'wait.png' image left
+              if($picStat === null) break;
+      
+              $local_stock_url = $picStat->large;
+              $img_id = $picStat->id;
+          } 
+      }
+            //eof While loop to check image content and get the image
+
+        // After loop ends regardless of how
+        if(file_get_contents($local_stock_url)) {
+            // File exists and can be read
+            //Log::debug("File path exists, moving on to upload to S3");
+
+            // Get file content
+            $file_content = file_get_contents($local_stock_url);
+            //Log::debug("File content is ". $file_content);
+
+            // Check if file exists on S3
+            if (!Storage::disk('s3')->exists($post_img_newname)) {
+
+              Log::debug(" File path not found then try to upload to S3 ");
+  
+              //SMAI new way S3 save image
+              //Log::debug("File content is ". $local_stock_url);
+              $file_content = file_get_contents($local_stock_url);
+  
+              //Log::debug("File content is ". $file_content);
+  
+              //Save Image to Local server
+              $nameOfImage = $post_img_newname;
+              Storage::disk('posts')->put($nameOfImage, $file_content);
+              //Log::debug("File saved to local disk");
+  
+              // File saved on local disk, save it to S3  
+              $filePath = 'uploads/posts/' . $nameOfImage; // Added this new line
+              //Log::debug("File path is ". $filePath);
+  
+              if (Storage::disk('s3')->exists($filePath)) {
+                  Log::debug("File already exists in S3 ".$filePath);
+              } else {
+                  Storage::disk('s3')->put($filePath, $file_content, 'public');
+              }
+  
+              // Confirm that file is saved on S3 before deleting it from local disk
+              if (Storage::disk('s3')->exists($filePath)) {
+                //Log::debug("File already exists in S3 ".$filePath);
+                $img_file_size = Storage::disk('s3')->size($filePath);
+                //Log::debug("File size is " . $img_file_size . " bytes");
+            } else {
+                Storage::disk('s3')->put($filePath, $file_content, 'public');
+                $img_file_size = strlen($file_content);  // size of the content that was put into the file
+                //Log::debug("New file's size is " . $img_file_size . " bytes");
             }
+           
+                //eof SMAI new way S3 save image
+  
+                //Then generate the URL like this:
+                $post_img_newname_path = Storage::disk('s3')->url($filePath);
             
-    
+      
+          }
+          else
+          {
+            
+            // File saved on local disk, save it to S3  
+            $filePath = 'uploads/posts/' . $nameOfImage; // Added this new line
+      
+            $post_img_newname_path = Storage::disk('s3')->url($filePath);  
+            // Image path
+      
+               $n=1;
+      
+  
+               while(Storage::disk('s3')->exists($post_img_newname))
+               {
+                   $post_img_newname .= $n;  // add suffix to image name
+                   $post_img_newname .= '.jpg';  // concatenate image extension
+               
+                   $post_img_newname_path = Storage::disk('s3')->url($post_img_newname);  // Image path
+               
+                   if(Storage::disk('s3')->exists($post_img_newname_path))
+                   {
+                     $post_img_newname = str_replace($n, '', $post_img_newname);
+                     $post_img_newname = str_replace('.jpg', '', $post_img_newname);
+                   }
+               
+                   $n++;
+               }
               
-              // Save image
-              $ch = curl_init( $local_stock_url );
-              $fp = fopen( $post_img_newname_path, 'wb' );
-              curl_setopt( $ch, CURLOPT_FILE, $fp );
-              curl_setopt( $ch, CURLOPT_HEADER, 0 );
-              curl_exec( $ch );
-              curl_close( $ch );
-              fclose( $fp );
-              //eof pixarbay 
-            
-    
+  
+                        //SMAI new way S3 save image
+              $file_content = file_get_contents($local_stock_url);
+  
+              //Save Image to Local server
+              $nameOfImage = $post_img_newname;
+              Storage::disk('posts')->put($nameOfImage, $file_content);
+  
+              // File saved on local disk, save it to S3  
+              $filePath = 'uploads/posts/' . $nameOfImage; // Added this new line
+  
+              if (Storage::disk('s3')->exists($filePath)) {
+                  Log::debug("File already exists in S3 ".$filePath);
+              } else {
+                  Storage::disk('s3')->put($filePath, $file_content, 'public');
+              }
+  
+              // Confirm that file is saved on S3 before deleting it from local disk
+              if (Storage::disk('s3')->exists($filePath)) {
+                //Log::debug("File already exists in S3 ".$filePath);
+                $img_file_size = Storage::disk('s3')->size($filePath);
+                //Log::debug("File size is " . $img_file_size . " bytes");
+            } else {
+                Storage::disk('s3')->put($filePath, $file_content, 'public');
+                $img_file_size = strlen($file_content);  // size of the content that was put into the file
+                //Log::debug("New file's size is " . $img_file_size . " bytes");
+            }
+              //eof SMAI new way S3 save image
+  
+              
+      
+                
+                // Save image
+                /* $ch = curl_init( $local_stock_url );
+                $fp = fopen( $post_img_newname_path, 'wb' );
+                curl_setopt( $ch, CURLOPT_FILE, $fp );
+                curl_setopt( $ch, CURLOPT_HEADER, 0 );
+                curl_exec( $ch );
+                curl_close( $ch );
+                fclose( $fp ); */
+                //eof pixarbay 
+  
+  
+                //Then generate the URL like this:
+                $post_img_newname_path = Storage::disk('s3')->url($filePath);
+              
+      
+          }
+          //eof if(file_get_contents($local_stock_url))
+
+
+
+        } else {
+            Log::warning('No suitable image found for upload');
+            // Handle no suitable image being found
         }
+        
+        
+        
+
+
+         // Get filesize.
+        //$img_file_size = $metadata['ContentLength'];
+        echo "<br> Debug Image File SIze in Punbot Fnc ".$img_file_size;
+        print_r("<br> FOund Image file size after uploaded ".$img_file_size);
+      
     
         $return_arr_img=[];
         array_push($return_arr_img,str_replace( '"', '',$result['id']));
@@ -1187,6 +1348,9 @@ class SMAI_SEO_PUNBOTController extends Controller
         array_push($return_arr_img,str_replace( '"', '',$result['search_keywords'] ) );
         echo "\n\n !!!!!!!!!! Final File Name !!!!!!!!! ".$post_img_newname_path;
       
+        //14 image file size
+        array_push($return_arr_img,$img_file_size);
+
         return ( $return_arr_img );
     
     
@@ -1288,13 +1452,46 @@ class SMAI_SEO_PUNBOTController extends Controller
       $post_img_newname .= '.jpg';
     
       
-    
-      // Image path
-      $post_img_newname_path = 'uploads/posts/' . $post_img_newname;
+
+      // the new way  S3
+      $filePath = 'uploads/posts/' . $post_img_newname; // Added this new line
+      if (!Storage::disk('s3')->exists($filePath)) {
+
+        //SMAI new way S3 save image
+        $file_content = file_get_contents($pixarbay_url);
+
+        //Save Image to Local server
+        $nameOfImage = $post_img_newname;
+        Storage::disk('posts')->put($nameOfImage, $file_content);
+
+        // File saved on local disk, save it to S3  
+        $filePath = 'uploads/posts/' . $nameOfImage; // Added this new line
+
+        if (Storage::disk('s3')->exists($filePath)) {
+            Log::debug("File already exists in S3 ".$filePath);
+        } else {
+            Storage::disk('s3')->put($filePath, $file_content, 'public');
+        }
+
+        // Confirm that file is saved on S3 before deleting it from local disk
+        if (Storage::disk('s3')->exists($filePath)) {
+            Storage::disk('posts')->delete($nameOfImage);
+            //Log::debug(" del image success after uploaded to S3 ");
+        } else {
+            Log::debug(" File not found in S3 maybe upload not success ");
+        }
+     
+         //eof SMAI new way S3 save image
+
+         //Then generate the URL like this:
+         $post_img_newname_path = Storage::disk('s3')->url($filePath);
+      }
+
+
     
     
       // Save image
-      $ch = curl_init( $pixarbay_url );
+     /*  $ch = curl_init( $pixarbay_url );
       $fp = fopen( $post_img_newname_path, 'wb' );
       curl_setopt( $ch, CURLOPT_FILE, $fp );
       curl_setopt( $ch, CURLOPT_HEADER, 0 );
@@ -1302,7 +1499,7 @@ class SMAI_SEO_PUNBOTController extends Controller
       curl_close( $ch );
       fclose( $fp );
     
-      curl_close( $handle1 );
+      curl_close( $handle1 ); */
       //eof pixarbay 
     
       return ( $post_img_newname );
@@ -1532,8 +1729,7 @@ class SMAI_SEO_PUNBOTController extends Controller
       $post_img_newname = str_replace( '&#39;', '-', $post_img_newname);
       $post_img_newname .= '.jpg';
     
-      // Image path
-      $post_img_newname_path = 'uploads/posts/' . $post_img_newname;
+     
       //add img name to arr
       $return_arr_img.=$post_img_newname;
       $return_arr_img.=',';
@@ -1571,10 +1767,45 @@ class SMAI_SEO_PUNBOTController extends Controller
     
        echo "<br> Debug arr img : ";
       print_r($return_arr_img);
+
+
+      // the new way  S3
+      $filePath = 'uploads/posts/' . $post_img_newname; // Added this new line
+      if (!Storage::disk('s3')->exists($filePath)) {
+
+        //SMAI new way S3 save image
+        $file_content = file_get_contents($pixarbay_url);
+
+        //Save Image to Local server
+        $nameOfImage = $post_img_newname;
+        Storage::disk('posts')->put($nameOfImage, $file_content);
+
+        // File saved on local disk, save it to S3  
+        $filePath = 'uploads/posts/' . $nameOfImage; // Added this new line
+
+        if (Storage::disk('s3')->exists($filePath)) {
+            Log::debug("File already exists in S3 ".$filePath);
+        } else {
+            Storage::disk('s3')->put($filePath, $file_content, 'public');
+        }
+
+        // Confirm that file is saved on S3 before deleting it from local disk
+        if (Storage::disk('s3')->exists($filePath)) {
+            Storage::disk('posts')->delete($nameOfImage);
+            Log::debug(" del image success after uploaded to S3 ");
+        } else {
+            Log::debug(" File not found in S3 maybe upload not success ");
+        }
+     
+         //eof SMAI new way S3 save image
+
+         //Then generate the URL like this:
+         $post_img_newname_path = Storage::disk('s3')->url($filePath);
+      }
     
     
       // Save image
-      $ch = curl_init( $pixarbay_url );
+      /* $ch = curl_init( $pixarbay_url );
       $fp = fopen( $post_img_newname_path, 'wb' );
       curl_setopt( $ch, CURLOPT_FILE, $fp );
       curl_setopt( $ch, CURLOPT_HEADER, 0 );
@@ -1582,7 +1813,7 @@ class SMAI_SEO_PUNBOTController extends Controller
       curl_close( $ch );
       fclose( $fp );
       echo "<br> Image save success To :".$post_img_newname;
-      curl_close( $handle1 );
+      curl_close( $handle1 ); */
       //eof pixarbay 
     
     }
@@ -1921,8 +2152,7 @@ class SMAI_SEO_PUNBOTController extends Controller
      $post_img_newname .= '.jpg';
      
     
-     // Image path
-     $post_img_newname_path = 'uploads/posts/' . $post_img_newname;
+     
      //add img name to arr
      echo "\n<br> Debug before remove spcial arr img File Image Name : ";
      echo($post_img_newname);
@@ -1980,10 +2210,47 @@ class SMAI_SEO_PUNBOTController extends Controller
     
       echo "\n<br> Debug all array of Pexels img : ";
      //print_r($return_arr_img);
+
+     
+
+     // the new way  S3
+     $filePath = 'uploads/posts/' . $post_img_newname; // Added this new line
+     if (!Storage::disk('s3')->exists($filePath)) {
+
+       //SMAI new way S3 save image
+       $file_content = file_get_contents($pic_url);
+
+       //Save Image to Local server
+       $nameOfImage = $post_img_newname;
+       Storage::disk('posts')->put($nameOfImage, $file_content);
+
+       // File saved on local disk, save it to S3  
+       $filePath = 'uploads/posts/' . $nameOfImage; // Added this new line
+
+       if (Storage::disk('s3')->exists($filePath)) {
+           Log::debug("File already exists in S3 ".$filePath);
+       } else {
+           Storage::disk('s3')->put($filePath, $file_content, 'public');
+       }
+
+       // Confirm that file is saved on S3 before deleting it from local disk
+       if (Storage::disk('s3')->exists($filePath)) {
+           Storage::disk('posts')->delete($nameOfImage);
+           Log::debug(" del image success after uploaded to S3 ");
+       } else {
+           Log::debug(" File not found in S3 maybe upload not success ");
+       }
     
+        //eof SMAI new way S3 save image
+
+        //Then generate the URL like this:
+        $post_img_newname_path = Storage::disk('s3')->url($filePath);
+     }
+
+  
     
      // Save image
-     $ch = curl_init( $pic_url );
+   /*   $ch = curl_init( $pic_url );
      $fp = fopen( $post_img_newname_path, 'wb' );
      curl_setopt( $ch, CURLOPT_FILE, $fp );
      curl_setopt( $ch, CURLOPT_HEADER, 0 );
@@ -1996,7 +2263,7 @@ class SMAI_SEO_PUNBOTController extends Controller
      echo "\n<br>";
      echo "\n<br>";
      echo "\n<br>";
-     curl_close( $curl );
+     curl_close( $curl ); */
      //eof pixarbay 
     
      return ($return_arr_img);
@@ -2304,8 +2571,7 @@ class SMAI_SEO_PUNBOTController extends Controller
      $post_img_newname .= '.jpg';
      
     
-     // Image path
-     $post_img_newname_path = 'uploads/posts/' . $post_img_newname;
+     
      //add img name to arr
      echo "\n<br> Debug before remove spcial arr img File Image Name : ";
      echo($post_img_newname);
@@ -2379,14 +2645,49 @@ class SMAI_SEO_PUNBOTController extends Controller
     
       
     
-      echo "\n<br> Debug Tag of Unsplash img : ".$responseDecoded1['results'][ $i_image ][ 'description' ];
+      //Log::debug("\n<br> Debug Tag of Unsplash img : ".$responseDecoded1['results'][ $i_image ][ 'description' ]);
       //$return_arr_img.=',';
-      echo "\n<br> Debug all array of UnSpash img : ";
+      //Log::debug ("\n<br> Debug all array of UnSpash img : ");
       print_r($return_arr_img);
     
+
+        // the new way  S3
+      $filePath = 'uploads/posts/' . $post_img_newname; // Added this new line
+      if (!Storage::disk('s3')->exists($filePath)) {
+
+        //SMAI new way S3 save image
+        $file_content = file_get_contents($pic_url);
+
+        //Save Image to Local server
+        $nameOfImage = $post_img_newname;
+        Storage::disk('posts')->put($nameOfImage, $file_content);
+
+        // File saved on local disk, save it to S3  
+        $filePath = 'uploads/posts/' . $nameOfImage; // Added this new line
+
+        if (Storage::disk('s3')->exists($filePath)) {
+            Log::debug("File already exists in S3 ".$filePath);
+        } else {
+            Storage::disk('s3')->put($filePath, $file_content, 'public');
+        }
+
+        // Confirm that file is saved on S3 before deleting it from local disk
+        if (Storage::disk('s3')->exists($filePath)) {
+            Storage::disk('posts')->delete($nameOfImage);
+            Log::debug(" del image success after uploaded to S3 ");
+        } else {
+            Log::debug(" File not found in S3 maybe upload not success ");
+        }
+     
+         //eof SMAI new way S3 save image
+
+         //Then generate the URL like this:
+         $post_img_newname_path = Storage::disk('s3')->url($filePath);
+      }
+
     
      // Save image
-     $ch = curl_init( $pic_url );
+  /*    $ch = curl_init( $pic_url );
      $fp = fopen( $post_img_newname_path, 'wb' );
      curl_setopt( $ch, CURLOPT_FILE, $fp );
      curl_setopt( $ch, CURLOPT_HEADER, 0 );
@@ -2399,7 +2700,7 @@ class SMAI_SEO_PUNBOTController extends Controller
      echo "\n<br>";
      echo "\n<br>";
      echo "\n<br>";
-     curl_close( $curl );
+     curl_close( $curl ); */
      //eof pixarbay 
     
      return ($return_arr_img);
@@ -2496,7 +2797,7 @@ class SMAI_SEO_PUNBOTController extends Controller
       // Send email 
         $send_result='';
       if ( mail( $to, $subject, $htmlContent, $headers ) ) {
-        echo 'Email has sent successfully.';
+        Log::debug('Email has sent successfully.');
           $send_result.='Email has sent successfully.';
           
       } else {
@@ -2845,6 +3146,7 @@ class SMAI_SEO_PUNBOTController extends Controller
     //
     public function  get_cur_linkversion($website_id,$search_key,$conn)
     {
+      Log::debug("\n\n<br> Debug Link Version Keyword : ".$search_key);
         
         $statement = $conn->prepare( "SELECT * FROM websites_option WHERE  website_id = ? AND keyword = ?  ORDER BY id DESC LIMIT 1" );
         //$statement->execute( array( $table, $website_id, $search_key, ) );
@@ -2855,7 +3157,7 @@ class SMAI_SEO_PUNBOTController extends Controller
       $target_keyword_tran=$result['keyword'];
       $cur_link_footer=$result['footer_link'];
         
-        
+        Log::debug("\n\n<br> Debug Link Version : ".$cur_link_footer);
         return ($cur_link_footer);
         
     }
@@ -2877,7 +3179,7 @@ class SMAI_SEO_PUNBOTController extends Controller
         
     }
     
-    
+    //synced to APICRM
     public function  get_cur_keyword_en($website_id,$main_keyword,$conn)
     {
         

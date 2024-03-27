@@ -120,9 +120,46 @@ use App\Models\SEOBackLinkOption;
 use App\Models\PunbotWordpressUser;
 use App\Models\PunbotMediumUser;
 
+use App\Models\PostPunbotSEO;
+
+//import old function from punbot/seo
+use App\Http\Controllers\SMAI_SEO_PUNBOTController;
+
+use App\Models\PicStat;
+use PDO;
 
 class SMAISyncSEOController extends Controller
 {
+
+    private $seo_fnc;
+    private $conn;
+
+    public function __construct()
+    {
+        $this->seo_fnc=NEW SMAI_SEO_PUNBOTController();
+
+        date_default_timezone_set('Asia/Bangkok');
+          // Host Name
+          $db_hostname = 'localhost';
+          // Database Name
+          $db_name = 'cafealth_punbot_seo';
+          // Database Username
+          $db_username = 'cafealth_punbot_seo';
+          // Database Password
+          $db_password = 'YSvKdba1e2}k';
+          try {
+
+              $conn = new PDO("mysql:host=$db_hostname;dbname=$db_name",$db_username,$db_password, array(PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"));
+              $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+              $this->conn = $conn;
+                
+          }
+          catch(PDOException $e){
+              echo $e->getMessage('utf8mb4');
+          }
+    }
+
+
 
     public function cron_seo_on_off_posts($id = '')
     {
@@ -441,7 +478,367 @@ class SMAISyncSEOController extends Controller
         }
     }
 
+    public function cron_update_thumnail($cron_seo = 0,)
+    {
+        $conn=$this->conn;
+        $case_local_img = 0;
+        Log::debug("\n\n<br> Debug before enter MySQL Loop Qry ");
+
+
+        if ($cron_seo == 1) {
+            Log::debug("\n\n<br> Debug after enter MySQL Loop Qry ");
+            // Check the id is valid or not
+
+
+        /*    $image_status = 'default.png';
+            $statement = $conn->prepare("SELECT * FROM posts WHERE post_image=? ORDER BY post_id DESC LIMIT 1");
+            $statement->execute(array($image_status));
+            $total = $statement->rowCount();
+            $result = $statement->fetch(PDO::FETCH_ASSOC);*/
+
+
+            //convert to Eloquent Way
+            $image_status = 'default.png';
+
+            $post = PostPunbotSEO::where('post_image', $image_status)->orderBy('post_id', 'desc')->first();
+
+            if ($post === null) {
+                Log::debug ("\n\n> Debug after Qry Found No Thing");
+                // in laravel you may want to redirect like this instead of header() function
+
+            }
+
+            Log::debug ("\n\n> Debug after  Qry Found Total");
+
+
+                Log::debug("\n\n<br> Debug after  Qry Found Post : ");
+                /*if ($post->post_version == 'original') {*/
+                    if($post->post_version === 'original') {
+
+                    Log::debug("THis is Original : Case Pixarbay");
+
+                    //locale th-TH
+
+                    Log::debug("\n\n<br> Debug now Edit Original Version Post ID : " . $post->post_id);
+                    $edit_post_id = $post->post_id;
+                    Log::debug("THis is Non-Original : Case Pexles of Keyword : ");
+
+
+                    $keyword = $post->keyword;
+                    $siteid = $post->website_id;
+                    $keyword_en = $this->seo_fnc->get_cur_keyword_en($siteid, $keyword, $conn);
+
+                    Log::info($keyword);
+                    Log::debug("\n\n<br>");
+                    $edit_post_version = $post->post_version;
+
+                    /* $key_lang=gg_translate_detectv3($keyword);
+
+                               if($key_lang=='th')
+                                $locale='th-TH';
+                                else
+                                $locale='en-US'; */
+                    $locale = 'en-US';
+
+
+                    Log::debug("\n\n<br> Debug locale : " . $locale);
+                    $totalpage = 100000;
+                    $title = $post->post_title;
+                    $title = $this->seo_fnc->clean_file_title($title);
+
+                    //switch between source pixarbay pexels and more .. bla bla bla
+                    $what_check = 'status';
+
+
+                    $check_local_img_stock = $this->seo_fnc->check_local_img($keyword, $conn);
+
+                    Log::debug("\n\n Debog ID local Image " . $check_local_img_stock);
+                    if ($this->seo_fnc->pixarbay_get_image_arr_check($what_check, $keyword_en) == 200) {
+                        Log::debug('\n\n Case Pixabay Image \n\n');
+                        $case_local_img = 0;
+                        $perpage = 200;
+                        $source_name = 'pixabay';
+                        //$get_origi_post_img= explode(",", pexels_get_image_arr( $keyword,$keyword_en, $perpage, $totalpage, $title, $counts, $locale, $edit_post_version ));
+                        $counts = $this->seo_fnc->get_cur_img_count($keyword, $source_name, $conn);
+                        Log::debug("\n\n<br> Debug Pixabay Count " . $counts);
+                        $get_origi_post_img = explode(",", $this->seo_fnc->pixarbay_get_image_arr($keyword, $keyword_en, $perpage, $totalpage, $title, $counts, $edit_post_version, $conn));
+
+
+                    } else {
+
+
+                        if ($check_local_img_stock > 0) {
+                            Log::debug('\n\n Case Local Image \n\n');
+                            $case_local_img = 1;
+
+                            $local_img_id = $check_local_img_stock;
+
+                            $get_origi_post_img = $this->seo_fnc->get_origi_post_img_fromLocal($local_img_id, $keyword, $title, $conn);
+                            $source_name = $get_origi_post_img[10];
+                        } else {
+                            Log::debug('\n\n Case Pexels Image \n\n');
+
+
+                            $perpage = 80;
+                            $source_name = 'pexels';
+                            $counts = $this->seo_fnc->get_cur_img_count($keyword, $source_name, $conn);
+                            Log::debug("\n\n<br> Debug Pexels Count " . $counts);
+                            //$get_origi_post_img= explode(",", pixarbay_get_image_arr( $keyword, $perpage, $totalpage, $title, $counts));
+                            $get_origi_post_img = explode(",", $this->seo_fnc->pexels_get_image_arr($keyword, $keyword_en, $perpage, $totalpage, $title, $counts, $locale, $edit_post_version, $conn));
+
+
+                        }
+
+                    }
+
+
+                    $source_id = $get_origi_post_img[0];
+
+                    $source_img = $get_origi_post_img[1];
+                    $source_small = $get_origi_post_img[2];
+                    $source_mid = $get_origi_post_img[3];
+                    $source_large = $get_origi_post_img[4];
+                    $source_author = $get_origi_post_img[5];
+                    $source_author_id = $get_origi_post_img[6];
+                    $source_hd = $get_origi_post_img[7];
+                    $source_original = $get_origi_post_img[8];
+                    $source_tag = $get_origi_post_img[9];
+
+                    if (isset($get_origi_post_img[10])) {
+                        $source_tag .= ',' . $get_origi_post_img[10];
+                        $source_tag .= ',' . $get_origi_post_img[11];
+                    }
+
+                    $all_get_origi_post_img = count($get_origi_post_img);
+                    $search_keyword_postion = $all_get_origi_post_img - 1;
+                    $img_search_keyword = $get_origi_post_img[$search_keyword_postion];
+
+
+                    $counts_new = $this->seo_fnc->get_cur_img_count($keyword, $source_name, $conn) + 1;
+                    //print_r($get_origi_post_img);
+                    Log::debug(print_r($get_origi_post_img, true));
+
+                    //insert count if success
+                    Log::debug('\n\n<br>Debug Name of Image Save ' . $source_img);
+                    $word_check = ".jpg";
+                    //$word_check="99999999999999999999999999999999";
+                    if (strlen($img_search_keyword) < 1)
+                        $img_search_keyword = $keyword_en;
+
+
+                        if (strpos($source_img, $word_check) !== false && strlen($source_small) > 5) {
+                            Log::debug("\n\n>check success and Updating");
+                        
+                            // Insert into pic_stat
+                            DB::connection('punbotseo_db')->table('pic_stat')->insert([
+                                'source_id' => $source_id, 
+                                'source' => $source_name, 
+                                'post_image' => $source_img, 
+                                'small' => $source_small, 
+                                'mid' => $source_mid, 
+                                'large' => $source_large, 
+                                'author' => $source_author, 
+                                'author_id' => $source_author_id, 
+                                'counts' => $counts_new, 
+                                'post_id' => $edit_post_id, 
+                                'keywords' => $keyword, 
+                                'hd_size' => $source_hd, 
+                                'original_size' => $source_original, 
+                                'tag' => $source_tag
+                            ]);
+                            
+                            // Update posts
+                            PostPunbotSEO::where('post_id', $edit_post_id)
+                                         ->update(['post_image' => $source_img]);
+                        
+                            //$_SESSION['success'] = 'Image Stat insert successfully & Post has been updated successfully!';
+                            Log::debug("\n\n>check success and Insert & Updated Done ");
+                        }
+
+                } else {
+                    Log::debug("\n\n !!!!!! THiS is not Original : Case Pexels.com or Upsprash !!!!!!!");
+
+
+                    //locale th-TH
+
+                    Log::debug("\n\n<br> Debug now Edit Post ID : " . $post->post_id);
+                    $edit_post_id = $post->post_id;
+                    Log::debug("THis is Non-Original : Case Pexles of Keyword : ");
+                    $keyword = $post->keyword;
+                    $siteid = $post->website_id;
+                    $keyword_en = $this->seo_fnc->get_cur_keyword_en($siteid, $keyword, $conn);
+                    Log::info($keyword);
+                    Log::debug("\n\n<br>");
+                    $edit_post_version = $post->post_version;
+
+
+                    /* $key_lang=gg_translate_detectv3($keyword);
+
+                               if($key_lang=='th')
+                                $locale='th-TH';
+                                else
+                                $locale='en-US'; */
+
+
+                    $locale = 'en-US';
+                    Log::debug("\n\n<br> Debug locale : " . $locale);
+                    $totalpage = 100000;
+                    $title = $post->post_title;
+                    $title = $this->seo_fnc->clean_file_title($title);
+
+
+                    //switch between source pixarbay pexels and more .. bla bla bla
+                    $what_check = 'status';
+                    if ($this->seo_fnc->unsplash_get_image_arr_check($what_check, $keyword_en) == 200) {
+                        $perpage = 30;
+                        $source_name = 'unsplash';
+
+                        $counts = $this->seo_fnc->get_cur_img_count($keyword, $source_name, $conn);
+                        Log::debug("\n\n<br> Debug Unsplash Count " . $countsa);
+                        //$get_origi_post_img= explode(",", pixarbay_get_image_arr( $keyword, $perpage, $totalpage, $title, $counts));
+                        $get_origi_post_img = explode(",", $this->seo_fnc->unsplash_get_image_arr($keyword, $keyword_en, $perpage, $totalpage, $title, $counts, $edit_post_version, $conn));
+                    } else if ($this->seo_fnc->pexels_get_image_arr_check($what_check, $keyword) == 200) {
+                        $perpage = 80;
+                        $source_name = 'pexels';
+
+                        $counts = $this->seo_fnc->get_cur_img_count($keyword, $source_name, $conn);
+                        Log::debug("\n\n<br> Debug Pexels Count " . $counts);
+                        //$get_origi_post_img= explode(",", pixarbay_get_image_arr( $keyword, $perpage, $totalpage, $title, $counts));
+                        $get_origi_post_img = explode(",", $this->seo_fnc->pexels_get_image_arr($keyword, $keyword_en, $perpage, $totalpage, $title, $counts, $locale, $edit_post_version, $conn));
+                    } else if ($this->seo_fnc->pixarbay_get_image_arr_check($what_check, $keyword) == 200) {
+
+                        $perpage = 200;
+                        $source_name = 'pixabay';
+                        //$get_origi_post_img= explode(",", pexels_get_image_arr( $keyword,$keyword_en, $perpage, $totalpage, $title, $counts, $locale, $edit_post_version ));
+                        $counts = $this->seo_fnc->get_cur_img_count($keyword, $source_name, $conn);
+                        Log::debug("\n\n<br> Debug Pixabay Count " . $counts);
+                        $get_origi_post_img = explode(",", $this->seo_fnc->pixarbay_get_image_arr($keyword, $keyword_en, $perpage, $totalpage, $title, $counts, $edit_post_version, $conn));
+
+
+                    } else {
+                        $check_local_img_stock = $this->seo_fnc->check_local_img($keyword, $conn);
+                        if ($check_local_img_stock > 0) {
+                            Log::debug("\n\n Debog ID local Image " . $check_local_img_stock);
+                            $local_img_id = $check_local_img_stock;
+                            $case_local_img = 1;
+
+                            $get_origi_post_img = $this->seo_fnc->get_origi_post_img_fromLocal($local_img_id, $keyword, $title, $conn);
+
+                            $source_name = $get_origi_post_img[10];
+                        }
+
+                    }
+
+
+                    $source_id = $get_origi_post_img[0];
+
+                    $source_img = $get_origi_post_img[1];
+                    $source_small = $get_origi_post_img[2];
+                    $source_mid = $get_origi_post_img[3];
+                    $source_large = $get_origi_post_img[4];
+                    $source_author = $get_origi_post_img[5];
+                    $source_author_id = $get_origi_post_img[6];
+                    $source_hd = $get_origi_post_img[7];
+                    $source_original = $get_origi_post_img[8];
+                    $source_tag = $get_origi_post_img[9];
+
+                    if (isset($get_origi_post_img[10])) {
+                        $source_tag .= ',' . $get_origi_post_img[10];
+                        $source_tag .= ',' . $get_origi_post_img[11];
+                    }
+
+                    $all_get_origi_post_img = count($get_origi_post_img);
+                    $search_keyword_postion = $all_get_origi_post_img - 1;
+                    $img_search_keyword = $get_origi_post_img[$search_keyword_postion];
+
+
+                    $counts_new = $this->seo_fnc->get_cur_img_count($keyword, $source_name, $conn) + 1;
+                    //print_r($get_origi_post_img);
+                    Log::debug(print_r($get_origi_post_img, true));
+
+                    //insert count if success
+                    Log::debug('\n\n<br>Debug Name of Image Save ' . $source_img);
+                    $word_check = ".jpg";
+                    //$word_check="99999999999999999999999999999999";
+                    if (strlen($img_search_keyword) < 1)
+                        $img_search_keyword = $keyword_en;
+
+
+                    if (strpos($source_img, $word_check) !== false && strlen($source_small) > 5) {
+                        Log::debug("\n\n<br>check success and Updating");
+
+                       clearstatcache();
+                        $img_file_size = filesize('./uploads/posts/' . $source_img);
+
+                        if ($case_local_img > 0) {
+
+
+                            if ($img_file_size > 1024) {
+                                PicStat::where('id', $local_img_id)->update([
+                                    'post_image' => $source_img,
+                                    'post_id' => $edit_post_id,
+                                    'counts' => $counts_new
+                                ]);
+                            
+                                Log::debug("\n\n>check success Updated Post Stat Done of Post ID " . $edit_post_id);
+                            
+                            } else {
+                                $source_img = 'expired.png';
+                                PicStat::where('id', $local_img_id)->update([
+                                    'post_image' => $source_img,
+                                    'post_id' => $edit_post_id,
+                                    'counts' => $counts_new
+                                ]);
+                            
+                                Log::debug("\n\n>check success Updated Post Stat Done of Post ID " . $edit_post_id);
+                            }
+                            
+                            $picsStat = PicStat::find($local_img_id);
+                            
+                            if ($picsStat === null) {
+                                DB::connection('punbotseo_db')->table('pic_stat')->insert([
+                                    'source_id' => $source_id,
+                                    'source' => $source_name,
+                                    'post_image' => $source_img,
+                                    'small' => $source_small,
+                                    'mid' => $source_mid,
+                                    'large' => $source_large,
+                                    'author' => $source_author,
+                                    'author_id' => $source_author_id,
+                                    'counts' => $counts_new,
+                                    'post_id' => $edit_post_id,
+                                    'keywords' => $keyword,
+                                    'hd_size' => $source_hd,
+                                    'original_size' => $source_original,
+                                    'tag' => $source_tag,
+                                    'search_keywords' => $img_search_keyword
+                                ]);
+                            }
+
+                         }
+
+                         //eof $case_local_img > 0
+                            
+                            if ($img_file_size > 1024) {
+                                PostPunbotSEO::where('post_id', $edit_post_id)->update(['post_image' => $source_img]);
+                                
+                                //$_SESSION['success'] = 'Image Stat insert successfully & Post has been updated successfully!';
+                                Log::debug("\n\n>check success and Insert & Updated Done ");
+                            }
+
+                    }
+
+                }
+
+
+
+
+
+        }
+
+
+    }
+
 
 }
-
 

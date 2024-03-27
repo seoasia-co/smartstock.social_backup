@@ -41,6 +41,7 @@ class AIController extends Controller
         $apiKey = $apiKeys[array_rand($apiKeys)];
         config(['openai.api_key' => $apiKey]);
         //$this->client = FacadesOpenAI::client($this->settings->openai_api_secret);
+        $this->settings->openai_default_model = 'gpt-3.5-turbo';
     }
 
     public function get_s3_size($file_path)
@@ -427,12 +428,28 @@ class AIController extends Controller
                     ]);
                     $send_smai=0;
                 } else {
-                    $stream = FacadesOpenAI::completions()->createStreamed([
+                 /*    $stream = FacadesOpenAI::completions()->createStreamed([
                         'model' => 'text-davinci-003',
                         'prompt' => $prompt,
                         'temperature' => (int)$creativity,
                         'max_tokens' => (int)$maximum_length,
                         'n' => (int)$number_of_results
+                    ]);
+ */
+                    $stream = FacadesOpenAI::chat()->createStreamed([
+                        'model' => 'gpt-3.5-turbo',
+                        'messages' => [
+                            [
+                                'role' => 'system',
+                                'content' => 'You are a helpful assistant.'
+                            ],
+                            [
+                                'role' => 'user',
+                                'content' => $prompt,
+                            ],
+                         ],
+                        'temperature' => (int)$creativity,
+                        'max_tokens' => (int)$maximum_length,
                     ]);
 
                     // SMAI text-davinci-003  sync  token usage
@@ -670,12 +687,28 @@ class AIController extends Controller
             return response()->json($data, 419);
         }
 
-        $stream = FacadesOpenAI::completions()->createStreamed([
+      /*   $stream = FacadesOpenAI::completions()->createStreamed([
             'model' => 'text-davinci-003',
             'prompt' => $prompt,
             'temperature' => (int)$creativity,
             'max_tokens' => (int)$maximum_length,
             'n' => (int)$number_of_results
+        ]); */
+
+        $stream = FacadesOpenAI::chat()->createStreamed([
+            'model' => 'gpt-3.5-turbo',
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => 'You are a helpful assistant.'
+                ],
+                [
+                    'role' => 'user',
+                    'content' => $prompt,
+                ],
+             ],
+            'temperature' => (int)$creativity,
+            'max_tokens' => (int)$maximum_length,
         ]);
 
         //Log::debug('Check Stream  ' );
@@ -976,8 +1009,13 @@ class AIController extends Controller
             if($image_generator != self::STABLEDIFFUSION) {
                 //send prompt to openai
                 if($prompt == null) return response()->json(["status" => "error", "message" => "You must provide a prompt"]);
-                $response = FacadesOpenAI::images()->create([
+                /* $response = FacadesOpenAI::images()->create([
                     'model' => 'image-alpha-001',
+                    'prompt' => $prompt,
+                    'size' => $size,
+                    'response_format' => 'b64_json',
+                ]); */
+                $response = FacadesOpenAI::images()->create([
                     'prompt' => $prompt,
                     'size' => $size,
                     'response_format' => 'b64_json',
@@ -991,7 +1029,7 @@ class AIController extends Controller
                 Storage::disk('topics')->put($nameOfImage, $contents);
                
                 //Storage::disk('topics')->put($nameOfImage, file_get_contents($contents));
-                $path = 'https://smartstock.social/uploads/topics/' . $nameOfImage;
+                $path = 'https://syncapi.smartcontentcrm.com/uploads/topics/' . $nameOfImage;
                 //$path = 'uploads/' . $nameOfImage; 
 
                 //SMAI sync
@@ -1083,7 +1121,7 @@ class AIController extends Controller
                 $usage=1;
                 $params =  json_encode(array( 
                             'prompt' => $prompt,
-                            'model' => 'image-alpha-001',
+                           
                             'size' => $size,
                             'response_format' => 'b64_json',
                             'platform' => 'main_coin',
