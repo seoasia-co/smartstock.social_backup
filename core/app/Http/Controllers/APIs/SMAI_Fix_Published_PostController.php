@@ -12,4 +12,26 @@ use Illuminate\Http\Request;
 class SMAI_Fix_Published_PostController extends Controller
 {
     //
+
+    public function __construct()
+    {
+        //$this->middleware('auth:api');
+    }
+
+    public function socialpost_fix()
+    {
+        //fixing fixing becuase the below code is not yet tested
+        $socialposts = SocialPost::where('status', 'published')->get();
+        foreach ($socialposts as $socialpost) {
+            $socialpost_id = $socialpost->id;
+            $socialpost_data = $socialpost->toArray();
+            $socialpost_data_name = 'socialposts';
+            $socialpost_upFromWhere = 'main_coin';
+            $this->socialpost_fix($socialpost_id, $socialpost_data, $socialpost_data_name, $socialpost_upFromWhere);
+        }
+    }
+
+
+
+
 }
