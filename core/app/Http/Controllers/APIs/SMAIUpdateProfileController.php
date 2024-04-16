@@ -78,6 +78,9 @@ use App\Models\UserOpenaiChatMessageBio;
 use App\Models\UserOpenaiChatSyncNodeJS;
 use App\Models\UserOpenaiChatMessageSyncNodeJS;
 
+use App\Models\UserSmartMenu;
+use App\Models\UserSmartPos;
+
 use App\Models\UserDesignSubscriptions;
 use App\Models\OpenaiGeneratorChatCategory;
 use App\Models\UserBioOpenaiTemplate;
@@ -97,6 +100,8 @@ use Storage;
 use App\Http\Controllers\APIs\Plan_ID_FixController;
 
 
+
+
 class SMAIUpdateProfileController extends Controller
 {
 
@@ -112,6 +117,7 @@ class SMAIUpdateProfileController extends Controller
     public $freetrial_plan_images;
     public $freetrial_plan_words;
     protected $clear_token;
+    protected $platform;
 
     // request as an attribute of the controllers
 
@@ -662,25 +668,57 @@ class SMAIUpdateProfileController extends Controller
                 //But Whythis case Fix Main only so Do not use it
                 
                 
-                //ถึงแม้ความหมาย ไม่ได้หมายถึงว่าไม่ใช่แค่การซื้อแพ็คเกจจาก Bio
-                //แต่กระบวนการภายในเงื่อนไขนี้เป็นการอัพเดท Main config ดังนั้นไม่จำเป็นต้องใช้
-                //เพราะเป้าหมายคือการอัพดเดท Platforms อื่นๆ ที่ไม่ใช่ Main
-                //if($this->upFromWhere=='bio')
-                if ($this->upFromWhere == 'bio_main_cancel_this_to_use_main_coin_only') {
+
+                if($this->upFromWhere)
+                $this->platform = $this->upFromWhere;
+                else
+                $this->platform = NULL;
+
+                if($this->platform=='bio')
+                {
+                    $check_upFromMain = 1;
+                    $payment_type = 'main_payment';
+                    $db_connection='bio_db';
+                }
+                else if($this->platform=='SmartMenu')
+                {
+                    $db_connection='smartmenu_db';
+                    $payment_type = 'own_payment';
+                }
+                else if($this->platform=='SmartPos')
+                {
+                    $db_connection='smartmenu_db';
+                    $payment_type = 'own_payment';
+                }
+                else
+                {
+                    $db_connection='main_db';
+                    $payment_type = 'main_payment';
+                }
+
+                if($payment_type == 'own_payment') {
                     $main_user_at_middle = UserMain::where('id', $user_id)->first();
-
-                    $current_bio_plan_array = $new_checkuserplan->SMAI_Check_Universal_UserPlans($user_id, 'bio_db', 'Bio');
-                    $current_bio_plan_id = $current_bio_plan_array['plan_id'];
-                    $current_bio_plan_expire = $current_bio_plan_array['expire'];
-                    $current_main_plan = $current_bio_plan_array['main_plan_id'];
-
-                    $Bio_Plan_from_DB = PlanBio::where('plan_id', $current_bio_plan_id)->first();
-                    $BIo_Plan_from_DB_package_type = $Bio_Plan_from_DB->package_type;
-                    $main_plan_should_be = $Bio_Plan_from_DB->main_plan_id;
+                
+                    $current_platfrom_plan_array = $new_checkuserplan->SMAI_Check_Universal_UserPlans($user_id, $db_connection,  $this->platform);
+                    $current_platfrom_plan_id = $current_platfrom_plan_array['plan_id'];
+                    $current_platfrom_plan_expire = $current_platfrom_plan_array['expire'];
+                    $current_main_plan = $current_platfrom_plan_array['main_plan_id'];
+                
+                    // Here we replace your Bio_Plan_from_DB line
+                    if($this->platform=='bio') {
+                       $platfrom_plan_from_DB = PlanBio::where('plan_id', $current_platfrom_plan_id)->first();
+                    } else if($this->platform=='SmartMenu') {
+                       $platfrom_plan_from_DB = PlanSmartMenu::where('id', $current_platfrom_plan_id)->first();
+                    } else if($this->platform=='SmartPos') {
+                       $platfrom_plan_from_DB = PlanSmartPos::where('id', $current_platfrom_plan_id)->first();
+                    }
+                
+                    $platfrom_plan_from_DB_package_type = $platfrom_plan_from_DB->package_type;
+                    $main_plan_should_be = $platfrom_plan_from_DB->main_plan_id;
 
                     Log::debug('Debug Main Plan from Setting ' . $main_plan_should_be);
                     Log::debug('Debug Main Plan from DB ' . $current_main_plan);
-                    Log::debug('Debug Bio Plan TYpe from DB ' . $BIo_Plan_from_DB_package_type);
+                    Log::debug('Debug notMain_platform Plan TYpe from DB ' . $platfrom_plan_from_DB_package_type);
 
                     $have_to_fix_main_plan = 0;
                     if ($main_plan_should_be == $current_main_plan) {
@@ -689,123 +727,77 @@ class SMAIUpdateProfileController extends Controller
                         $main_cur_plan_from_main = UserMain::where('id', $user_id)->first();
                         $user_plan_expire_from_main = $main_cur_plan_from_main->expired_date;
                         Log::debug('Current Time of Expired in Main ' . $user_plan_expire_from_main);
-                        Log::debug('Time of Expired  in Bio ' . $current_bio_plan_expire);
-                        $current_bio_plan_expire_date = $current_bio_plan_expire ? Carbon::parse($current_bio_plan_expire)->toDateString() : null;
-                        //$current_bio_plan_expire_date = Carbon::parse($current_bio_plan_expire)->toDateString();
+                        Log::debug('Time of Expired  in Bio ' . $current_platfrom_plan_expire);
+                        $current_platfrom_plan_expire_date = $current_platfrom_plan_expire ? Carbon::parse($current_platfrom_plan_expire)->toDateString() : null;
+                        //$current_platfrom_plan_expire_date = Carbon::parse($current_platfrom_plan_expire)->toDateString();
                         $user_plan_expire_from_main_date = $user_plan_expire_from_main ? Carbon::parse($user_plan_expire_from_main)->toDateString() : null;
                         //$user_plan_expire_from_main_date = Carbon::parse($user_plan_expire_from_main)->toDateString();
 
 
-                        if ($user_plan_expire_from_main == NULL || $current_bio_plan_expire_date != $user_plan_expire_from_main_date) {
-                            Log::debug('Time of Expired is not right in Main ' . $user_plan_expire_from_main);
-                            Log::debug('Time of Expired  in Bio ' . $current_bio_plan_expire);
-                            Log::debug('Time of Expired Date in Bio ' . $current_bio_plan_expire_date);
-                            Log::debug('Time of Expired Date in Main ' . $user_plan_expire_from_main_date);
-                            Log::debug('Check Pla type from Bio ' . $BIo_Plan_from_DB_package_type);
-                            $have_to_fix_main_plan = 1;
-                        }
-
-
-                    }
-
-
-                    if (($current_main_plan != $main_plan_should_be || $have_to_fix_main_plan > 0) && $BIo_Plan_from_DB_package_type == 'bundle') {
-
-                        if ($current_main_plan != $main_plan_should_be)
-                            $have_to_fix_main_plan = 1;
-
-                        //recheck if Main Plan is freeplan then update plan to main_plan_should_be
-                        if ($main_plan_should_be == 0 || $main_plan_should_be == '0' || $main_plan_should_be == 8 || $main_plan_should_be == '8' || $have_to_fix_main_plan > 0) {
-
-                            Log::debug('Pass to Update new Main plan to ' . $main_plan_should_be);
-
-                            if ($have_to_fix_main_plan > 0) {
-                                Log::debug('Pass to Update new Main plan to ' . $main_plan_should_be . ' because of Expired Date');
-                            }
-
-                            //plan main_coin
-                            /* if (isset($request['remaining_words_plus']))
-                                $userdata['remaining_words_plus'] = $request['remaining_words_plus']; */
-
-                            /* if (isset($request['remaining_images_plus']))
-                                    $userdata['remaining_images_plus'] = $request['remaining_images_plus']; */
-
+                        if ($user_plan_expire_from_main == NULL || $current_platfrom_plan_expire_date != $user_plan_expire_from_main_date) {
+                            Log::debug('Time Expired is not in Main ' .$user_plan_expire_from_main);
+                             Log::debug('Time ofired  in not_platfrom ' . $current_not_platfrom_plan_expire);
+                             Log::debug('Time of Expired Date in platfrom ' . $current_platfrom_plan_expire_date);
+                             Log::debug('Time of Expired Date in Main ' . $user_plan_expire_from_main_date);
+                             Log::debug('Check Plan type from platfrom ' . $platfrom_plan_from_DB_package_type);
+                             $have_to_fix_main_plan = 1;
+                         }
+                         
+                         if (($current_main_plan != $main_plan_should_be || $have_to_fix_main_plan > 0) && $notMain_plat_plan_from_DB_package_type == 'bundle') {
+                         
+                             if ($current_main_plan != $main_plan_should_be)
+                                 $have_to_fix_main_plan = 1;
+                         
+                             // recheck if Main Plan is freeplan then update plan to main_plan_should_be
+                             if ($main_plan_should_be == 0 || $main_plan_should_be == '0' || $main_plan_should_be == 8 ||$main_plan_should_be == '8' || $have_to_main_plan > 0) {
+                         
+                                 Log::debug('Pass to Update new Main plan to ' . $main_plan_should_be);
+                         
+                                 if($have_to_fix_main_plan > 0) {
+                                     Log::debug('Pass to Update new Main plan to ' . $main_plan_should_be . ' because of Expired Date');
+                                 }
+                         
+                                 //plan universal
+                                 $userdata['plan'] = $current_platfrom_plan_id;
+                         
+                                 //plan main_marketing=package_id  /  main_coin=plan
+                                 $userdata['package_id'] = 0;
+                         
+                                 if($this->platform=='bio') {
+                                     $user_platfrom_for_update = UserBio::where('user_id', $user_id)->first();
+                                 } else if($this->platform=='SmartMenu') {
+                                     $user_platfrom_for_update = UserSmartMenu::where('user_id', $user_id)->first();
+                                 } else if($this->platform=='SmartPos') {
+                                     $user_platfrom_for_update = UserSmartPos::where('user_id', $user_id)->first();
+                                 }
+                                 
+                                 $platfrom_remaining_words = $user_platfrom_for_update->remaining_words;
+                                 $platfrom_remaining_images = $user_platfrom_for_update->remaining_images;
+                         
                             //plan universal
-                            /* if (isset($request['plan']))
-                                    $userdata['plan'] = $request['plan']; */
-                            $userdata['plan'] = $current_bio_plan_id;
-
-                            //plan main_marketing=package_id  /  main_coin=plan
-                            //if (isset($request['package_id']))
-                            $userdata['package_id'] = 0;
-
-                            //extra_profile bio
-                            /* if (isset($request['plan_id']))
-                                    $userdata['plan_id'] = $request['plan_id']; */
-
-
-                            //extra_profile bio
-                            /* if (isset($request['plan_settings']))
-                                    $userdata['plan_settings'] = $request['plan_settings']; */
-
-                            $user_bio_for_update = UserBio::where('user_id', $user_id)->first();
-                            $bio_remaining_words = $user_bio_for_update->remaining_words;
-                            $bio_remaining_images = $user_bio_for_update->remaining_images;
-
+                            $userdata['remaining_words'] = $platfrom_remaining_words;
+                         
                             //plan universal
-                            //if (isset($request['remaining_words']))
-                            $userdata['remaining_words'] = $bio_remaining_words;
-
-                            //plan universal
-                            // if (isset($request['remaining_images']))
-                            $userdata['remaining_images'] = $bio_remaining_images;
-
-                            //plan mobile_new
-                            //if (isset($request['words_left']))
-                            $userdata['words_left'] = $bio_remaining_words;
-
-
-                            //plan mobile_new
-                            //if (isset($request['image_left']))
-                            $userdata['image_left'] = $bio_remaining_images;
-
-
-                            //plan mobile_old
-                            //if (isset($request['available_words']))
-                            $userdata['available_words'] = $bio_remaining_words;
-
-                            //plan mobile_old
-                            //if (isset($request['available_images']))
-                            $userdata['available_images'] = $bio_remaining_images;
-
-                            /* //plan mobile_old
-                                if (isset($request['total_words']))
-                                    $userdata['total_words'] = $request['total_words'];
-
-                                //plan mobile_old
-                                if (isset($request['total_images']))
-                                    $userdata['total_images'] = $request['total_images']; */
-
+                            $userdata['remaining_images'] = $platfrom_remaining_images;
 
                             //plan universal
                             //if (isset($request['expiration_date']))
-                            $userdata['expiration_date'] = $current_bio_plan_expire;
+                            $userdata['expiration_date'] = $current_platfrom_plan_expire;
 
                             //plan mobile_old
                             //if (isset($request['plan_expire_date']))
-                            $userdata['plan_expire_date'] = $current_bio_plan_expire;
+                            $userdata['plan_expire_date'] = $current_platfrom_plan_expire;
 
                             //plan main
                             //if (isset($request['expired_date']))
-                            $userdata['expired_date'] = $current_bio_plan_expire;
+                            $userdata['expired_date'] = $current_platfrom_plan_expire;
 
-                            //extra_profile bio
-                            /* if (isset($request['plan_expiration_date']))
-                                    $userdata['plan_expiration_date'] = $current_bio_plan_expire; */
 
-                            // fixing move to Active Plan from Main only
-                            //$this->up_plan_bio($userdata, $user_id, $user_email, 'fix_main_plan');
+                            //change to update all platform
+                            $this->up_plan_all_platform($userdata, $user_id, $user_email, 'fix_platform_plan');
                         }
+                     }
+                     //eof check and fix expired date $user_plan_expire_from_main == NULL || $current_platfrom_plan_expire_date != $user_plan_expire_from_main_date
 
 
                     }
@@ -814,6 +806,7 @@ class SMAIUpdateProfileController extends Controller
                     // $have_to_fix_bio_plan = 1;
 
                 }
+                //eof case own_payment
 
 
 
@@ -822,6 +815,7 @@ class SMAIUpdateProfileController extends Controller
                 if($this->upFromWhere=='bio')
                 {
                     $check_upFromMain = 1;
+                    $payment_type = 'main_payment';
                 }
 
 
@@ -832,6 +826,8 @@ class SMAIUpdateProfileController extends Controller
                 if ($check_upFromMain > 0 || $this->upFromWhere == 'main_coin' || Str::contains(strtolower($this->upFromWhere), 'main_coin') || Str::contains(strtolower($this->upFromWhere), 'maincoin')) {
                     //fixed bug case plan id in Main is not 0 or 8 but Subscription not found
                     //fixed added Subscription status is active or trialing
+
+                    $payment_type = 'main_payment';
 
                     //fixing bugging case
                     $main_subscription = SubscriptionMain::where('user_id', $user_id)->where('stripe_status', 'active')->orWhere('stripe_status', 'trialing')->first();
@@ -868,7 +864,7 @@ class SMAIUpdateProfileController extends Controller
 
                     $have_to_fix_bio_plan = 0;
                     //step2.3 check if Bio Plan is same as Main Plan
-                    if ($Bio_plan_should_be == $current_main_plan_id) {
+                    if ($Bio_plan_should_be == $current_bio_plan_id) {
                         
                         Log::debug('Bio Plan ID is same from DB and Setting');
                         //then check main Plan expired date
@@ -1119,7 +1115,17 @@ class SMAIUpdateProfileController extends Controller
             }
 
             //Start Swith case of Profile update
-            if (in_array("ai_template", $whatup) && $this->upFromWhere == 'bio') {
+             if(in_array("team_token_update", $whatup))
+            {
+                //when Team manager update token
+
+            }
+            else if(in_array("user_token_upgrade", $whatup))
+            {
+                //when user upgrade token from Main Coin
+
+            }
+            else if (in_array("ai_template", $whatup) && $this->upFromWhere == 'bio') {
 
                 Log::debug('Start What to do in case Bio update Ai Docs Template');
 
@@ -2366,11 +2372,13 @@ class SMAIUpdateProfileController extends Controller
     public function up_plan_main_coin($userdata, $user_id, $user_email, $case = NULL)
     {
 
-        $obj_plan_id_fix= new Plan_ID_FixController ($this->upFromWhere);
+        Log::debug("Start update Main Coin Profile to all Platforms in up_plan_main_coin calling from : ".$this->upFromWhere);
+        $obj_plan_id_fix = new Plan_ID_FixController();
+        $obj_plan_id_fix->setUp($this->upFromWhere);
         $obj_plan_id_fix->update_plan_id_feature($userdata, $user_id, $user_email, $case);
 
-
-        $obj_token_fix= new Plan_Token_FixController ($this->upFromWhere);
+        $obj_token_fix= new Plan_Token_FixController ();
+        $obj_token_fix->setUp($this->upFromWhere);
         $obj_token_fix->update_fix_token($userdata, $user_id, $user_email, $case);
         
 

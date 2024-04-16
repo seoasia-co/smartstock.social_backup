@@ -20,20 +20,39 @@ use App\Models\PlanBio;
 use App\Models\SPTeam;
 use App\Models\TokenLogs;
 use App\Models\UserCRM;
+use App\Models\User;
 
 use App\Models\SubscriptionMain;
+use App\Models\SubscriptionBio;
+
+use Log;
+use Session;
+use Cookie;
+use Carbon\Carbon;
+use stdClass;
+use Str;
+use Storage;
+use App\Models\Plan;
+use App\Models\PlanMobile;
 
 
-class Plan_Token_FixController extends Controller
+class Plan_Token_FixController  extends \App\Http\Controllers\Controller
 {
     public $upFromWhere;
     public $obj_SMAIUpdateProfile;
 
     public function __construct()
     {
-        $this->upFromWhere=$fromwhere;
-        $this->obj_SMAIUpdateProfile = new SMAIUpdateProfileController();
+        
     }
+
+            public function setUp($fromwhere)
+        {
+            Log::debug("Start Plan_ID_FixController setUp ".$fromwhere);
+                
+            $this->upFromWhere = $fromwhere;
+            $this->obj_SMAIUpdateProfile = new SMAIUpdateProfileController();
+        }
 
    //fixing fixing becuase the below code is not yet tested
     public function team_plan_token_fix()
@@ -115,13 +134,14 @@ class Plan_Token_FixController extends Controller
 
         if (isset($where_payment_bundle_from->id) && $where_payment_bundle_from->id > 0) {
             $token_id_added = $where_payment_bundle_from->id;
-            $token_log_added = TokenLogs::where('$token_log_added', $token_id_added)->first();
+            $token_log_added = TokenLogs::where('token_log_added', $token_id_added)->first();
 
         }
 
-        if ($token_log_added->id > 0)
+        if ($token_log_added !== null && $token_log_added->id > 0) {
             Log::debug('This Subscription ID  ' . $token_id_added . ' was ever added the StartUp Tokens of Plan so SKIP Tokens start Up add');
-        else
+        }
+            else
         {
 
 
@@ -178,7 +198,7 @@ class Plan_Token_FixController extends Controller
             $check_plus_remaining = PlanBio::where('plan_id', $plan_bio_check_id)->orderBy('plan_id', 'asc')->first();
 
             //check if Tokens from package is Golden Tokens
-            if ($golden_tokens == 1) {
+            if (isset($golden_tokens) && $golden_tokens == 1) {
                 //add tokens to  main Golden Tokens
                 //2. should add? golden_freeze_date , golden_expired_date
                 $golden_tokens_save = array(
@@ -409,6 +429,11 @@ class Plan_Token_FixController extends Controller
         }
             //eof update Token for new Subscription ID (new payment or transaction)
 
+            if(!isset($usage))
+            $usage=0;
+
+            if(!isset($from))
+            $from=$this->upFromWhere;
             
             //step2 final centralize token choose one of them
             $return_token_update =$this->obj_SMAIUpdateProfile->update_token_centralize($user_id, $user_email, $token_array, $usage, $from, $old_reamaining_word, $old_reamaining_image, $chatGPT_catgory = "PlanUpgrade_from_MainCoIn", $token_update_type = 'both', $token_plus_array, $case, $where_payment_bundle_from->id);
@@ -445,12 +470,12 @@ class Plan_Token_FixController extends Controller
                         $user_bio_plan_id = $user_bio_plan->plan_id;
     
                        
-                        $start_bio_synthesized_characters_per_month_limit = $this->get_bio_plan_settings('synthesized_characters_per_month_limit', $user_bio_plan_id);
+                        $start_bio_synthesized_characters_per_month_limit = $this->obj_SMAIUpdateProfile->get_bio_plan_settings('synthesized_characters_per_month_limit', $user_bio_plan_id);
                         Log::debug('Start Bio Synthesized Characters Per Month Limit : ' . $start_bio_synthesized_characters_per_month_limit);
-                        $start_bio_transcriptions_per_month_limit = $this->get_bio_plan_settings('transcriptions_per_month_limit', $user_bio_plan_id);
+                        $start_bio_transcriptions_per_month_limit = $this->obj_SMAIUpdateProfile->get_bio_plan_settings('transcriptions_per_month_limit', $user_bio_plan_id);
                         Log::debug('Start Bio Transcriptions Per Month Limit : ' . $start_bio_transcriptions_per_month_limit);
     
-                        $stat_bio_chats_per_month_limit = $this->get_bio_plan_settings('chats_per_month_limit', $user_bio_plan_id);
+                        $stat_bio_chats_per_month_limit = $this->obj_SMAIUpdateProfile->get_bio_plan_settings('chats_per_month_limit', $user_bio_plan_id);
     
                        //bof the others monthy limit value of Bio Plan
                        //add the others monthy limit value of others platforms here 

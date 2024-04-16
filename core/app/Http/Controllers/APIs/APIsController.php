@@ -2520,18 +2520,29 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
         $contents = $request->contents;
         $connection = $request->connection;
-        //var_dump($contents); // show contents
+        $file_name = $request->file_name;
+        $lang_table=$request->lang_table;
+        //eof get data from request
+
+        var_dump($contents); // show contents
         $contents = json_decode($contents, true);
 
         $new_lang_key_array = $contents['key'];
         $new_lang_desc_array = $contents['desc'];
 
-        //Log::info( $new_lang_desc_array);
+        Log::info( $new_lang_desc_array);
 
         //start or stop
         //$conn_smart=array();
         $new_punbot_func = new SMAI_SEO_PUNBOTController();
-        $lang_table = 'translation_example_lang';
+       
+        //fixing fixing update this table to dynamic
+        // $lang_table = 'translation_example_lang';
+        //$lang_table = 'translation_th_lang';
+       /*  $lang_table = 'translation_id_lang_php'; */
+       /* $lang_table = 'translation_ja_lang_php'; */
+       //$lang_table = 'translation_ko_lang_php';
+        
 
         if ($connection == 'bio_db') {
             date_default_timezone_set('Asia/Bangkok');
@@ -2555,6 +2566,31 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
         }
 
+
+        if ($connection == 'smartmenu_db') {
+            date_default_timezone_set('Asia/Bangkok');
+            // Host Name
+            $db_hostname_s = 'localhost';
+            // Database Name
+            $db_name_s = 'admin_mysmartmenu';
+            // Database Username
+            $db_username_s = 'admin_mysmartmenu';
+            // Database Password
+            $db_password_s = 'Ba5LMavmU4pqNXxfE2DZ';
+            // define( 'DB_CHARSET', 'utf8mb4' );
+            try {
+
+                $conn_smart = new PDO("mysql:host=$db_hostname_s;dbname=$db_name_s", $db_username_s, $db_password_s, array(PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"));
+                $conn_smart->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+            } catch (PDOException $e) {
+                Log::info($e->getMessage('utf8mb4'));
+            }
+
+        }
+
+
+
         if ($connection == 'main_old_coin') {
             date_default_timezone_set('Asia/Bangkok');
             // Host Name
@@ -2577,7 +2613,11 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
 
         }
 
-        //$return_lang_ins= $new_punbot_func->ins_lang_smart_content($lang_table,$new_lang_key_array,$new_lang_desc_array,$conn_smart);
+
+        //un comment this when you want to use translate and insert to $lang_table
+        //$return_lang_ins= $new_punbot_func->ins_lang_smart_content($lang_table,$new_lang_key_array,$new_lang_desc_array,$conn_smart,$file_name);
+        
+        //swith thw above to below when just want to export json file
         $return_lang_ins = 1;
 
         if ($return_lang_ins == 1) {

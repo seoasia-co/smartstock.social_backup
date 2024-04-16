@@ -257,7 +257,22 @@ class AIController extends Controller
 
         //CONTENT REWRITE
         if ($post_type == 'content_rewrite') {
-            $contents = $request->contents;
+            //$post_type = 'text_spinner_rewriter';
+            
+            if(isset($request->description))
+            $contents = $request->description;
+            else
+            $contents =$request->contents;
+          
+            Log::debug(' contents inside function buildOutput '.$contents);
+
+           // Check if the content starts and ends with a quote
+            if (str_starts_with($contents, '"') && str_ends_with($contents, '"')) {
+                // Remove the quotes
+                $contents = substr($contents, 1, -1);
+            }
+
+            Log::debug(' contents inside function buildOutput after substr '.$contents);
 
             $prompt = "Rewrite content:  '$contents'. Maximum $maximum_length words. Creativity is $creativity between 0 and 1. Language is $language. Generate $number_of_results different rewrited content. Tone of voice must be $tone_of_voice";
         }
@@ -337,11 +352,20 @@ class AIController extends Controller
         if($post_type == 'language_translation')
         {
 
-           // $language='Indonesian'; 
             $description = $request->description;
-            $prompt = "Translate $description. from English to $language." ;
-
-           // $prompt = "Translate the following English text to $language. Note: Preserve the HTML tags: $description";
+            
+            //the backup V1 $prompt
+            $prompt = "Translate the following English text to $language: \"$description.\"";
+            
+            //V2 $prompt
+            //$prompt = 'Translate the following English text to ' . $language . ': ' . $description;
+            
+            //the backup $prompt V3
+            //$prompt = "Translate the following English text to {$language}: '{$description}'";
+           
+            
+            
+            // $prompt = "Translate the following English text to $language. Note: Preserve the HTML tags: $description";
 
             //Log::debug(' description inside function buildOutput '.$description);
 
@@ -365,6 +389,24 @@ class AIController extends Controller
             $prompt = "Write a code about $description, in $code_language";
         }
 
+        if ($post_type == 'ai_rewriter') {
+            
+            if(isset($request->content_rewrite))
+            $content_rewrite = $request->content_rewrite;
+            else
+            $content_rewrite = $request->description;
+          
+            if(isset($request->rewrite_mode))
+            $rewrite_mode = $request->rewrite_mode;
+            else
+            $rewrite_mode = 'Professional';
+
+            
+
+            $prompt = "Original Content: $content_rewrite.\n\n\nMust Rewrite content with $rewrite_mode mode differently with original content. Result language is $language \n";
+        }
+
+
         $post = OpenAIGenerator::where('slug', $post_type)->first();
 
         if ($post->custom_template == 1) {
@@ -381,7 +423,27 @@ class AIController extends Controller
         if ($post->type == 'text') {
             
             if($post_type == 'language_translation')
-            return $this->textOutput($prompt, $post, $creativity, $maximum_length, $number_of_results, $user,$user_id,$post_type);
+            {
+
+                try {
+                    // Version 1
+                    $prompt = "Translate the following English text to $language: \"$description.\"";
+                    return $this->textOutput($prompt, $post, $creativity, $maximum_length, $number_of_results, $user,$user_id,$post_type);
+                } catch(Exception $e) {
+                    try {
+                        // Version 2
+                        $prompt = 'Translate the following English text to ' . $language . ': ' . $description;
+                        return $this->textOutput($prompt, $post, $creativity, $maximum_length, $number_of_results, $user,$user_id,$post_type);
+                    } catch(Exception $e) {
+                        // Version 3
+                        $prompt = "Translate the following English text to '{$language}': '{$description}'";
+                        return $this->textOutput($prompt, $post, $creativity, $maximum_length, $number_of_results, $user,$user_id,$post_type);
+                    }
+                }
+
+
+            }
+            
             else
             return $this->textOutput($prompt, $post, $creativity, $maximum_length, $number_of_results, $user,$user_id,$post_type);
         }

@@ -164,13 +164,22 @@ public function transliteration($str) {
     
     }
     
-    public function  ins_lang_smart_content($lang_table,$lang_key_array,$lang_desc_array,$conn_smart)
+    public function  ins_lang_smart_content($lang_table,$lang_key_array,$lang_desc_array,$conn_smart,$file_name=NULL)
     {
     
       $t_now = date('Y-m-d H:i:s');
+
+      if(isset($file_name) && $file_name!=NULL)
+      {
+        $insert = $conn_smart->prepare("INSERT IGNORE INTO $lang_table (key_lang, desc_value, desc_en_value, created_at, translated, file_name ) VALUES(?,?,?,?,?,?)");
+      }
+      else
+      {
+        $insert = $conn_smart->prepare("INSERT IGNORE INTO $lang_table (key_lang, desc_value, desc_en_value, created_at, translated ) VALUES(?,?,?,?,?)");
+      }
     
     
-      $insert = $conn_smart->prepare("INSERT IGNORE INTO $lang_table (key_lang, desc_value, desc_en_value, created_at, translated ) VALUES(?,?,?,?,?)");
+      //$insert = $conn_smart->prepare("INSERT IGNORE INTO $lang_table (key_lang, desc_value, desc_en_value, created_at, translated ) VALUES(?,?,?,?,?)");
     
      if( count($lang_key_array)>0)
      {
@@ -179,10 +188,16 @@ public function transliteration($str) {
     
       for($i=0;$i<count($lang_key_array); $i++)
       {
+        
         if($lang_desc_array[$i]==NULL)
         $lang_desc_array[$i]='';
     
-          $insert->execute(array( $lang_key_array[$i] , $lang_desc_array[$i] , $lang_desc_array[$i], $t_now ,0));
+        if(isset($file_name) && $file_name!=NULL)
+        $insert->execute(array( $lang_key_array[$i] , $lang_desc_array[$i] , $lang_desc_array[$i], $t_now ,0, $file_name));
+        else
+        $insert->execute(array( $lang_key_array[$i] , $lang_desc_array[$i] , $lang_desc_array[$i], $t_now ,0));
+          
+          
           //echo "<br><br>!!!!!!!!!! Insert Smart Content Lang  success of ".$i."  ".$lang_key_array[$i];
           $lang_ins=1;
       }

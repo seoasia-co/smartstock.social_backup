@@ -21,22 +21,39 @@ use App\Models\PlanBio;
 use App\Models\SPTeam;
 use App\Models\TokenLogs;
 use App\Models\UserCRM;
+use App\Models\User;
 
 use App\Models\SubscriptionMain;
+use Log;
+use Session;
+use Cookie;
+use Carbon\Carbon;
+use stdClass;
+use Str;
+use Storage;
+use App\Models\Plan;
+use App\Models\PlanMobile;
 
 
-class Plan_ID_FixController extends Controller
+
+class Plan_ID_FixController  extends \App\Http\Controllers\Controller
 {
     //
     public $upFromWhere;
     public $obj_SMAIUpdateProfile;
 
-    public function __construct($fromwhere)
+    public function __construct()
     {
         
-        $this->upFromWhere=$fromwhere;
-        $this->obj_SMAIUpdateProfile = new SMAIUpdateProfileController();
     }
+
+            public function setUp($fromwhere)
+        {
+            Log::debug("Start Plan_ID_FixController setUp ".$fromwhere);
+                
+            $this->upFromWhere = $fromwhere;
+            $this->obj_SMAIUpdateProfile = new SMAIUpdateProfileController();
+        }
 
     //fixing fixing becuase the below code is not yet tested
     public function update_team_plan_id_feature()
@@ -129,7 +146,11 @@ class Plan_ID_FixController extends Controller
             //step2.7.1.2 Update MainCoIn back to free Plan if it's trial end or package end
             if ($main_coin_plan === 0 || $main_coin_plan == 8) {
                 //Update MainCoIn back to free Plan
-                $main_subscription = SubscriptionMain::where('user_id', $user_id)->where('stripe_status', 'trialing')->latest('id')->first();
+                //$main_subscription = SubscriptionMain::where('user_id', $user_id)->where('stripe_status', 'trialing')->latest('id')->first();
+                $main_subscription = SubscriptionMain::where('user_id', $user_id)
+                        ->whereIn('stripe_status', ['active', 'trialing']) 
+                        ->latest('id')->first();
+                
                 if (isset($main_subscription)) {
                     $main_subscription->stripe_status = 'cancelled';
                     $main_subscription->save();
@@ -233,13 +254,61 @@ class Plan_ID_FixController extends Controller
             }
 
 
-
-
                 //Separate all of these for each platform
+
+
+                Log::debug('Start update plan id and feature all Platforms in update_plan_id_feature with userdat : ' );
+                Log::info($userdata);
+                //exit();
+
+                //get the plan id from main
+                $main_subscription = SubscriptionMain::where('user_id', $user_id)->latest('id')->first();
+
+                $trialEndsAt = null;
+                if(isset($main_subscription->trial_ends_at)) {
+                    try {
+                        $trialEndsAt = \Carbon\Carbon::parse($main_subscription->trial_ends_at);
+                    } catch (\Exception $e) {
+                        // Log if invalid date, you may ignore this part if you are sure about the format
+                        Log::debug('Error in trialEndsAt not set or NULL');
+                    }
+                }
+
+                $endsAt = null;
+                if(isset($main_subscription->ends_at)) {
+                    try {
+                        $endsAt = \Carbon\Carbon::parse($main_subscription->ends_at);
+                    } catch (\Exception $e) {
+                        // Log if invalid date, you may ignore this part if you are sure about the format
+                        Log::debug('Error in endsAt not set or NULL');
+                    }
+                }
+
+
+                $expiryDate = $trialEndsAt ? $trialEndsAt : ($endsAt ? $endsAt : null);
+
+                if($expiryDate) {
+                    $userdata['expiration_date'] = $expiryDate->format('Y-m-d H:i:s'); // or any format you want
+                    $userdata['plan_expire_date'] = $expiryDate->format('Y-m-d H:i:s'); // or any format you want
+                    $userdata['expired_date'] = $expiryDate->format('Y-m-d H:i:s'); // or any format you want
+                } else {
+                    // Handle if no valid date found
+                    Log::debug('Error in expiryDate not set or NULL');
+                }
+
+                // Get total words and total images from main user table
+                $mainuser_data = UserMain::where('id', $user_id)->first();
+
+                if($mainuser_data) {
+                    $userdata['total_words'] = $mainuser_data->total_words;
+                    $userdata['total_images'] = $mainuser_data->total_images;
+                } else {
+                    // Handle user not found scenario
+                    Log::debug('Error in mainuser_data not set or NULL');
+                }
 
                 //plan main marketing && mobile old
                 if (isset($userdata['package_id'])) {
-
 
                     //To Main marketing co.in, Mobile old,
                     //Main expired_date => $userdata['expiration_date'],
@@ -260,7 +329,7 @@ class Plan_ID_FixController extends Controller
                     );
 
 
-                    $this->update_column_all($userdata_main_plan_array, $user_id, $user_email, 'main_db', 'users');
+                    $this->obj_SMAIUpdateProfile->update_column_all($userdata_main_plan_array, $user_id, $user_email, 'main_db', 'users');
 
 
                     //Socialpost Expired date
@@ -268,7 +337,7 @@ class Plan_ID_FixController extends Controller
                         'expiration_date' => strtotime($userdata['expiration_date']),
 
                     );
-                    $this->update_column_all($expire_date_arr, $user_id, $user_email, 'main_db', 'sp_users');
+                    $this->obj_SMAIUpdateProfile->update_column_all($expire_date_arr, $user_id, $user_email, 'main_db', 'sp_users');
 
 
                     //MobileApp Expired date
@@ -276,7 +345,7 @@ class Plan_ID_FixController extends Controller
                         'subscription_end_date' => $userdata['expired_date'],
 
                     );
-                    $this->update_column_all($expire_dateMobile_arr, $user_id, $user_email, 'mobileapp_db', 'users');
+                    $this->obj_SMAIUpdateProfile->update_column_all($expire_dateMobile_arr, $user_id, $user_email, 'mobileapp_db', 'users');
 
 
                     //Sync Expired date planexpire
@@ -284,7 +353,7 @@ class Plan_ID_FixController extends Controller
                         'planexpire' => $userdata['expired_date'],
 
                     );
-                    $this->update_column_all($expire_dateSync_arr, $user_id, $user_email, 'sync_db', 'user');
+                    $this->obj_SMAIUpdateProfile->update_column_all($expire_dateSync_arr, $user_id, $user_email, 'sync_db', 'user');
 
 
                 }
