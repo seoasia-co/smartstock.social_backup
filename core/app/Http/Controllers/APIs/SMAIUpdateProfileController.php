@@ -2369,6 +2369,24 @@ class SMAIUpdateProfileController extends Controller
     //step2.7 ยึดตามการสมัครใช้งานหรือซื้อแพคเกจหรือการล๊อคอินจาก Main Platform
     //fixing fixing up_plan_series should devided to 3 major 1.Feature Sync 2.Token Sync 3.TimeSync
    
+    public function up_plan_all_platform($userdata, $user_id, $user_email, $case = NULL)
+    {
+
+        Log::debug("Start update All Platform Profile to all Platforms in up_plan_main_coin calling from : ".$this->upFromWhere);
+        $obj_plan_id_fix = new Plan_ID_FixController();
+        $obj_plan_id_fix->setUp($this->upFromWhere);
+        $obj_plan_id_fix->update_plan_id_feature($userdata, $user_id, $user_email, $case);
+
+        $obj_token_fix= new Plan_Token_FixController ();
+        $obj_token_fix->setUp($this->upFromWhere);
+        $obj_token_fix->update_fix_token($userdata, $user_id, $user_email, $case);
+        
+
+    
+    }
+
+
+
     public function up_plan_main_coin($userdata, $user_id, $user_email, $case = NULL)
     {
 

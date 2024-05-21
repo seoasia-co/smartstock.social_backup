@@ -2542,6 +2542,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
        /*  $lang_table = 'translation_id_lang_php'; */
        /* $lang_table = 'translation_ja_lang_php'; */
        //$lang_table = 'translation_ko_lang_php';
+       Log::info('lang_table : '.$lang_table);
         
 
         if ($connection == 'bio_db') {
@@ -2590,6 +2591,29 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         }
 
 
+        if ($connection == 'main_db') {
+            date_default_timezone_set('Asia/Bangkok');
+            // Host Name
+            $db_hostname_s = 'localhost';
+            // Database Name
+            $db_name_s = 'cafealth_smartcontent_pen';
+            // Database Username
+            $db_username_s = 'cafealth_smartcontent_pen';
+            // Database Password
+            $db_password_s = 'xlJ.%&T[oE=?';
+            // define( 'DB_CHARSET', 'utf8mb4' );
+            try {
+
+                $conn_smart = new PDO("mysql:host=$db_hostname_s;dbname=$db_name_s", $db_username_s, $db_password_s, array(PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"));
+                $conn_smart->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+            } catch (PDOException $e) {
+                Log::info($e->getMessage('utf8mb4'));
+            }
+
+        }
+
+
 
         if ($connection == 'main_old_coin') {
             date_default_timezone_set('Asia/Bangkok');
@@ -2614,12 +2638,40 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         }
 
 
-        //un comment this when you want to use translate and insert to $lang_table
-        //$return_lang_ins= $new_punbot_func->ins_lang_smart_content($lang_table,$new_lang_key_array,$new_lang_desc_array,$conn_smart,$file_name);
         
-        //swith thw above to below when just want to export json file
-        $return_lang_ins = 1;
+        try {
+            $sql = "SELECT * FROM `".$lang_table."` WHERE `translated` = 0 AND `stop_translation` = 0";
+            $query = $conn_smart->prepare($sql);
+            $query->execute();
+            $rowCount1 = $query->rowCount();
+        
+            $sql2 = "SELECT * FROM `".$lang_table."` WHERE `file_name` = :file_name";
+            $query2 = $conn_smart->prepare($sql2);
+            $query2->bindParam(':file_name', $file_name, PDO::PARAM_STR);
+            $query2->execute();
+            $rowCount2 = $query2->rowCount();
+        
+            if($rowCount1 == 0 && $rowCount2 == 0) {
+                $return_lang_ins = $new_punbot_func->ins_lang_smart_content($lang_table, $new_lang_key_array, $new_lang_desc_array, $conn_smart, $file_name);
+            }
+            else if($rowCount1 > 0)
+            {
+                $return_lang_ins = $new_punbot_func->ins_lang_smart_content($lang_table, $new_lang_key_array, $new_lang_desc_array, $conn_smart, $file_name);
 
+            } else {
+                $return_lang_ins = 1;
+                Log::info('Data already exists and $return_lang_ins = 1');
+            }
+        } catch(PDOException $e) {
+            echo "Error: " . $e->getMessage();
+        }
+
+        //$return_lang_ins = $new_punbot_func->ins_lang_smart_content($lang_table, $new_lang_key_array, $new_lang_desc_array, $conn_smart, $file_name);
+
+
+       // $return_lang_ins= $new_punbot_func->ins_lang_smart_content($lang_table, $new_lang_key_array, $new_lang_desc_array, $conn_smart, $file_name);
+
+      
         if ($return_lang_ins == 1) {
             // Response MSG
             $response = [
@@ -3533,7 +3585,7 @@ For more details check <a href='http://smartfordesign.net/smartend/documentation
         $update_profile_user = new SMAIUpdateProfileController($request, $user_id, $user_email, $whatup, $upFromWhere, $upByWhom);
 
         $user_bio = UserBio::where('user_id', $user_id)->first();
-        if ($user_bio->plan_id)
+        if (isset($user_bio->plan_id) && $user_bio->plan_id)
             Log::debug("Check update Bio user plain ID LINE 3497 before APIsController BioReset " . $user_bio->plan_id);
 
 
